@@ -1,6 +1,4 @@
-const { PrismaClient } = require('../generated/prisma');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 const patientService = {
   /**
@@ -69,7 +67,7 @@ const patientService = {
       prisma.patient.findMany({
         where,
         skip,
-        take: limit,
+        take: parseInt(limit) || 10,
         orderBy: { createdAt: 'desc' },
       }),
       prisma.patient.count({ where }),
