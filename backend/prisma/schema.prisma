@@ -14,8 +14,8 @@ datasource db {
 }
 
 model Patient {
-  id                    String    @id @default(uuid())
-  mrn                   String    @unique @default(cuid()) // Medical Record Number
+  id                    String        @id @default(uuid())
+  mrn                   String        @unique @default(cuid()) // Medical Record Number
   firstName             String
   middleName            String?
   lastName              String
@@ -26,11 +26,31 @@ model Patient {
   address               String?
   insuranceProvider     String?
   policyNumber          String?
-  copay                 Decimal?  @db.Decimal(10, 2)
-  deductible            Decimal?  @db.Decimal(10, 2)
+  copay                 Decimal?      @db.Decimal(10, 2)
+  deductible            Decimal?      @db.Decimal(10, 2)
   primaryCarePhysician  String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  appointments          Appointment[]
 
   @@map("patients")
+}
+
+model Appointment {
+  id              String   @id @default(uuid())
+  appointmentDate DateTime @db.Date
+  appointmentTime String   // Store as HH:MM format
+  duration        Int      @default(30) // Duration in minutes
+  appointmentType String   // New, Follow-up, Televisit
+  visitReason     String?  // Chief Complaint
+  department      String?  // Department / Specialty
+  provider        String?  // Provider / Physician Assigned
+  status          String   @default("Scheduled") // Scheduled, Checked-In, In Progress, Completed, Cancelled, No-Show, Rescheduled
+  notes           String?
+  patientId       String
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("appointments")
 }
