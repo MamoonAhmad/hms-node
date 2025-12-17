@@ -15,11 +15,14 @@ const patientService = {
         contactNumber: data.contactNumber,
         email: data.email,
         address: data.address,
-        insuranceProvider: data.insuranceProvider,
+        insuranceProviderId: data.insuranceProviderId,
         policyNumber: data.policyNumber,
         copay: data.copay,
         deductible: data.deductible,
         primaryCarePhysician: data.primaryCarePhysician,
+      },
+      include: {
+        insuranceProvider: true,
       },
     });
   },
@@ -27,8 +30,8 @@ const patientService = {
   /**
    * Get all patients with optional pagination and filters
    */
-  async findAll({ page = 1, limit = 10, search = '', gender, insuranceProvider }) {
-    const skip = (page - 1) * limit;
+  async findAll({ page = 1, limit = 10, search = '', gender, insuranceProviderId }) {
+    const skip = (page - 1) * parseInt(limit);
 
     // Build where clause
     const where = {};
@@ -52,10 +55,8 @@ const patientService = {
     }
 
     // Insurance provider filter
-    if (insuranceProvider) {
-      conditions.push({
-        insuranceProvider: { contains: insuranceProvider, mode: 'insensitive' },
-      });
+    if (insuranceProviderId) {
+      conditions.push({ insuranceProviderId });
     }
 
     // Combine conditions with AND
@@ -69,6 +70,15 @@ const patientService = {
         skip,
         take: parseInt(limit) || 10,
         orderBy: { createdAt: 'desc' },
+        include: {
+          insuranceProvider: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
       }),
       prisma.patient.count({ where }),
     ]);
@@ -76,10 +86,10 @@ const patientService = {
     return {
       data: patients,
       pagination: {
-        page,
-        limit,
+        page: parseInt(page),
+        limit: parseInt(limit),
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / parseInt(limit)),
       },
     };
   },
@@ -90,6 +100,9 @@ const patientService = {
   async findById(id) {
     return prisma.patient.findUnique({
       where: { id },
+      include: {
+        insuranceProvider: true,
+      },
     });
   },
 
@@ -99,6 +112,9 @@ const patientService = {
   async findByMrn(mrn) {
     return prisma.patient.findUnique({
       where: { mrn },
+      include: {
+        insuranceProvider: true,
+      },
     });
   },
 
@@ -115,6 +131,9 @@ const patientService = {
     return prisma.patient.update({
       where: { id },
       data: updateData,
+      include: {
+        insuranceProvider: true,
+      },
     });
   },
 
