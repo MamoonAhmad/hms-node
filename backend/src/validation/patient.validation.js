@@ -35,7 +35,10 @@ const createPatientSchema = Joi.object({
       'string.email': 'Invalid email format',
     }),
   address: Joi.string().trim().max(500).allow('', null),
-  insuranceProvider: Joi.string().trim().max(200).allow('', null),
+  insuranceProviderId: Joi.string().uuid().allow('', null)
+    .messages({
+      'string.guid': 'Invalid insurance provider ID format',
+    }),
   policyNumber: Joi.string().trim().max(100).allow('', null),
   copay: Joi.number().min(0).precision(2).allow(null)
     .messages({
@@ -78,7 +81,10 @@ const updatePatientSchema = Joi.object({
       'string.email': 'Invalid email format',
     }),
   address: Joi.string().trim().max(500).allow('', null),
-  insuranceProvider: Joi.string().trim().max(200).allow('', null),
+  insuranceProviderId: Joi.string().uuid().allow('', null)
+    .messages({
+      'string.guid': 'Invalid insurance provider ID format',
+    }),
   policyNumber: Joi.string().trim().max(100).allow('', null),
   copay: Joi.number().min(0).precision(2).allow(null)
     .messages({
@@ -108,7 +114,7 @@ const queryPatientSchema = Joi.object({
     }),
   search: Joi.string().trim().max(100).allow(''),
   gender: Joi.string().lowercase().valid('male', 'female', 'other'),
-  insuranceProvider: Joi.string().trim().max(200),
+  insuranceProviderId: Joi.string().uuid(),
 });
 
 /**

@@ -1,14 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -17,27 +10,38 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
-import { DeleteConfirmDialog } from '@/components/patients/DeleteConfirmDialog';
-import { patientApi } from '@/services/api';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { InsuranceProviderFormDialog } from '@/components/insurance/InsuranceProviderFormDialog';
+import { insuranceProviderApi } from '@/services/api';
 
-export function PatientsPage() {
-  const [patients, setPatients] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
+export function InsuranceProvidersPage() {
+  const [providers, setProviders] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Filters
   const [search, setSearch] = useState('');
-  const [genderFilter, setGenderFilter] = useState('');
 
   // Dialogs
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedProvider, setSelectedProvider] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchPatients = useCallback(async () => {
+  const fetchProviders = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -46,29 +50,23 @@ export function PatientsPage() {
         limit: pagination.limit,
       };
       if (search) params.search = search;
-      if (genderFilter) params.gender = genderFilter;
 
-      const response = await patientApi.getAll(params);
-      setPatients(response.data);
+      const response = await insuranceProviderApi.getAll(params);
+      setProviders(response.data);
       setPagination((prev) => ({ ...prev, ...response.pagination }));
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search, genderFilter]);
+  }, [pagination.page, pagination.limit, search]);
 
   useEffect(() => {
-    fetchPatients();
-  }, [fetchPatients]);
+    fetchProviders();
+  }, [fetchProviders]);
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  const handleGenderChange = (value) => {
-    setGenderFilter(value === 'all' ? '' : value);
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
@@ -77,30 +75,30 @@ export function PatientsPage() {
   };
 
   const handleCreate = () => {
-    setSelectedPatient(null);
+    setSelectedProvider(null);
     setIsFormOpen(true);
   };
 
-  const handleEdit = (patient) => {
-    setSelectedPatient(patient);
+  const handleEdit = (provider) => {
+    setSelectedProvider(provider);
     setIsFormOpen(true);
   };
 
-  const handleDelete = (patient) => {
-    setSelectedPatient(patient);
+  const handleDelete = (provider) => {
+    setSelectedProvider(provider);
     setIsDeleteOpen(true);
   };
 
   const handleFormSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      if (selectedPatient) {
-        await patientApi.update(selectedPatient.id, data);
+      if (selectedProvider) {
+        await insuranceProviderApi.update(selectedProvider.id, data);
       } else {
-        await patientApi.create(data);
+        await insuranceProviderApi.create(data);
       }
       setIsFormOpen(false);
-      fetchPatients();
+      fetchProviders();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -111,9 +109,9 @@ export function PatientsPage() {
   const handleDeleteConfirm = async () => {
     setIsSubmitting(true);
     try {
-      await patientApi.delete(selectedPatient.id);
+      await insuranceProviderApi.delete(selectedProvider.id);
       setIsDeleteOpen(false);
-      fetchPatients();
+      fetchProviders();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -121,26 +119,17 @@ export function PatientsPage() {
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Patients</h1>
-          <p className="text-muted-foreground">Manage patient records</p>
+          <h1 className="text-2xl font-bold text-foreground">Insurance Providers</h1>
+          <p className="text-muted-foreground">Manage insurance provider records</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="h-4 w-4" />
-          Add Patient
+          Add Provider
         </Button>
       </div>
 
@@ -150,24 +139,13 @@ export function PatientsPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by name, MRN, or email..."
+              placeholder="Search by name or code..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
             />
           </div>
         </form>
-        <Select value={genderFilter || 'all'} onValueChange={handleGenderChange}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All Genders" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Genders</SelectItem>
-            <SelectItem value="male">Male</SelectItem>
-            <SelectItem value="female">Female</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Error State */}
@@ -182,12 +160,12 @@ export function PatientsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>MRN</TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>Date of Birth</TableHead>
-              <TableHead>Gender</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Insurance</TableHead>
+              <TableHead>Code</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Patients</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -201,31 +179,39 @@ export function PatientsPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : patients.length === 0 ? (
+            ) : providers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                  No patients found
+                  No insurance providers found
                 </TableCell>
               </TableRow>
             ) : (
-              patients.map((patient) => (
-                <TableRow key={patient.id}>
-                  <TableCell className="font-mono text-xs">{patient.mrn}</TableCell>
-                  <TableCell className="font-medium">
-                    {patient.firstName} {patient.middleName ? `${patient.middleName} ` : ''}
-                    {patient.lastName}
-                  </TableCell>
-                  <TableCell>{formatDate(patient.dateOfBirth)}</TableCell>
-                  <TableCell className="capitalize">{patient.gender}</TableCell>
+              providers.map((provider) => (
+                <TableRow key={provider.id}>
+                  <TableCell className="font-medium">{provider.name}</TableCell>
                   <TableCell>
-                    <div className="text-sm">{patient.contactNumber}</div>
-                    {patient.email && (
-                      <div className="text-xs text-muted-foreground">{patient.email}</div>
+                    {provider.code ? (
+                      <span className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium">
+                        {provider.code}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
+                  <TableCell>{provider.phone || <span className="text-muted-foreground">-</span>}</TableCell>
+                  <TableCell>{provider.email || <span className="text-muted-foreground">-</span>}</TableCell>
+                  <TableCell>{provider._count?.patients || 0}</TableCell>
                   <TableCell>
-                    {patient.insuranceProvider?.name || (
-                      <span className="text-muted-foreground">-</span>
+                    {provider.isActive ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                        <Check className="h-3 w-3" />
+                        Active
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800">
+                        <X className="h-3 w-3" />
+                        Inactive
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
@@ -233,14 +219,14 @@ export function PatientsPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => handleEdit(patient)}
+                        onClick={() => handleEdit(provider)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => handleDelete(patient)}
+                        onClick={() => handleDelete(provider)}
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -259,7 +245,7 @@ export function PatientsPage() {
             <p className="text-sm text-muted-foreground">
               Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
               {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-              {pagination.total} patients
+              {pagination.total} providers
             </p>
             <div className="flex items-center gap-2">
               <Button
@@ -288,25 +274,41 @@ export function PatientsPage() {
         )}
       </div>
 
-      {/* Dialogs */}
-      <PatientFormDialog
+      {/* Form Dialog */}
+      <InsuranceProviderFormDialog
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
-        patient={selectedPatient}
+        provider={selectedProvider}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
       />
 
-      <DeleteConfirmDialog
-        open={isDeleteOpen}
-        onOpenChange={setIsDeleteOpen}
-        patient={selectedPatient}
-        onConfirm={handleDeleteConfirm}
-        isLoading={isSubmitting}
-      />
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Insurance Provider</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <span className="font-semibold">{selectedProvider?.name}</span>?
+              {selectedProvider?._count?.patients > 0 && (
+                <span className="block mt-2 text-destructive">
+                  Warning: This provider has {selectedProvider._count.patients} patient(s) associated with it.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting}>
+              {isSubmitting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-
 

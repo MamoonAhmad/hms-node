@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { Users, LayoutDashboard, Calendar, FileText, Settings } from 'lucide-react';
+import { Users, LayoutDashboard, Calendar, FileText, Settings, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Patients', href: '/patients', icon: Users },
   { name: 'Appointments', href: '/appointments', icon: Calendar },
+  { name: 'Insurance', href: '/insurance-providers', icon: Shield },
   { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

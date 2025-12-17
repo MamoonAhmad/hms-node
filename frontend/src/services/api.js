@@ -17,7 +17,7 @@ export const patientApi = {
     if (params.limit) searchParams.set('limit', params.limit);
     if (params.search) searchParams.set('search', params.search);
     if (params.gender) searchParams.set('gender', params.gender);
-    if (params.insuranceProvider) searchParams.set('insuranceProvider', params.insuranceProvider);
+    if (params.insuranceProviderId) searchParams.set('insuranceProviderId', params.insuranceProviderId);
     
     const response = await fetch(`${API_BASE_URL}/patients?${searchParams}`);
     return handleResponse(response);
@@ -131,6 +131,65 @@ export const appointmentApi = {
   // Delete an appointment
   async delete(id) {
     const response = await fetch(`${API_BASE_URL}/appointments/${id}`, {
+      method: 'DELETE',
+    });
+    return handleResponse(response);
+  },
+};
+
+export const insuranceProviderApi = {
+  // Get all insurance providers with pagination and filters
+  async getAll(params = {}) {
+    const searchParams = new URLSearchParams();
+
+    if (params.page) searchParams.set('page', params.page);
+    if (params.limit) searchParams.set('limit', params.limit);
+    if (params.search) searchParams.set('search', params.search);
+    if (params.isActive !== undefined) searchParams.set('isActive', params.isActive);
+
+    const response = await fetch(`${API_BASE_URL}/insurance-providers?${searchParams}`);
+    return handleResponse(response);
+  },
+
+  // Get all active insurance providers (for dropdowns)
+  async getActive() {
+    const response = await fetch(`${API_BASE_URL}/insurance-providers/active`);
+    return handleResponse(response);
+  },
+
+  // Get insurance provider by ID
+  async getById(id) {
+    const response = await fetch(`${API_BASE_URL}/insurance-providers/${id}`);
+    return handleResponse(response);
+  },
+
+  // Create a new insurance provider
+  async create(data) {
+    const response = await fetch(`${API_BASE_URL}/insurance-providers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  // Update an insurance provider
+  async update(id, data) {
+    const response = await fetch(`${API_BASE_URL}/insurance-providers/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    return handleResponse(response);
+  },
+
+  // Delete an insurance provider
+  async delete(id) {
+    const response = await fetch(`${API_BASE_URL}/insurance-providers/${id}`, {
       method: 'DELETE',
     });
     return handleResponse(response);

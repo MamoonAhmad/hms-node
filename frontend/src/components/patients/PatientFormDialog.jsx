@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { insuranceProviderApi } from '@/services/api';
 
 const initialFormData = {
   firstName: '',
@@ -27,7 +28,7 @@ const initialFormData = {
   contactNumber: '',
   email: '',
   address: '',
-  insuranceProvider: '',
+  insuranceProviderId: '',
   policyNumber: '',
   copay: '',
   deductible: '',
@@ -37,8 +38,29 @@ const initialFormData = {
 export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoading }) {
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
+  const [insuranceProviders, setInsuranceProviders] = useState([]);
+  const [loadingProviders, setLoadingProviders] = useState(false);
 
   const isEditing = !!patient;
+
+  // Fetch insurance providers on mount
+  useEffect(() => {
+    const fetchProviders = async () => {
+      setLoadingProviders(true);
+      try {
+        const response = await insuranceProviderApi.getActive();
+        setInsuranceProviders(response.data || []);
+      } catch (err) {
+        console.error('Failed to fetch insurance providers:', err);
+      } finally {
+        setLoadingProviders(false);
+      }
+    };
+
+    if (open) {
+      fetchProviders();
+    }
+  }, [open]);
 
   useEffect(() => {
     if (patient) {
@@ -51,7 +73,7 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
         contactNumber: patient.contactNumber || '',
         email: patient.email || '',
         address: patient.address || '',
-        insuranceProvider: patient.insuranceProvider || '',
+        insuranceProviderId: patient.insuranceProviderId || '',
         policyNumber: patient.policyNumber || '',
         copay: patient.copay || '',
         deductible: patient.deductible || '',
@@ -229,12 +251,23 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
           {/* Insurance Info */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="insuranceProvider">Insurance Provider</Label>
-              <Input
-                id="insuranceProvider"
-                value={formData.insuranceProvider}
-                onChange={(e) => handleChange('insuranceProvider', e.target.value)}
-              />
+              <Label htmlFor="insuranceProviderId">Insurance Provider</Label>
+              <Select
+                value={formData.insuranceProviderId || ''}
+                onValueChange={(value) => handleChange('insuranceProviderId', value === 'none' ? '' : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingProviders ? 'Loading...' : 'Select insurance provider'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Insurance</SelectItem>
+                  {insuranceProviders.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.name} {provider.code && `(${provider.code})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="policyNumber">Policy Number</Label>
@@ -295,6 +328,3 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
     </Dialog>
   );
 }
-
-
-
