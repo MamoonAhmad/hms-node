@@ -143,3 +143,4 @@ router.delete('/:id', validate(appointmentIdSchema, 'params'), appointmentContro
 
 module.exports = router;
 
+
