@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, LayoutDashboard, Calendar, FileText, Settings, Shield, LogOut, Building2, MapPin } from 'lucide-react';
+import { Users, LayoutDashboard, Calendar, FileText, Settings, Shield, LogOut, Building2, MapPin, UserCog, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ const navigation = [
   { name: 'Insurance', href: '/insurance-providers', icon: Shield },
   { name: 'Tenants', href: '/tenants', icon: Building2 },
   { name: 'Locations', href: '/locations', icon: MapPin },
+  { name: 'Roles', href: '/roles', icon: UserCog },
+  { name: 'Permissions', href: '/permissions', icon: Lock },
   { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

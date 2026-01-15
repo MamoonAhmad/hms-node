@@ -9,6 +9,8 @@ const appointmentRoutes = require('./appointment.routes');
 const insuranceProviderRoutes = require('./insuranceProvider.routes');
 const tenantRoutes = require('./tenant.routes');
 const locationRoutes = require('./location.routes');
+const permissionRoutes = require('./permission.routes');
+const roleRoutes = require('./role.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -19,6 +21,8 @@ router.use('/appointments', auth, appointmentRoutes);
 router.use('/insurance-providers', auth, insuranceProviderRoutes);
 router.use('/tenants', auth, tenantRoutes);
 router.use('/locations', auth, locationRoutes);
+router.use('/permissions', auth, permissionRoutes);
+router.use('/roles', auth, roleRoutes);
 
 module.exports = router;
 
