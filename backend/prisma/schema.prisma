@@ -85,6 +85,8 @@ model User {
   tenantsUpdated    Tenant[]   @relation("UpdatedTenants")
   locationsCreated  Location[] @relation("CreatedLocations")
   locationsUpdated  Location[] @relation("UpdatedLocations")
+  rolesCreated      Role[]     @relation("CreatedRoles")
+  rolesUpdated      Role[]     @relation("UpdatedRoles")
 
   @@map("users")
 }
@@ -123,4 +125,45 @@ model Location {
   updater   User     @relation("UpdatedLocations", fields: [updatedBy], references: [id])
 
   @@map("locations")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  name        String           @unique // e.g., "patient.read", "patient.create"
+  description String?
+  resource    String           // e.g., "patient", "appointment", "tenant"
+  action      String           // e.g., "read", "create", "update", "delete"
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  isActive    Boolean          @default(true)
+  createdBy   String
+  updatedBy   String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  creator     User             @relation("CreatedRoles", fields: [createdBy], references: [id])
+  updater     User             @relation("UpdatedRoles", fields: [updatedBy], references: [id])
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
 }
