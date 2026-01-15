@@ -7,6 +7,7 @@ const authRoutes = require('./auth.routes');
 const patientRoutes = require('./patient.routes');
 const appointmentRoutes = require('./appointment.routes');
 const insuranceProviderRoutes = require('./insuranceProvider.routes');
+const tenantRoutes = require('./tenant.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -15,6 +16,7 @@ router.use('/auth', authRoutes);
 router.use('/patients', auth, patientRoutes);
 router.use('/appointments', auth, appointmentRoutes);
 router.use('/insurance-providers', auth, insuranceProviderRoutes);
+router.use('/tenants', auth, tenantRoutes);
 
 module.exports = router;
 

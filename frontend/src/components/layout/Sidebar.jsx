@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, LayoutDashboard, Calendar, FileText, Settings, Shield, LogOut } from 'lucide-react';
+import { Users, LayoutDashboard, Calendar, FileText, Settings, Shield, LogOut, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ const navigation = [
   { name: 'Patients', href: '/patients', icon: Users },
   { name: 'Appointments', href: '/appointments', icon: Calendar },
   { name: 'Insurance', href: '/insurance-providers', icon: Shield },
+  { name: 'Tenants', href: '/tenants', icon: Building2 },
   { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

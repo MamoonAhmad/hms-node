@@ -7,6 +7,7 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { PatientsPage } from '@/pages/PatientsPage';
 import { AppointmentsPage } from '@/pages/AppointmentsPage';
 import { InsuranceProvidersPage } from '@/pages/InsuranceProvidersPage';
+import { TenantsPage } from '@/pages/TenantsPage';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
             <Route path="patients" element={<PatientsPage />} />
             <Route path="appointments" element={<AppointmentsPage />} />
             <Route path="insurance-providers" element={<InsuranceProvidersPage />} />
+            <Route path="tenants" element={<TenantsPage />} />
             <Route path="reports" element={<PlaceholderPage title="Reports" />} />
             <Route path="settings" element={<PlaceholderPage title="Settings" />} />
           </Route>
