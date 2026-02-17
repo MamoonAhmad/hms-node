@@ -10,6 +10,7 @@ import {
   Calendar as CalendarIcon,
   List,
   LayoutGrid,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ import {
 import { AppointmentFormDialog } from '@/components/appointments/AppointmentFormDialog';
 import { DeleteAppointmentDialog } from '@/components/appointments/DeleteAppointmentDialog';
 import { AppointmentTimeline } from '@/components/appointments/AppointmentTimeline';
+import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { appointmentApi, patientApi } from '@/services/api';
 import { cn } from '@/lib/utils';
 
@@ -83,6 +85,7 @@ export function AppointmentsPage() {
   // Dialogs
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -161,6 +164,23 @@ export function AppointmentsPage() {
     setInitialDate('');
     setInitialTime('');
     setIsFormOpen(true);
+  };
+
+  const handleCreatePatient = () => {
+    setIsPatientFormOpen(true);
+  };
+
+  const handlePatientSubmit = async (data) => {
+    setIsSubmitting(true);
+    try {
+      await patientApi.create(data);
+      setIsPatientFormOpen(false);
+      fetchPatients(); // Refresh patient list for appointment form
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleTimeSlotClick = (date, time) => {
@@ -246,14 +266,14 @@ export function AppointmentsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-2">
           <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
           <p className="text-muted-foreground">Manage patient appointments</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           {/* View Toggle */}
           <div className="flex items-center rounded-lg border bg-muted p-1">
             <Button
@@ -275,6 +295,10 @@ export function AppointmentsPage() {
               List
             </Button>
           </div>
+          <Button variant="outline" onClick={handleCreatePatient}>
+            <Users className="h-4 w-4 mr-2" />
+            New Patient
+          </Button>
           <Button onClick={handleCreate}>
             <Plus className="h-4 w-4" />
             New Appointment
@@ -569,6 +593,14 @@ export function AppointmentsPage() {
         onOpenChange={setIsDeleteOpen}
         appointment={selectedAppointment}
         onConfirm={handleDeleteConfirm}
+        isLoading={isSubmitting}
+      />
+
+      <PatientFormDialog
+        open={isPatientFormOpen}
+        onOpenChange={setIsPatientFormOpen}
+        patient={null}
+        onSubmit={handlePatientSubmit}
         isLoading={isSubmitting}
       />
     </div>

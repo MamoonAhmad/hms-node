@@ -1,15 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/ui/data-table';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +12,39 @@ import {
 } from '@/components/ui/dialog';
 import { InsuranceProviderFormDialog } from '@/components/insurance/InsuranceProviderFormDialog';
 import { insuranceProviderApi } from '@/services/api';
+
+const COLUMNS = [
+  { key: 'name', label: 'Name', cellClassName: 'font-medium' },
+  {
+    key: 'code',
+    label: 'Code',
+    render: (row) =>
+      row.code ? (
+        <span className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium">{row.code}</span>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      ),
+  },
+  { key: 'phone', label: 'Phone', render: (row) => row.phone || <span className="text-muted-foreground">-</span> },
+  { key: 'email', label: 'Email', render: (row) => row.email || <span className="text-muted-foreground">-</span> },
+  { key: 'patients', label: 'Patients', render: (row) => row._count?.patients ?? 0 },
+  {
+    key: 'status',
+    label: 'Status',
+    render: (row) =>
+      row.isActive ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+          <Check className="h-3 w-3" />
+          Active
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800">
+          <X className="h-3 w-3" />
+          Inactive
+        </span>
+      ),
+  },
+];
 
 export function InsuranceProvidersPage() {
   const [providers, setProviders] = useState([]);
@@ -32,10 +57,7 @@ export function InsuranceProvidersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Filters
   const [search, setSearch] = useState('');
-
-  // Dialogs
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
@@ -65,14 +87,18 @@ export function InsuranceProvidersPage() {
     fetchProviders();
   }, [fetchProviders]);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
+  const handleSearch = useCallback((keyword) => {
+    setSearch(keyword);
     setPagination((prev) => ({ ...prev, page: 1 }));
-  };
+  }, []);
 
-  const handlePageChange = (newPage) => {
-    setPagination((prev) => ({ ...prev, page: newPage }));
-  };
+  const handlePageChange = useCallback((page) => {
+    setPagination((prev) => ({ ...prev, page }));
+  }, []);
+
+  const handlePageSizeChange = useCallback((limit) => {
+    setPagination((prev) => ({ ...prev, limit, page: 1 }));
+  }, []);
 
   const handleCreate = () => {
     setSelectedProvider(null);
@@ -120,161 +146,56 @@ export function InsuranceProvidersPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Insurance Providers</h1>
-          <p className="text-muted-foreground">Manage insurance provider records</p>
+          <h1 className="text-2xl font-bold text-foreground">Payers</h1>
+          <p className="text-muted-foreground">Manage payer records</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="h-4 w-4" />
-          Add Provider
+          Add Payer
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4">
-        <form onSubmit={handleSearch} className="flex-1 max-w-sm">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name or code..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-        </form>
-      </div>
-
-      {/* Error State */}
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
           {error}
         </div>
       )}
 
-      {/* Table */}
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Patients</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    Loading...
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : providers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                  No insurance providers found
-                </TableCell>
-              </TableRow>
-            ) : (
-              providers.map((provider) => (
-                <TableRow key={provider.id}>
-                  <TableCell className="font-medium">{provider.name}</TableCell>
-                  <TableCell>
-                    {provider.code ? (
-                      <span className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium">
-                        {provider.code}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{provider.phone || <span className="text-muted-foreground">-</span>}</TableCell>
-                  <TableCell>{provider.email || <span className="text-muted-foreground">-</span>}</TableCell>
-                  <TableCell>{provider._count?.patients || 0}</TableCell>
-                  <TableCell>
-                    {provider.isActive ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
-                        <Check className="h-3 w-3" />
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800">
-                        <X className="h-3 w-3" />
-                        Inactive
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleEdit(provider)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleDelete(provider)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-
-        {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
-              {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-              {pagination.total} providers
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(pagination.page - 1)}
-                disabled={pagination.page === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(pagination.page + 1)}
-                disabled={pagination.page === pagination.totalPages}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+      <DataTable
+        columns={COLUMNS}
+        data={providers}
+        total={pagination.total}
+        page={pagination.page}
+        pageSize={pagination.limit}
+        searchValue={search}
+        isLoading={isLoading}
+        onSearch={handleSearch}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        getRowId={(row) => row.id}
+        searchPlaceholder="Search by name or code..."
+        emptyMessage="No payers found"
+        actions={(provider) => (
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(provider)} aria-label="Edit">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => handleDelete(provider)}
+              className="text-destructive hover:text-destructive"
+              aria-label="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         )}
-      </div>
+      />
 
-      {/* Form Dialog */}
       <InsuranceProviderFormDialog
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
@@ -283,9 +204,8 @@ export function InsuranceProvidersPage() {
         isLoading={isSubmitting}
       />
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent>
+        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete Insurance Provider</DialogTitle>
             <DialogDescription>
@@ -311,4 +231,3 @@ export function InsuranceProvidersPage() {
     </div>
   );
 }
-

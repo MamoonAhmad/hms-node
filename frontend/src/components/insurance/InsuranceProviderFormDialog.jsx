@@ -61,6 +61,7 @@ export function InsuranceProviderFormDialog({
     const newErrors = {};
 
     if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.code.trim()) newErrors.code = 'Code is required';
 
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
@@ -80,7 +81,7 @@ export function InsuranceProviderFormDialog({
 
     const submitData = {
       name: formData.name.trim(),
-      code: formData.code.trim().toUpperCase() || null,
+      code: formData.code.trim().toUpperCase(),
       phone: formData.phone.trim() || null,
       email: formData.email.trim() || null,
       address: formData.address.trim() || null,
@@ -93,10 +94,10 @@ export function InsuranceProviderFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="min-w-[700px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Edit Insurance Provider' : 'Add Insurance Provider'}
+            {isEditing ? 'Edit Payer' : 'Add Payer'}
           </DialogTitle>
         </DialogHeader>
 
@@ -116,14 +117,17 @@ export function InsuranceProviderFormDialog({
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="code">Code</Label>
+              <Label htmlFor="code">Code *</Label>
               <Input
                 id="code"
                 value={formData.code}
                 onChange={(e) => handleChange('code', e.target.value)}
                 placeholder="BCBS"
-                className="uppercase"
+                className={`uppercase ${errors.code ? 'border-destructive' : ''}`}
               />
+              {errors.code && (
+                <p className="text-xs text-destructive">{errors.code}</p>
+              )}
             </div>
           </div>
 
@@ -188,11 +192,11 @@ export function InsuranceProviderFormDialog({
             </Label>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
               {isLoading ? 'Saving...' : isEditing ? 'Update' : 'Create'}
             </Button>
           </DialogFooter>
