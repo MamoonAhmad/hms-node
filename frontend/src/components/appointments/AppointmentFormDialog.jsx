@@ -139,7 +139,7 @@ export function AppointmentFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[700px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Appointment' : 'Schedule New Appointment'}
@@ -155,7 +155,7 @@ export function AppointmentFormDialog({
               onValueChange={(value) => handleChange('patientId', value)}
               disabled={isEditing}
             >
-              <SelectTrigger className={errors.patientId ? 'border-destructive' : ''}>
+              <SelectTrigger className={`w-full ${errors.patientId ? 'border-destructive' : ''}`}>
                 <SelectValue placeholder="Select a patient" />
               </SelectTrigger>
               <SelectContent>
@@ -180,7 +180,7 @@ export function AppointmentFormDialog({
                 type="date"
                 value={formData.appointmentDate}
                 onChange={(e) => handleChange('appointmentDate', e.target.value)}
-                className={errors.appointmentDate ? 'border-destructive' : ''}
+                className={`w-full ${errors.appointmentDate ? 'border-destructive' : ''}`}
               />
               {errors.appointmentDate && (
                 <p className="text-xs text-destructive">{errors.appointmentDate}</p>
@@ -193,7 +193,7 @@ export function AppointmentFormDialog({
                 type="time"
                 value={formData.appointmentTime}
                 onChange={(e) => handleChange('appointmentTime', e.target.value)}
-                className={errors.appointmentTime ? 'border-destructive' : ''}
+                className={`w-full ${errors.appointmentTime ? 'border-destructive' : ''}`}
               />
               {errors.appointmentTime && (
                 <p className="text-xs text-destructive">{errors.appointmentTime}</p>
@@ -205,7 +205,7 @@ export function AppointmentFormDialog({
                 value={formData.duration.toString()}
                 onValueChange={(value) => handleChange('duration', parseInt(value))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent>
@@ -227,7 +227,7 @@ export function AppointmentFormDialog({
                 value={formData.appointmentType}
                 onValueChange={(value) => handleChange('appointmentType', value)}
               >
-                <SelectTrigger className={errors.appointmentType ? 'border-destructive' : ''}>
+                <SelectTrigger className={`w-full ${errors.appointmentType ? 'border-destructive' : ''}`}>
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -248,7 +248,7 @@ export function AppointmentFormDialog({
                 value={formData.status}
                 onValueChange={(value) => handleChange('status', value)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -308,11 +308,11 @@ export function AppointmentFormDialog({
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
               {isLoading
                 ? 'Saving...'
                 : isEditing

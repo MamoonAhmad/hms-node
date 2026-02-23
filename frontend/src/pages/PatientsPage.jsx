@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -9,14 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/ui/data-table';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { DeleteConfirmDialog } from '@/components/patients/DeleteConfirmDialog';
 import { patientApi } from '@/services/api';
@@ -62,19 +54,23 @@ export function PatientsPage() {
     fetchPatients();
   }, [fetchPatients]);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
+  const handleSearch = useCallback((keyword) => {
+    setSearch(keyword);
     setPagination((prev) => ({ ...prev, page: 1 }));
-  };
+  }, []);
 
   const handleGenderChange = (value) => {
     setGenderFilter(value === 'all' ? '' : value);
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
-  const handlePageChange = (newPage) => {
+  const handlePageChange = useCallback((newPage) => {
     setPagination((prev) => ({ ...prev, page: newPage }));
-  };
+  }, []);
+
+  const handlePageSizeChange = useCallback((limit) => {
+    setPagination((prev) => ({ ...prev, limit, page: 1 }));
+  }, []);
 
   const handleCreate = () => {
     setSelectedPatient(null);
@@ -130,33 +126,89 @@ export function PatientsPage() {
     });
   };
 
+  const formatDateTime = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return '-';
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const formatPatientName = (patient) => {
+    const parts = [];
+    if (patient.firstName) parts.push(patient.firstName);
+    if (patient.middleName) parts.push(patient.middleName);
+    if (patient.lastName) parts.push(patient.lastName);
+    if (patient.suffix) parts.push(patient.suffix);
+    return parts.join(' ') || '-';
+  };
+
+  const formatCityState = (patient) => {
+    const parts = [];
+    if (patient.city) parts.push(patient.city);
+    if (patient.state) parts.push(patient.state);
+    return parts.join(', ') || '-';
+  };
+
+  const formatPhoneNumber = (patient) => {
+    return patient.cellPhone || patient.homePhone || patient.workPhone || patient.contactNumber || '-';
+  };
+
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return '-';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  const patientColumns = [
+    { key: 'name', label: 'Patient Name', cellClassName: 'font-medium whitespace-nowrap', render: (row) => formatPatientName(row) },
+    { key: 'mrn', label: 'MRN / Patient ID', cellClassName: 'font-mono text-xs whitespace-nowrap', render: (row) => row.mrn || '-' },
+    { key: 'age', label: 'Age', cellClassName: 'whitespace-nowrap', render: (row) => calculateAge(row.dateOfBirth) },
+    { key: 'gender', label: 'Gender', cellClassName: 'capitalize whitespace-nowrap', render: (row) => row.gender || '-' },
+    { key: 'dateOfBirth', label: 'Date of Birth', cellClassName: 'whitespace-nowrap', render: (row) => formatDate(row.dateOfBirth) },
+    { key: 'phone', label: 'Phone Number', cellClassName: 'whitespace-nowrap', render: (row) => formatPhoneNumber(row) },
+    { key: 'cityState', label: 'City / State', cellClassName: 'whitespace-nowrap', render: (row) => formatCityState(row) },
+    { key: 'status', label: 'Patient Status', cellClassName: 'whitespace-nowrap', render: (row) => <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-800">{row.status || 'Active'}</span> },
+    { key: 'lastVisitDate', label: 'Last Visit Date', cellClassName: 'whitespace-nowrap', render: (row) => formatDate(row.lastVisitDate) },
+    { key: 'primaryProvider', label: 'Primary Provider', cellClassName: 'whitespace-nowrap', render: (row) => row.primaryProvider || row.primaryCarePhysician || '-' },
+    { key: 'insurance', label: 'Primary Insurance', cellClassName: 'whitespace-nowrap', render: (row) => row.insuranceProvider?.name || row.insuranceCompany || '-' },
+    { key: 'accountBalance', label: 'Account Balance', cellClassName: 'whitespace-nowrap', render: (row) => formatCurrency(row.accountBalance) },
+    { key: 'createdAt', label: 'Created Date', cellClassName: 'whitespace-nowrap', render: (row) => formatDateTime(row.createdAt) },
+    { key: 'updatedAt', label: 'Last Updated', cellClassName: 'whitespace-nowrap', render: (row) => formatDateTime(row.updatedAt) },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="space-y-2">
           <h1 className="text-2xl font-bold text-foreground">Patients</h1>
           <p className="text-muted-foreground">Manage patient records</p>
         </div>
-        <Button onClick={handleCreate}>
+        <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus className="h-4 w-4" />
           Add Patient
         </Button>
       </div>
 
-      {/* Filters */}
       <div className="flex gap-4">
-        <form onSubmit={handleSearch} className="flex-1 max-w-sm">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, MRN, or email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-        </form>
         <Select value={genderFilter || 'all'} onValueChange={handleGenderChange}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All Genders" />
@@ -170,123 +222,42 @@ export function PatientsPage() {
         </Select>
       </div>
 
-      {/* Error State */}
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
           {error}
         </div>
       )}
 
-      {/* Table */}
-      <div className="rounded-lg border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>MRN</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Date of Birth</TableHead>
-              <TableHead>Gender</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Insurance</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    Loading...
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : patients.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                  No patients found
-                </TableCell>
-              </TableRow>
-            ) : (
-              patients.map((patient) => (
-                <TableRow key={patient.id}>
-                  <TableCell className="font-mono text-xs">{patient.mrn}</TableCell>
-                  <TableCell className="font-medium">
-                    {patient.firstName} {patient.middleName ? `${patient.middleName} ` : ''}
-                    {patient.lastName}
-                  </TableCell>
-                  <TableCell>{formatDate(patient.dateOfBirth)}</TableCell>
-                  <TableCell className="capitalize">{patient.gender}</TableCell>
-                  <TableCell>
-                    <div className="text-sm">{patient.contactNumber}</div>
-                    {patient.email && (
-                      <div className="text-xs text-muted-foreground">{patient.email}</div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {patient.insuranceProvider?.name || (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleEdit(patient)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleDelete(patient)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-
-        {/* Pagination */}
-        {pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
-              {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-              {pagination.total} patients
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(pagination.page - 1)}
-                disabled={pagination.page === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange(pagination.page + 1)}
-                disabled={pagination.page === pagination.totalPages}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+      <DataTable
+        columns={patientColumns}
+        data={patients}
+        total={pagination.total}
+        page={pagination.page}
+        pageSize={pagination.limit}
+        searchValue={search}
+        isLoading={isLoading}
+        onSearch={handleSearch}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        getRowId={(row) => row.id}
+        searchPlaceholder="Search by name, MRN, phone, or city..."
+        emptyMessage="No patients found"
+        actions={(patient) => (
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(patient)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => handleDelete(patient)}
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         )}
-      </div>
+      />
 
       {/* Dialogs */}
       <PatientFormDialog
