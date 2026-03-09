@@ -245,7 +245,7 @@ export function DepartmentsPage() {
               onClick={() => handleEdit(row)}
               aria-label="Edit"
             >
-              <Pencil className="h-4 w-4" />
+              <Pencil className="h-4 w-4 icon-action-edit" />
             </Button>
             <Button
               variant="ghost"
@@ -254,7 +254,7 @@ export function DepartmentsPage() {
               className="text-destructive hover:text-destructive"
               aria-label="Delete"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-4 w-4 icon-action-delete" />
             </Button>
           </div>
         )}
@@ -269,7 +269,7 @@ export function DepartmentsPage() {
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete Department</DialogTitle>
             <DialogDescription>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,22 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const pendingRedirect = useRef(null);
 
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || "/";
+
+  // Navigate only after auth state has updated (avoids blank page from race)
+  useEffect(() => {
+    if (isAuthenticated && pendingRedirect.current) {
+      const target = pendingRedirect.current;
+      pendingRedirect.current = null;
+      navigate(target, { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,7 +41,8 @@ export function LoginPage() {
 
     try {
       await login(email, password);
-      navigate(from, { replace: true });
+      pendingRedirect.current = from;
+      // Navigation happens in useEffect when isAuthenticated becomes true
     } catch (err) {
       setError(err.message || "Failed to login. Please try again.");
     } finally {
@@ -42,7 +53,7 @@ export function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Decorative */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-linear-to-br from-emerald-600 via-teal-600 to-cyan-700">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden theme-hero-gradient">
         {/* Animated background patterns */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl animate-pulse" />
@@ -85,7 +96,7 @@ export function LoginPage() {
           <h2 className="text-4xl font-bold leading-tight mb-6">
             Streamline Your
             <br />
-            <span className="text-emerald-200">Healthcare Operations</span>
+            <span className="text-white/90">Healthcare Operations</span>
           </h2>
 
           <p className="text-lg text-white/80 mb-12 max-w-md">
@@ -139,7 +150,7 @@ export function LoginPage() {
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
               <span className="text-xl font-bold text-white">H</span>
             </div>
             <div>
@@ -202,7 +213,7 @@ export function LoginPage() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              className="w-full h-12"
             >
               {isLoading ? (
                 <>

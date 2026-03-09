@@ -15,6 +15,9 @@ const createLocationSchema = Joi.object({
   country: Joi.string().trim().max(100).allow('', null),
   phone: Joi.string().trim().max(20).allow('', null),
   isActive: Joi.boolean().default(true),
+  hasOnsiteLab: Joi.boolean().default(true),
+  hasOnsitePharmacy: Joi.boolean().default(true),
+  hasOnsiteRadiology: Joi.boolean().default(true),
   tenantId: Joi.string().uuid().required()
     .messages({
       'string.guid': 'Invalid tenant ID format',
@@ -36,6 +39,9 @@ const updateLocationSchema = Joi.object({
   country: Joi.string().trim().max(100).allow('', null),
   phone: Joi.string().trim().max(20).allow('', null),
   isActive: Joi.boolean(),
+  hasOnsiteLab: Joi.boolean(),
+  hasOnsitePharmacy: Joi.boolean(),
+  hasOnsiteRadiology: Joi.boolean(),
   tenantId: Joi.string().uuid()
     .messages({
       'string.guid': 'Invalid tenant ID format',

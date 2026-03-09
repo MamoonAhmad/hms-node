@@ -1,45 +1,34 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../lib/prisma');
+const authDb = require('../lib/authDb');
 const { JWT_SECRET } = require('../middleware/auth.middleware');
 
 const TOKEN_EXPIRY = '24h';
 
 const authService = {
   /**
-   * Authenticate user with email and password
+   * Authenticate user with email and password.
+   * Uses pg (authDb) to avoid Prisma client issues in some environments.
    */
   async login(email, password) {
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-
+    const user = await authDb.findUserByEmail(email);
     if (!user) {
       throw new Error('Invalid email or password');
     }
-
     if (!user.isActive) {
       throw new Error('Account is deactivated');
     }
-
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
-
     if (!isValidPassword) {
       throw new Error('Invalid email or password');
     }
-
-    // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: TOKEN_EXPIRY }
     );
-
-    // Return user without password
     const { password: _, ...userWithoutPassword } = user;
-
     return {
       user: userWithoutPassword,
       token,
@@ -47,29 +36,20 @@ const authService = {
   },
 
   /**
-   * Get user profile by ID
+   * Get user profile by ID.
+   * Uses pg (authDb) to avoid Prisma client issues in some environments.
    */
   async getProfile(userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
+    const user = await authDb.findUserById(userId);
     if (!user) {
       throw new Error('User not found');
     }
-
     return user;
   },
 
+  /**
+   * Create a new user (for seeding or admin purposes)
+   */
   /**
    * Create a new user (for seeding or admin purposes)
    */

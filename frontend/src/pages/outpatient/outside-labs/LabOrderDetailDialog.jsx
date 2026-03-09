@@ -32,7 +32,7 @@ export function LabOrderDetailDialog({ open, onOpenChange, order, onMarkReviewed
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[800px] max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Lab Order Detail - {order.orderId}</DialogTitle>
         </DialogHeader>

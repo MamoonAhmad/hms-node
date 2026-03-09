@@ -55,13 +55,13 @@ export function DocumentsSection({ patientId }) {
                   <TableCell>
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-4 w-4 icon-action-view" />
                       </Button>
                       <Button variant="ghost" size="sm">
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-4 w-4 icon-action-edit" />
                       </Button>
                       <Button variant="ghost" size="sm">
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <Trash2 className="h-4 w-4 icon-action-delete" />
                       </Button>
                     </div>
                   </TableCell>

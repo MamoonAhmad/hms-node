@@ -216,7 +216,7 @@ export function RolesPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <span className="inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">
+                    <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
                       {role._count?.permissions || 0} permissions
                     </span>
                   </TableCell>
@@ -245,7 +245,7 @@ export function RolesPage() {
                         size="icon-sm"
                         onClick={() => handleEdit(role)}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-4 w-4 icon-action-edit" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -253,7 +253,7 @@ export function RolesPage() {
                         onClick={() => handleDelete(role)}
                         className="text-destructive hover:text-destructive"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 icon-action-delete" />
                       </Button>
                     </div>
                   </TableCell>

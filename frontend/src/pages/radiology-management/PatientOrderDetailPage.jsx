@@ -29,6 +29,58 @@ function formatDateTime(isoString) {
   return new Date(isoString).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function OrdersTable({ orders, patient, onViewOrder, onEditOrder, formatDateTime }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Patient Information</TableHead>
+          <TableHead>Order Detail</TableHead>
+          <TableHead>Order Status</TableHead>
+          <TableHead>Updated At</TableHead>
+          <TableHead className="w-[180px]">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {orders.length === 0 ? (
+          <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No orders</TableCell></TableRow>
+        ) : (
+          orders.map((order) => (
+            <TableRow key={order.id}>
+              <TableCell>
+                <div className="text-sm">
+                  <div className="font-medium">{patient.name}</div>
+                  <div className="text-muted-foreground">MRN: {patient.mrn}</div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="space-y-0.5">
+                  <div className="font-medium">{order.orderName}</div>
+                  <div className="text-sm text-muted-foreground">Test ID: {order.id}</div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-secondary text-secondary-foreground">
+                  {order.status}
+                </span>
+              </TableCell>
+              <TableCell className="text-muted-foreground">{formatDateTime(order.lastUpdatedAt)}</TableCell>
+              <TableCell>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => onViewOrder(order)} title="View"><Eye className="h-4 w-4 icon-action-view" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => onEditOrder(order)} title="Edit"><Edit className="h-4 w-4 icon-action-edit" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => window.open(`/radiology-management/order/${order.id}/report`, '_blank')} title="Print report"><FileText className="h-4 w-4 icon-action-print" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => window.open(`/radiology-management/order/${order.id}/labels`, '_blank')} title="Print barcode"><Printer className="h-4 w-4 icon-action-print" /></Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  );
+}
+
 export function PatientOrderDetailPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
@@ -59,6 +111,10 @@ export function PatientOrderDetailPage() {
       status: updatedOrder.status,
       interpretedBy: updatedOrder.interpretedBy,
       imagingDetailDateTime: updatedOrder.imagingDetailDateTime,
+      sendOutLocation: updatedOrder.sendOutLocation,
+      sendOutDate: updatedOrder.sendOutDate,
+      reportReceivedAt: updatedOrder.reportReceivedAt,
+      reportReceivedNotes: updatedOrder.reportReceivedNotes,
       lastUpdatedAt: new Date().toISOString(),
       lastUpdatedBy: 'Current User',
     };
@@ -131,53 +187,7 @@ export function PatientOrderDetailPage() {
           <CardTitle>Orders</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Patient Information</TableHead>
-                <TableHead>Order Detail</TableHead>
-                <TableHead>Order Status</TableHead>
-                <TableHead>Updated At</TableHead>
-                <TableHead className="w-[180px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No orders</TableCell></TableRow>
-              ) : (
-                filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div className="font-medium">{patient.name}</div>
-                        <div className="text-muted-foreground">MRN: {patient.mrn}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-0.5">
-                        <div className="font-medium">{order.orderName}</div>
-                        <div className="text-sm text-muted-foreground">Test ID: {order.id}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-secondary text-secondary-foreground`}>
-                        {order.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{formatDateTime(order.lastUpdatedAt)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setViewOrder(order)} title="View"><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => setEditOrder(order)} title="Edit"><Edit className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => window.open(`/radiology-management/order/${order.id}/report`, '_blank')} title="Print report"><FileText className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => window.open(`/radiology-management/order/${order.id}/labels`, '_blank')} title="Print barcode"><Printer className="h-4 w-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <OrdersTable orders={filteredOrders} patient={patient} onViewOrder={setViewOrder} onEditOrder={setEditOrder} formatDateTime={formatDateTime} />
         </CardContent>
       </Card>
 

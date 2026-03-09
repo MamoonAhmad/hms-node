@@ -208,7 +208,7 @@ export function TriageTrackingBoard() {
   const getStatusColor = (status) => {
     const colors = {
       'Waiting Provider': 'bg-amber-100 text-amber-800',
-      'In Process': 'bg-blue-100 text-blue-800',
+      'In Process': 'bg-primary/10 text-primary',
       'Check-In': 'bg-green-100 text-green-800',
       'Check-Out': 'bg-gray-100 text-gray-800',
     };
@@ -344,7 +344,7 @@ export function TriageTrackingBoard() {
                             size="sm"
                             onClick={() => navigate(`/patient-dashboard/${patient.id}`)}
                           >
-                            <Eye className="h-4 w-4 mr-1" />
+                            <Eye className="h-4 w-4 mr-1 icon-action-view" />
                             Patient Chart
                           </Button>
                         </TableCell>

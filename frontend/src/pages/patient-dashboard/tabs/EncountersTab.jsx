@@ -105,7 +105,7 @@ export function EncountersTab({ patient }) {
                         size="sm"
                         onClick={() => handleViewDetails(encounter)}
                       >
-                        <Eye className="h-4 w-4 mr-1" />
+                        <Eye className="h-4 w-4 mr-1 icon-action-view" />
                         View Details
                       </Button>
                     </TableCell>
@@ -119,7 +119,7 @@ export function EncountersTab({ patient }) {
 
       {/* Visit Details Dialog */}
       <Dialog open={selectedVisit !== null} onOpenChange={() => setSelectedVisit(null)}>
-        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Visit Summary</DialogTitle>
           </DialogHeader>

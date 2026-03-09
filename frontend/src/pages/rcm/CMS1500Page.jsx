@@ -1,0 +1,716 @@
+import { useState, Component } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Search, User, Building2, DollarSign, Check, X, Printer, ChevronDown, MoreVertical, AlertTriangle } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const FREQUENCY_OPTIONS = [
+  { value: '1', label: '1 - Original Claim' },
+  { value: '7', label: '7 - Replacement' },
+  { value: '8', label: '8 - Void/Cancel' },
+];
+
+const CHARGE_STATUS_OPTIONS = ['BALANCE DUE PATIENT', 'PAID', 'PENDING', 'DENIED', 'ADJUSTED'];
+const SET_ALL_CHARGES_OPTIONS = ['NO CHANGE', 'PAID', 'PENDING', 'DENIED', 'ADJUSTED'];
+const YES_NO_OPTIONS = [{ value: 'Yes', label: 'Yes' }, { value: 'No', label: 'No' }];
+const ACCEPT_ASSIGNMENT_OPTIONS = [{ value: 'Default', label: 'Default' }, { value: 'Yes', label: 'Yes' }, { value: 'No', label: 'No' }];
+const POLICY_TYPE_OPTIONS = [
+  { value: 'Medicare', label: 'Medicare' },
+  { value: 'Medicaid', label: 'Medicaid' },
+  { value: 'Commercial', label: 'Commercial' },
+  { value: 'Other', label: 'Other' },
+];
+const REFERRAL_TYPE_OPTIONS = [
+  { value: 'Prior Auth Number', label: 'Prior Auth Number' },
+  { value: 'Referral Number', label: 'Referral Number' },
+  { value: 'None', label: 'None' },
+];
+const DOCUMENTATION_OPTIONS = [{ value: 'No Documentation', label: 'No Documentation' }, { value: 'Attachment', label: 'Attachment' }, { value: 'Other', label: 'Other' }];
+
+const ADDITIONAL_INFO_OPTIONS = [
+  { value: 'none', label: 'None' },
+  { value: 'cms1500', label: 'CMS 1500 (02-12) Box Numbers (For Printed Claims)' },
+];
+
+const ICD_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+
+const CERTIFICATION_OPTIONS = [
+  'Patient was admitted to a hospital',
+  'Patient was unconscious or in shock',
+  'Patient had to be physically restrained',
+  'Ambulance service was medically necessary',
+  'Patient was moved by stretcher',
+  'Patient was transported in an emergency situation',
+  'Patient had visible hemorrhaging',
+  'Patient was confined to a bed or chair',
+];
+
+function InsuranceDetailsBlock({ title, details, onUpdate }) {
+  return (
+    <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+      {title && <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-2">
+          <Label className="text-sm">Member ID</Label>
+          <Input value={details.memberId} onChange={(e) => onUpdate('memberId', e.target.value)} placeholder="e.g. 1234321" />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm">Policy Type</Label>
+          <Select value={details.policyType} onValueChange={(v) => onUpdate('policyType', v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {POLICY_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm">Copay Due</Label>
+          <Input type="number" step="0.01" value={details.copayDue} onChange={(e) => onUpdate('copayDue', e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm">Group Number</Label>
+          <Input value={details.groupNumber} onChange={(e) => onUpdate('groupNumber', e.target.value)} />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label className="text-sm">Claim Control / Original Ref. #</Label>
+          <Input value={details.claimControlRef} onChange={(e) => onUpdate('claimControlRef', e.target.value)} />
+        </div>
+        <div className="space-y-2 flex flex-col sm:col-span-2 lg:col-span-3">
+          <Label className="text-sm">Authorization #</Label>
+          <div className="flex gap-2 items-center">
+            <Input value={details.authorizationNumber} onChange={(e) => onUpdate('authorizationNumber', e.target.value)} className="flex-1 max-w-xs" />
+            <button type="button" className="text-sm text-primary hover:underline whitespace-nowrap">Copy Auth from Patient</button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm">Referral Type</Label>
+          <Select value={details.referralType} onValueChange={(v) => onUpdate('referralType', v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {REFERRAL_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FieldWithSearch({ label, value, onChange, required, icon: Icon }) {
+  return (
+    <div className="space-y-2">
+      {required && <span className="absolute left-0 w-1 h-8 bg-destructive rounded-l" aria-hidden />}
+      <Label className="text-sm">{label}</Label>
+      <div className="flex gap-1">
+        <Input value={value || ''} onChange={(e) => onChange(e.target.value)} className="flex-1" />
+        <Button type="button" variant="outline" size="icon" title="Search"><Search className="h-4 w-4" /></Button>
+        {Icon && <Button type="button" variant="outline" size="icon" title="Select"><Icon className="h-4 w-4" /></Button>}
+      </div>
+    </div>
+  );
+}
+
+class CMS1500ErrorBoundary extends Component {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err) { console.error('CMS1500Page error:', err); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 rounded-lg border border-destructive bg-destructive/10">
+          <h2 className="text-lg font-semibold text-destructive">Form failed to load</h2>
+          <p className="text-sm mt-2">Refresh the page or check the console for details.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function CMS1500PageContent() {
+  const [activeTab, setActiveTab] = useState('claim');
+  const [claimIncomplete, setClaimIncomplete] = useState(true);
+  const [claimRef, setClaimRef] = useState('');
+  const [frequency, setFrequency] = useState('1');
+  const [patient, setPatient] = useState('');
+  const [renderingProvider, setRenderingProvider] = useState('');
+  const [billingProvider, setBillingProvider] = useState('');
+  const [supervisingProvider, setSupervisingProvider] = useState('');
+  const [orderingProvider, setOrderingProvider] = useState('');
+  const [referringProvider, setReferringProvider] = useState('');
+  const [facility, setFacility] = useState('');
+  const [officeLocation, setOfficeLocation] = useState('');
+  const [primaryInsurance, setPrimaryInsurance] = useState('');
+  const [secondaryInsurance, setSecondaryInsurance] = useState('');
+  const [tertiaryInsurance, setTertiaryInsurance] = useState('');
+
+  const defaultInsuranceDetails = () => ({
+    memberId: '',
+    policyType: 'Other',
+    copayDue: '0.00',
+    groupNumber: '',
+    claimControlRef: '',
+    authorizationNumber: '',
+    referralType: 'Prior Auth Number',
+  });
+  const [primaryDetails, setPrimaryDetails] = useState(defaultInsuranceDetails);
+  const [secondaryDetails, setSecondaryDetails] = useState(defaultInsuranceDetails);
+  const [tertiaryDetails, setTertiaryDetails] = useState(defaultInsuranceDetails);
+  const updateInsuranceDetails = (setter, field, value) =>
+    setter((prev) => ({ ...prev, [field]: value }));
+
+  const [icdCodes, setIcdCodes] = useState(ICD_LABELS.map(() => ''));
+  const [updatePatientDefaults, setUpdatePatientDefaults] = useState(false);
+  const [setAllChargesTo, setSetAllChargesTo] = useState('NO CHANGE');
+  const [charges, setCharges] = useState([
+    { from: '', to: '', procedure: '', pos: '', tos: '', mod1: '', mod2: '', mod3: '', mod4: '', unitPrice: '0.00', dxPointers: '', units: '1.00', amount: '0.00', status: 'BALANCE DUE PATIENT', delete: false },
+  ]);
+
+  const [employmentRelated, setEmploymentRelated] = useState('No');
+  const [autoAccident, setAutoAccident] = useState('No');
+  const [otherAccident, setOtherAccident] = useState('No');
+  const [accidentDate, setAccidentDate] = useState('');
+  const [lastMenstrualPeriod, setLastMenstrualPeriod] = useState('');
+  const [initialTreatmentDate, setInitialTreatmentDate] = useState('');
+  const [dateLastSeen, setDateLastSeen] = useState('');
+  const [unableToWorkFrom, setUnableToWorkFrom] = useState('');
+  const [unableToWorkTo, setUnableToWorkTo] = useState('');
+  const [patientHomebound, setPatientHomebound] = useState('No');
+  const [showBoxNumbers, setShowBoxNumbers] = useState('none');
+  const [autoAccidentState, setAutoAccidentState] = useState('');
+  const [claimCodes, setClaimCodes] = useState('');
+  const [otherClaimId, setOtherClaimId] = useState('');
+  const [additionalClaimInfo, setAdditionalClaimInfo] = useState('');
+  const [claimNote, setClaimNote] = useState('');
+  const [resubmitReasonCode, setResubmitReasonCode] = useState('');
+  const [delayReasonCode, setDelayReasonCode] = useState('None');
+  const [hospitalizedFrom, setHospitalizedFrom] = useState('');
+  const [hospitalizedTo, setHospitalizedTo] = useState('');
+  const [labCharges, setLabCharges] = useState('0.00');
+  const [specialProgramCode, setSpecialProgramCode] = useState('');
+
+  const [patientSignatureOnFile, setPatientSignatureOnFile] = useState('Yes');
+  const [insuredSignatureOnFile, setInsuredSignatureOnFile] = useState('Yes');
+  const [providerAcceptAssignment, setProviderAcceptAssignment] = useState('Default');
+  const [documentationMethod, setDocumentationMethod] = useState('No Documentation');
+  const [documentationType, setDocumentationType] = useState('');
+  const [patientHeight, setPatientHeight] = useState('0');
+  const [patientWeight, setPatientWeight] = useState('0');
+  const [serviceAuthException, setServiceAuthException] = useState('');
+  const [demonstrationProject, setDemonstrationProject] = useState('');
+  const [mammographyCert, setMammographyCert] = useState('');
+  const [investigationalDevice, setInvestigationalDevice] = useState('');
+  const [ambulatoryPatientGroup, setAmbulatoryPatientGroup] = useState('');
+
+  const [ambulanceClaim, setAmbulanceClaim] = useState('No');
+  const [transportReason, setTransportReason] = useState('');
+  const [transportMiles, setTransportMiles] = useState('0.00');
+  const [ambulancePatientWeight, setAmbulancePatientWeight] = useState('0');
+  const [roundTripReason, setRoundTripReason] = useState('');
+  const [stretcherReason, setStretcherReason] = useState('');
+  const [pickupAddress, setPickupAddress] = useState({ line1: '', line2: '', city: '', state: '', zip: '', international: false });
+  const [dropoffAddress, setDropoffAddress] = useState({ name: '', line1: '', line2: '', city: '', state: '', zip: '' });
+  const [certificationFields, setCertificationFields] = useState({});
+
+  const updateIcd = (i, value) => setIcdCodes((prev) => prev.map((c, idx) => (idx === i ? value : c)));
+  const addCharge = () => setCharges((c) => [...c, { from: '', to: '', procedure: '', pos: '', tos: '', mod1: '', mod2: '', mod3: '', mod4: '', unitPrice: '0.00', dxPointers: '', units: '1.00', amount: '0.00', status: 'BALANCE DUE PATIENT', delete: false }]);
+  const updateCharge = (i, field, value) => setCharges((c) => c.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)));
+  const toggleCertification = (key) => setCertificationFields((p) => ({ ...p, [key]: !p[key] }));
+  const certificationCount = Object.values(certificationFields).filter(Boolean).length;
+
+  return (
+    <div className="space-y-4 w-full py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold">Claim</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" size="sm" className="bg-green-600 hover:bg-green-700">
+            <Check className="h-4 w-4 mr-1" /> Save
+          </Button>
+          <Button type="button" variant="destructive" size="sm">
+            <X className="h-4 w-4 mr-1" /> Cancel
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="h-4 w-4 mr-1 icon-action-print" /> Print <ChevronDown className="h-4 w-4 ml-1" />
+          </Button>
+          <Button type="button" variant="outline" size="sm">
+            Review <ChevronDown className="h-4 w-4 ml-1" />
+          </Button>
+          <Button type="button" variant="outline" size="sm">
+            <MoreVertical className="h-4 w-4 mr-1" /> More <ChevronDown className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 h-11">
+          <TabsTrigger value="claim" className={cn(activeTab === 'claim' && 'border-b-2 border-destructive')}>Claim</TabsTrigger>
+          <TabsTrigger value="charges" className={cn(activeTab === 'charges' && 'border-b-2 border-green-600')}>Charges</TabsTrigger>
+          <TabsTrigger value="additional" className={cn(activeTab === 'additional' && 'border-b-2 border-green-600')}>Additional Info</TabsTrigger>
+          <TabsTrigger value="ambulance" className={cn(activeTab === 'ambulance' && 'border-b-2 border-green-600')}>Ambulance Info</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="claim" className="mt-6 space-y-6">
+          <Card>
+            <CardContent className="pt-6 space-y-6">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-2">
+                  <Label>Claim #</Label>
+                  <div className="flex items-center gap-2">
+                    <Input value="New" readOnly className="w-20 bg-muted" />
+                    <Input placeholder="Reference #" value={claimRef} onChange={(e) => setClaimRef(e.target.value)} className="w-48" />
+                    {claimIncomplete && <span className="flex items-center gap-1 text-amber-600 text-sm"><AlertTriangle className="h-4 w-4" /> Claim is incomplete</span>}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Frequency</Label>
+                  <Select value={frequency} onValueChange={setFrequency}>
+                    <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="relative pl-2 border-l-2 border-destructive"><FieldWithSearch label="Patient *" value={patient} onChange={setPatient} required icon={User} /></div>
+                <div className="relative pl-2 border-l-2 border-destructive"><FieldWithSearch label="Rendering Provider *" value={renderingProvider} onChange={setRenderingProvider} required icon={User} /></div>
+                <div className="relative pl-2 border-l-2 border-destructive"><FieldWithSearch label="Billing Provider *" value={billingProvider} onChange={setBillingProvider} required icon={User} /></div>
+                <div><FieldWithSearch label="Supervising Provider" value={supervisingProvider} onChange={setSupervisingProvider} icon={User} /></div>
+                <div><FieldWithSearch label="Ordering Provider" value={orderingProvider} onChange={setOrderingProvider} icon={Building2} /></div>
+                <div className="flex gap-2">
+                  <div className="flex-1"><FieldWithSearch label="Referring/PCP Provider" value={referringProvider} onChange={setReferringProvider} icon={Building2} /></div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Ref</Label>
+                    <Select defaultValue="1"><SelectTrigger className="w-16"><SelectValue placeholder="Ref" /></SelectTrigger><SelectContent><SelectItem value="1">1</SelectItem></SelectContent></Select>
+                  </div>
+                </div>
+                <div><FieldWithSearch label="Facility" value={facility} onChange={setFacility} icon={Building2} /></div>
+                <div className="space-y-2">
+                  <Label>Office Location</Label>
+                  <Select value={officeLocation || 'none'} onValueChange={(v) => setOfficeLocation(v === 'none' ? '' : v)}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Select</SelectItem>
+                      <SelectItem value="main">Main Office</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-4 pt-4 border-t">
+                <div><FieldWithSearch label="Primary Insurance" value={primaryInsurance} onChange={setPrimaryInsurance} icon={DollarSign} /></div>
+                <InsuranceDetailsBlock
+                  title="Primary – Insurance & Authorization"
+                  details={primaryDetails}
+                  onUpdate={(field, value) => updateInsuranceDetails(setPrimaryDetails, field, value)}
+                />
+              </div>
+              <div className="space-y-4 pt-4 border-t">
+                <div><FieldWithSearch label="Secondary Insurance" value={secondaryInsurance} onChange={setSecondaryInsurance} icon={DollarSign} /></div>
+                {secondaryInsurance && (
+                  <InsuranceDetailsBlock
+                    title="Secondary – Insurance & Authorization"
+                    details={secondaryDetails}
+                    onUpdate={(field, value) => updateInsuranceDetails(setSecondaryDetails, field, value)}
+                  />
+                )}
+              </div>
+              <div className="space-y-4 pt-4 border-t">
+                <div><FieldWithSearch label="Tertiary Insurance" value={tertiaryInsurance} onChange={setTertiaryInsurance} icon={DollarSign} /></div>
+                {tertiaryInsurance && (
+                  <InsuranceDetailsBlock
+                    title="Tertiary – Insurance & Authorization"
+                    details={tertiaryDetails}
+                    onUpdate={(field, value) => updateInsuranceDetails(setTertiaryDetails, field, value)}
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="charges" className="mt-6 space-y-6">
+          <div className="flex gap-6 items-start">
+            <Card className="flex-1 min-w-0 w-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Diagnosis Code (ICD)</CardTitle>
+              </CardHeader>
+              <CardContent className="w-full">
+                <div className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {ICD_LABELS.map((lbl, i) => (
+                    <div key={lbl} className="space-y-1">
+                      <Label className="text-xs">ICD {lbl}</Label>
+                      <div className="flex gap-1">
+                        <Input value={icdCodes[i]} onChange={(e) => updateIcd(i, e.target.value)} className={i === 0 ? 'border-destructive' : ''} />
+                        <Button type="button" variant="outline" size="icon"><Search className="h-4 w-4" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="w-72 shrink-0 h-fit">
+              <CardHeader className="py-3 bg-muted/50">
+                <CardTitle className="text-sm">Charge Options</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="updateDefaults" checked={updatePatientDefaults} onCheckedChange={(c) => setUpdatePatientDefaults(!!c)} />
+                  <Label htmlFor="updateDefaults" className="text-sm font-normal">Update patient ICD & Procedure Code defaults</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Set all charges to</Label>
+                  <Select value={setAllChargesTo} onValueChange={setSetAllChargesTo}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{SET_ALL_CHARGES_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          <Card className="w-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Charges</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>From</TableHead>
+                    <TableHead>To</TableHead>
+                    <TableHead>Procedure</TableHead>
+                    <TableHead>POS</TableHead>
+                    <TableHead>TOS</TableHead>
+                    <TableHead>Mod 1</TableHead>
+                    <TableHead>Mod 2</TableHead>
+                    <TableHead>Mod 3</TableHead>
+                    <TableHead>Mod 4</TableHead>
+                    <TableHead>Unit Price</TableHead>
+                    <TableHead>DX Pointers</TableHead>
+                    <TableHead>Units</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
+                    <TableHead>Delete</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {charges.map((row, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Input type="date" value={row.from} onChange={(e) => updateCharge(i, 'from', e.target.value)} className="h-8 w-28" /></TableCell>
+                      <TableCell><Input type="date" value={row.to} onChange={(e) => updateCharge(i, 'to', e.target.value)} className="h-8 w-28" /></TableCell>
+                      <TableCell><div className="flex gap-1"><Input value={row.procedure} onChange={(e) => updateCharge(i, 'procedure', e.target.value)} className="h-8 w-24" /><Button type="button" variant="ghost" size="icon" className="h-8 w-8"><Search className="h-3 w-3" /></Button></div></TableCell>
+                      <TableCell><div className="flex gap-1"><Input value={row.pos} onChange={(e) => updateCharge(i, 'pos', e.target.value)} className="h-8 w-16" /><Button type="button" variant="ghost" size="icon" className="h-8 w-8"><Search className="h-3 w-3" /></Button></div></TableCell>
+                      <TableCell><div className="flex gap-1"><Input value={row.tos} onChange={(e) => updateCharge(i, 'tos', e.target.value)} className="h-8 w-16" /><Button type="button" variant="ghost" size="icon" className="h-8 w-8"><Search className="h-3 w-3" /></Button></div></TableCell>
+                      <TableCell><Input value={row.mod1} onChange={(e) => updateCharge(i, 'mod1', e.target.value)} className="h-8 w-14" /></TableCell>
+                      <TableCell><Input value={row.mod2} onChange={(e) => updateCharge(i, 'mod2', e.target.value)} className="h-8 w-14" /></TableCell>
+                      <TableCell><Input value={row.mod3} onChange={(e) => updateCharge(i, 'mod3', e.target.value)} className="h-8 w-14" /></TableCell>
+                      <TableCell><Input value={row.mod4} onChange={(e) => updateCharge(i, 'mod4', e.target.value)} className="h-8 w-14" /></TableCell>
+                      <TableCell><Input value={row.unitPrice} onChange={(e) => updateCharge(i, 'unitPrice', e.target.value)} className="h-8 w-20" /></TableCell>
+                      <TableCell><Input value={row.dxPointers} onChange={(e) => updateCharge(i, 'dxPointers', e.target.value)} className="h-8 w-20" /></TableCell>
+                      <TableCell><Input value={row.units} onChange={(e) => updateCharge(i, 'units', e.target.value)} className="h-8 w-16" /></TableCell>
+                      <TableCell><Input value={row.amount} onChange={(e) => updateCharge(i, 'amount', e.target.value)} className="h-8 w-20" /></TableCell>
+                      <TableCell>
+                        <Select value={row.status} onValueChange={(v) => updateCharge(i, 'status', v)}>
+                          <SelectTrigger className="h-8 min-w-[140px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>{CHARGE_STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell><Button type="button" variant="ghost" size="sm">Other</Button></TableCell>
+                      <TableCell><Checkbox checked={row.delete} onCheckedChange={(c) => updateCharge(i, 'delete', !!c)} /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="p-2 border-t text-sm text-muted-foreground">{charges.length} Charges</div>
+            </CardContent>
+          </Card>
+          <Button type="button" variant="outline" size="sm" className="mt-2" onClick={addCharge}>Add charge line</Button>
+        </TabsContent>
+
+        <TabsContent value="additional" className="mt-6 space-y-6">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Show Additional Information about each field</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select value={showBoxNumbers} onValueChange={setShowBoxNumbers}>
+                <SelectTrigger className="w-full max-w-md">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ADDITIONAL_INFO_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2 bg-primary/10">
+              <CardTitle className="text-base">Patient Condition</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-sm">Is Patient Condition Related to:</Label>
+                <div className="flex flex-wrap gap-6 mt-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="font-normal">Employment {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs ml-1">Box 10a</span>}</Label>
+                    <label className="flex items-center gap-1"><input type="radio" name="emp" checked={employmentRelated === 'Yes'} onChange={() => setEmploymentRelated('Yes')} className="rounded-full" /> Yes</label>
+                    <label className="flex items-center gap-1"><input type="radio" name="emp" checked={employmentRelated === 'No'} onChange={() => setEmploymentRelated('No')} className="rounded-full" /> No</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="font-normal">Auto Accident {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs ml-1">Box 10b</span>}</Label>
+                    <label className="flex items-center gap-1"><input type="radio" name="auto" checked={autoAccident === 'Yes'} onChange={() => setAutoAccident('Yes')} className="rounded-full" /> Yes</label>
+                    <label className="flex items-center gap-1"><input type="radio" name="auto" checked={autoAccident === 'No'} onChange={() => setAutoAccident('No')} className="rounded-full" /> No</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="font-normal">Other Accident {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs ml-1">Box 10c</span>}</Label>
+                    <label className="flex items-center gap-1"><input type="radio" name="other" checked={otherAccident === 'Yes'} onChange={() => setOtherAccident('Yes')} className="rounded-full" /> Yes</label>
+                    <label className="flex items-center gap-1"><input type="radio" name="other" checked={otherAccident === 'No'} onChange={() => setOtherAccident('No')} className="rounded-full" /> No</label>
+                  </div>
+                </div>
+                {autoAccident === 'Yes' && (
+                  <div className="mt-3 max-w-xs space-y-2">
+                    <Label className="text-sm flex items-center gap-2">
+                      State {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">(Box 10b)</span>}
+                    </Label>
+                    <Input value={autoAccidentState} onChange={(e) => setAutoAccidentState(e.target.value)} placeholder="e.g. CA" maxLength={2} className="uppercase" />
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  { label: 'Accident/Illness Date', value: accidentDate, set: setAccidentDate, box: 'Box 14/15*' },
+                  { label: 'Last Menstrual Period', value: lastMenstrualPeriod, set: setLastMenstrualPeriod, box: 'Box 14' },
+                  { label: 'Initial Treatment Date', value: initialTreatmentDate, set: setInitialTreatmentDate, box: 'Box 15' },
+                  { label: 'Date Last Seen', value: dateLastSeen, set: setDateLastSeen, box: 'Box 15' },
+                  { label: 'Unable to Work From Date', value: unableToWorkFrom, set: setUnableToWorkFrom, box: 'Box 16' },
+                  { label: 'Unable to Work To Date', value: unableToWorkTo, set: setUnableToWorkTo, box: 'Box 16' },
+                ].map(({ label, value, set, box }) => (
+                  <div key={label} className="space-y-2">
+                    <Label className="text-sm flex items-center gap-2">
+                      {label}
+                      {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">{box}</span>}
+                    </Label>
+                    <Input type="date" value={value} onChange={(e) => set(e.target.value)} />
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="font-normal">Patient is homebound?</Label>
+                <label className="flex items-center gap-1"><input type="radio" name="homebound" checked={patientHomebound === 'Yes'} onChange={() => setPatientHomebound('Yes')} className="rounded-full" /> Yes</label>
+                <label className="flex items-center gap-1"><input type="radio" name="homebound" checked={patientHomebound === 'No'} onChange={() => setPatientHomebound('No')} className="rounded-full" /> No</label>
+                <label className="flex items-center gap-1"><input type="radio" name="homebound" checked={patientHomebound === 'N/A'} onChange={() => setPatientHomebound('N/A')} className="rounded-full" /> N/A</label>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2 bg-primary/10">
+              <CardTitle className="text-base">Claim Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Claim Codes {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 10d</span>}</Label>
+                  <Input value={claimCodes} onChange={(e) => setClaimCodes(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Other Claim ID {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 11b</span>}</Label>
+                  <Input value={otherClaimId} onChange={(e) => setOtherClaimId(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm flex items-center gap-2">Additional Claim Information {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 19</span>}</Label>
+                <Input value={additionalClaimInfo} onChange={(e) => setAdditionalClaimInfo(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm flex items-center gap-2">Claim Note {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                <Input value={claimNote} onChange={(e) => setClaimNote(e.target.value)} />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Resubmit Reason Code {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 22</span>}</Label>
+                  <Input value={resubmitReasonCode} onChange={(e) => setResubmitReasonCode(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Delay Reason Code {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 24C (Shaded)*</span>}</Label>
+                  <Select value={delayReasonCode} onValueChange={setDelayReasonCode}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="None">None</SelectItem></SelectContent></Select>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Hospitalized From Date {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 18</span>}</Label>
+                  <Input type="date" value={hospitalizedFrom} onChange={(e) => setHospitalizedFrom(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Hospitalized To Date {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 18</span>}</Label>
+                  <Input type="date" value={hospitalizedTo} onChange={(e) => setHospitalizedTo(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Lab Charges {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 20</span>}</Label>
+                  <Input type="number" step="0.01" value={labCharges} onChange={(e) => setLabCharges(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Special Program Code</Label>
+                  <Select value={specialProgramCode || 'none'} onValueChange={(v) => setSpecialProgramCode(v === 'none' ? '' : v)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="none">N/A</SelectItem></SelectContent></Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2 bg-primary/10">
+              <CardTitle className="text-base">Assignment of Benefits</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Patient's Signature on File {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 12</span>}</Label>
+                  <Select value={patientSignatureOnFile} onValueChange={setPatientSignatureOnFile}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{YES_NO_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Insured's Signature on File {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 13</span>}</Label>
+                  <Select value={insuredSignatureOnFile} onValueChange={setInsuredSignatureOnFile}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{YES_NO_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Provider Accept Assignment {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 27</span>}</Label>
+                  <Select value={providerAcceptAssignment} onValueChange={setProviderAcceptAssignment}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ACCEPT_ASSIGNMENT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2 bg-primary/10">
+              <CardTitle className="text-base">Other Reference Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Documentation Method {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                  <Select value={documentationMethod} onValueChange={setDocumentationMethod}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{DOCUMENTATION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Documentation Type {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                  <Input value={documentationType} onChange={(e) => setDocumentationType(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Patient Height (in.) {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                  <Input type="number" value={patientHeight} onChange={(e) => setPatientHeight(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Patient Weight (lbs.) {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                  <Input type="number" value={patientWeight} onChange={(e) => setPatientWeight(e.target.value)} />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Service Authorization Exception {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                  <Input value={serviceAuthException} onChange={(e) => setServiceAuthException(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Demonstration Project {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                  <Input value={demonstrationProject} onChange={(e) => setDemonstrationProject(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Mammography Certification {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 32a</span>}</Label>
+                  <Input value={mammographyCert} onChange={(e) => setMammographyCert(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Investigational Device Exemption {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                  <Input value={investigationalDevice} onChange={(e) => setInvestigationalDevice(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">Ambulatory Patient Group {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
+                  <Input value={ambulatoryPatientGroup} onChange={(e) => setAmbulatoryPatientGroup(e.target.value)} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ambulance" className="mt-6 space-y-6">
+          <Card>
+            <CardContent className="pt-6 space-y-6">
+              <div className="flex items-center gap-4">
+                <Label className="font-medium">Ambulance claim</Label>
+                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="amb" checked={ambulanceClaim === 'Yes'} onChange={() => setAmbulanceClaim('Yes')} /> Yes</label>
+                <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="amb" checked={ambulanceClaim === 'No'} onChange={() => setAmbulanceClaim('No')} /> No</label>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-2"><Label className="text-sm">Transport Reason</Label><Select value={transportReason || 'none'} onValueChange={(v) => setTransportReason(v === 'none' ? '' : v)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="none">—</SelectItem></SelectContent></Select></div>
+                <div className="space-y-2"><Label className="text-sm">Transport Miles</Label><Input type="number" step="0.01" value={transportMiles} onChange={(e) => setTransportMiles(e.target.value)} /></div>
+                <div className="space-y-2"><Label className="text-sm">Patient Weight</Label><Input type="number" value={ambulancePatientWeight} onChange={(e) => setAmbulancePatientWeight(e.target.value)} /></div>
+                <div className="space-y-2 sm:col-span-2"><Label className="text-sm">Round Trip Reason</Label><Input value={roundTripReason} onChange={(e) => setRoundTripReason(e.target.value)} /></div>
+                <div className="space-y-2 sm:col-span-2"><Label className="text-sm">Stretcher Reason</Label><Input value={stretcherReason} onChange={(e) => setStretcherReason(e.target.value)} /></div>
+              </div>
+              <div className="rounded-lg border">
+                <div className="bg-muted/50 px-4 py-2 font-medium text-sm">Pickup Address</div>
+                <div className="p-4 space-y-4">
+                  <div className="space-y-2"><Label className="text-sm">Address</Label><Textarea value={pickupAddress.line1} onChange={(e) => setPickupAddress((p) => ({ ...p, line1: e.target.value }))} rows={2} /></div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-2 sm:col-span-2"><Label className="text-sm">City</Label><Input value={pickupAddress.city} onChange={(e) => setPickupAddress((p) => ({ ...p, city: e.target.value }))} /></div>
+                    <div className="space-y-2"><Label className="text-sm">State</Label><Input value={pickupAddress.state} onChange={(e) => setPickupAddress((p) => ({ ...p, state: e.target.value }))} /></div>
+                    <div className="space-y-2"><Label className="text-sm">ZIP Code</Label><Input value={pickupAddress.zip} onChange={(e) => setPickupAddress((p) => ({ ...p, zip: e.target.value }))} /></div>
+                  </div>
+                  <div className="flex items-center space-x-2"><Checkbox id="pickupIntl" checked={pickupAddress.international} onCheckedChange={(c) => setPickupAddress((p) => ({ ...p, international: !!c }))} /><Label htmlFor="pickupIntl" className="font-normal text-sm">International Address</Label></div>
+                </div>
+              </div>
+              <div className="rounded-lg border">
+                <div className="flex items-center justify-between bg-muted/50 px-4 py-2"><span className="font-medium text-sm">Dropoff Address</span><Button type="button" variant="outline" size="sm">Copy from Facility</Button></div>
+                <div className="p-4 space-y-4">
+                  <div className="space-y-2"><Label className="text-sm">Name</Label><Input value={dropoffAddress.name} onChange={(e) => setDropoffAddress((p) => ({ ...p, name: e.target.value }))} /></div>
+                  <div className="space-y-2"><Label className="text-sm">Address</Label><Textarea value={dropoffAddress.line1} onChange={(e) => setDropoffAddress((p) => ({ ...p, line1: e.target.value }))} rows={2} /></div>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-2 sm:col-span-2"><Label className="text-sm">City</Label><Input value={dropoffAddress.city} onChange={(e) => setDropoffAddress((p) => ({ ...p, city: e.target.value }))} /></div>
+                    <div className="space-y-2"><Label className="text-sm">State</Label><Input value={dropoffAddress.state} onChange={(e) => setDropoffAddress((p) => ({ ...p, state: e.target.value }))} /></div>
+                    <div className="space-y-2"><Label className="text-sm">ZIP Code</Label><Input value={dropoffAddress.zip} onChange={(e) => setDropoffAddress((p) => ({ ...p, zip: e.target.value }))} /></div>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-lg border">
+                <div className="bg-muted/50 px-4 py-2 flex items-center justify-between"><span className="font-medium text-sm">Certification Fields</span><span className="text-xs text-muted-foreground">Select up to 5</span></div>
+                <div className="p-4 grid gap-2 sm:grid-cols-2">
+                  {CERTIFICATION_OPTIONS.map((opt) => (
+                    <div key={opt} className="flex items-center space-x-2">
+                      <Checkbox id={opt} checked={!!certificationFields[opt]} onCheckedChange={() => certificationCount < 5 || certificationFields[opt] ? toggleCertification(opt) : null} disabled={certificationCount >= 5 && !certificationFields[opt]} />
+                      <Label htmlFor={opt} className="font-normal text-sm cursor-pointer">{opt}</Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+export function CMS1500Page() {
+  return (
+    <CMS1500ErrorBoundary>
+      <CMS1500PageContent />
+    </CMS1500ErrorBoundary>
+  );
+}

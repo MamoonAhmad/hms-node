@@ -343,16 +343,16 @@ export function ProviderSchedulesPage() {
         actions={(row) => (
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleView(row)} title="View" aria-label="View">
-              <Eye className="h-4 w-4" />
+              <Eye className="h-4 w-4 icon-action-view" />
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(row)} title="Edit" aria-label="Edit">
-              <Pencil className="h-4 w-4" />
+              <Pencil className="h-4 w-4 icon-action-edit" />
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleToggleStatus(row)} disabled={isSubmitting} title={row.status === 'Active' ? 'Deactivate' : 'Activate'} aria-label={row.status === 'Active' ? 'Deactivate' : 'Activate'}>
               <Power className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(row)} title="Delete" aria-label="Delete">
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-4 w-4 icon-action-delete" />
             </Button>
           </div>
         )}

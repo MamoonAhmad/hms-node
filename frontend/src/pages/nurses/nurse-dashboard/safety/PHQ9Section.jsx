@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Heart } from 'lucide-react';
 
 // Button labels as in screenshot; scores per user: Not at all=1, Several days=2, More than half=3, Nearly every day=4
 const PHQ9_RESPONSE_OPTIONS = [
@@ -76,21 +75,6 @@ export function PHQ9Section() {
 
   return (
     <Card>
-      <CardHeader className="rounded-t-lg border-b bg-primary px-6 py-4 text-primary-foreground">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-foreground/20">
-            <Heart className="h-4 w-4" />
-          </div>
-          <div className="space-y-0.5">
-            <CardTitle className="text-lg font-semibold text-primary-foreground">
-              PHQ-9 Depression Screening Assessment
-            </CardTitle>
-            <p className="text-sm text-primary-foreground/90">
-              Patient Health Questionnaire - 9 depression screening
-            </p>
-          </div>
-        </div>
-      </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <Input id="phq9-timestamp" className="hidden" disabled />
 
@@ -114,13 +98,8 @@ export function PHQ9Section() {
               key={q.id}
               className="flex flex-col gap-3 rounded-lg border border-border/60 p-3"
             >
-              <div className="flex items-start gap-2">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary text-xs font-medium text-primary-foreground">
-                  {q.id}
-                </span>
-                <p className="text-sm font-medium text-foreground">{q.label}</p>
-              </div>
-              <div className="flex flex-wrap gap-2 pl-8">
+              <p className="text-sm font-medium text-foreground">{q.label}</p>
+              <div className="flex flex-wrap gap-2">
                 {PHQ9_RESPONSE_OPTIONS.map((opt) => (
                   <Button
                     key={opt.value}

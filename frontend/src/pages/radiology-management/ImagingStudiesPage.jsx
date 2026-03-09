@@ -277,7 +277,7 @@ export function ImagingStudiesPage() {
                               title="Edit Report"
                               onClick={() => setEditOrder(order)}
                             >
-                              <Pencil className="h-4 w-4" />
+                              <Pencil className="h-4 w-4 icon-action-edit" />
                             </Button>
                             <Button
                               type="button"
@@ -287,7 +287,7 @@ export function ImagingStudiesPage() {
                               title="Generate Report"
                               onClick={() => window.open(`/radiology-management/order/${order.id}/report`, '_blank')}
                             >
-                              <FileText className="h-4 w-4" />
+                              <FileText className="h-4 w-4 icon-action-print" />
                             </Button>
                             <Button
                               type="button"

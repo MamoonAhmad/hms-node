@@ -1,283 +1,151 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { DataTable } from '@/components/ui/data-table';
-import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
-import { DeleteConfirmDialog } from '@/components/patients/DeleteConfirmDialog';
+import { Plus, Pencil, Eye, Search } from 'lucide-react';
 import { patientApi } from '@/services/api';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
 
 export function PatientsPage() {
+  const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Filters
   const [search, setSearch] = useState('');
-  const [genderFilter, setGenderFilter] = useState('');
 
-  // Dialogs
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const fetchPatients = useCallback(async () => {
+  const fetchPatients = async () => {
     setIsLoading(true);
-    setError(null);
     try {
-      const params = {
-        page: pagination.page,
-        limit: pagination.limit,
-      };
-      if (search) params.search = search;
-      if (genderFilter) params.gender = genderFilter;
-
-      const response = await patientApi.getAll(params);
-      setPatients(response.data);
-      setPagination((prev) => ({ ...prev, ...response.pagination }));
-    } catch (err) {
-      setError(err.message);
+      const res = await patientApi.getAll({ limit: 500, search: search || undefined });
+      setPatients(res?.data ?? []);
+    } catch {
+      setPatients([]);
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search, genderFilter]);
+  };
 
   useEffect(() => {
     fetchPatients();
-  }, [fetchPatients]);
-
-  const handleSearch = useCallback((keyword) => {
-    setSearch(keyword);
-    setPagination((prev) => ({ ...prev, page: 1 }));
   }, []);
 
-  const handleGenderChange = (value) => {
-    setGenderFilter(value === 'all' ? '' : value);
-    setPagination((prev) => ({ ...prev, page: 1 }));
+  const handleSearch = (e) => {
+    e.preventDefault();
+    fetchPatients();
   };
 
-  const handlePageChange = useCallback((newPage) => {
-    setPagination((prev) => ({ ...prev, page: newPage }));
-  }, []);
-
-  const handlePageSizeChange = useCallback((limit) => {
-    setPagination((prev) => ({ ...prev, limit, page: 1 }));
-  }, []);
-
-  const handleCreate = () => {
-    setSelectedPatient(null);
-    setIsFormOpen(true);
+  const handleAddNewPatient = () => {
+    navigate('/patients/new');
   };
 
-  const handleEdit = (patient) => {
-    setSelectedPatient(patient);
-    setIsFormOpen(true);
+  const handleEditPatient = (patient) => {
+    navigate(`/patients/edit/${patient.id}`);
   };
 
-  const handleDelete = (patient) => {
-    setSelectedPatient(patient);
-    setIsDeleteOpen(true);
+  const formatDate = (d) => {
+    if (!d) return '—';
+    const date = typeof d === 'string' ? new Date(d) : d;
+    return date.toLocaleDateString();
   };
-
-  const handleFormSubmit = async (data) => {
-    setIsSubmitting(true);
-    try {
-      if (selectedPatient) {
-        await patientApi.update(selectedPatient.id, data);
-      } else {
-        await patientApi.create(data);
-      }
-      setIsFormOpen(false);
-      fetchPatients();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteConfirm = async () => {
-    setIsSubmitting(true);
-    try {
-      await patientApi.delete(selectedPatient.id);
-      setIsDeleteOpen(false);
-      fetchPatients();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatDateTime = (dateString) => {
-    if (!dateString) return '-';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const calculateAge = (dateOfBirth) => {
-    if (!dateOfBirth) return '-';
-    const today = new Date();
-    const birthDate = new Date(dateOfBirth);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age;
-  };
-
-  const formatPatientName = (patient) => {
-    const parts = [];
-    if (patient.firstName) parts.push(patient.firstName);
-    if (patient.middleName) parts.push(patient.middleName);
-    if (patient.lastName) parts.push(patient.lastName);
-    if (patient.suffix) parts.push(patient.suffix);
-    return parts.join(' ') || '-';
-  };
-
-  const formatCityState = (patient) => {
-    const parts = [];
-    if (patient.city) parts.push(patient.city);
-    if (patient.state) parts.push(patient.state);
-    return parts.join(', ') || '-';
-  };
-
-  const formatPhoneNumber = (patient) => {
-    return patient.cellPhone || patient.homePhone || patient.workPhone || patient.contactNumber || '-';
-  };
-
-  const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  const patientColumns = [
-    { key: 'name', label: 'Patient Name', cellClassName: 'font-medium whitespace-nowrap', render: (row) => formatPatientName(row) },
-    { key: 'mrn', label: 'MRN / Patient ID', cellClassName: 'font-mono text-xs whitespace-nowrap', render: (row) => row.mrn || '-' },
-    { key: 'age', label: 'Age', cellClassName: 'whitespace-nowrap', render: (row) => calculateAge(row.dateOfBirth) },
-    { key: 'gender', label: 'Gender', cellClassName: 'capitalize whitespace-nowrap', render: (row) => row.gender || '-' },
-    { key: 'dateOfBirth', label: 'Date of Birth', cellClassName: 'whitespace-nowrap', render: (row) => formatDate(row.dateOfBirth) },
-    { key: 'phone', label: 'Phone Number', cellClassName: 'whitespace-nowrap', render: (row) => formatPhoneNumber(row) },
-    { key: 'cityState', label: 'City / State', cellClassName: 'whitespace-nowrap', render: (row) => formatCityState(row) },
-    { key: 'status', label: 'Patient Status', cellClassName: 'whitespace-nowrap', render: (row) => <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-green-100 text-green-800">{row.status || 'Active'}</span> },
-    { key: 'lastVisitDate', label: 'Last Visit Date', cellClassName: 'whitespace-nowrap', render: (row) => formatDate(row.lastVisitDate) },
-    { key: 'primaryProvider', label: 'Primary Provider', cellClassName: 'whitespace-nowrap', render: (row) => row.primaryProvider || row.primaryCarePhysician || '-' },
-    { key: 'insurance', label: 'Primary Insurance', cellClassName: 'whitespace-nowrap', render: (row) => row.insuranceProvider?.name || row.insuranceCompany || '-' },
-    { key: 'accountBalance', label: 'Account Balance', cellClassName: 'whitespace-nowrap', render: (row) => formatCurrency(row.accountBalance) },
-    { key: 'createdAt', label: 'Created Date', cellClassName: 'whitespace-nowrap', render: (row) => formatDateTime(row.createdAt) },
-    { key: 'updatedAt', label: 'Last Updated', cellClassName: 'whitespace-nowrap', render: (row) => formatDateTime(row.updatedAt) },
-  ];
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold text-foreground">Patients</h1>
-          <p className="text-muted-foreground">Manage patient records</p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Patient Management</h1>
+          <p className="text-muted-foreground">View and manage patient records.</p>
         </div>
-        <Button onClick={handleCreate} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4" />
-          Add Patient
+        <Button onClick={handleAddNewPatient}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add new Patient
         </Button>
       </div>
 
-      <div className="flex gap-4">
-        <Select value={genderFilter || 'all'} onValueChange={handleGenderChange}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All Genders" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Genders</SelectItem>
-            <SelectItem value="male">Male</SelectItem>
-            <SelectItem value="female">Female</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
-          {error}
+      <form onSubmit={handleSearch} className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, MRN, email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
         </div>
-      )}
+        <Button type="submit" variant="secondary">Search</Button>
+      </form>
 
-      <DataTable
-        columns={patientColumns}
-        data={patients}
-        total={pagination.total}
-        page={pagination.page}
-        pageSize={pagination.limit}
-        searchValue={search}
-        isLoading={isLoading}
-        onSearch={handleSearch}
-        onPageChange={handlePageChange}
-        onPageSizeChange={handlePageSizeChange}
-        getRowId={(row) => row.id}
-        searchPlaceholder="Search by name, MRN, phone, or city..."
-        emptyMessage="No patients found"
-        actions={(patient) => (
-          <div className="flex justify-end gap-1">
-            <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(patient)}>
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => handleDelete(patient)}
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-      />
-
-      {/* Dialogs */}
-      <PatientFormDialog
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        patient={selectedPatient}
-        onSubmit={handleFormSubmit}
-        isLoading={isSubmitting}
-      />
-
-      <DeleteConfirmDialog
-        open={isDeleteOpen}
-        onOpenChange={setIsDeleteOpen}
-        patient={selectedPatient}
-        onConfirm={handleDeleteConfirm}
-        isLoading={isSubmitting}
-      />
+      <div className="rounded-lg border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>MRN</TableHead>
+              <TableHead>First Name</TableHead>
+              <TableHead>Last Name</TableHead>
+              <TableHead>Date of Birth</TableHead>
+              <TableHead>Gender</TableHead>
+              <TableHead>Contact</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="h-32 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    Loading...
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : patients.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                  No patients found
+                </TableCell>
+              </TableRow>
+            ) : (
+              patients.map((patient) => (
+                <TableRow key={patient.id}>
+                  <TableCell className="font-mono text-sm">{patient.mrn ?? '—'}</TableCell>
+                  <TableCell>{patient.firstName ?? '—'}</TableCell>
+                  <TableCell>{patient.lastName ?? '—'}</TableCell>
+                  <TableCell>{formatDate(patient.dateOfBirth)}</TableCell>
+                  <TableCell>{patient.gender ?? '—'}</TableCell>
+                  <TableCell>{patient.contactNumber ?? '—'}</TableCell>
+                  <TableCell>{patient.email ?? '—'}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => navigate(`/patient-dashboard/${patient.id}`)}
+                        title="View"
+                      >
+                        <Eye className="h-4 w-4 icon-action-view" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleEditPatient(patient)}
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4 icon-action-edit" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
-
-
-

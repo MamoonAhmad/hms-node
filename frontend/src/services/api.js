@@ -1,4 +1,15 @@
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:3000/api';
+const TOKEN_KEY = 'hms_token';
+
+// Re-export from modular API (so @/services/api resolves to this file)
+export { authApi } from './api/auth.api.js';
+export { locationApi } from './api/location.api.js';
+export { tenantApi } from './api/tenant.api.js';
+
+function getAuthHeaders() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function handleResponse(response) {
   const data = await response.json();
@@ -823,6 +834,41 @@ export const labApi = {
     return Promise.resolve({ data: Object.values(byPatient) });
   },
 
+  // Outside Labs: list for outside lab orders (same shape as collection list for grouping by patient)
+  getOutsideLabsList(params = {}) {
+    const data = getLabMockData();
+    let list = [...data];
+    if (params.search) {
+      const s = params.search.toLowerCase();
+      list = list.filter(
+        (r) =>
+          (r.testId && r.testId.toLowerCase().includes(s)) ||
+          (r.patient?.name && r.patient.name.toLowerCase().includes(s)) ||
+          (r.patient?.mrn && r.patient.mrn.toLowerCase().includes(s))
+      );
+    }
+    if (params.testId) list = list.filter((r) => r.testId && r.testId.toLowerCase().includes(String(params.testId).toLowerCase()));
+    if (params.patientName) list = list.filter((r) => r.patient?.name && r.patient.name.toLowerCase().includes(String(params.patientName).toLowerCase()));
+    if (params.mrn) list = list.filter((r) => r.patient?.mrn && r.patient.mrn.toLowerCase().includes(String(params.mrn).toLowerCase()));
+    return Promise.resolve({ data: list });
+  },
+
+  // Outside Labs: patient-specific list with order status, created/updated dates
+  getPatientOutsideLabs(patientId, params = {}) {
+    const data = getLabMockData();
+    let list = data.filter((r) => r.patientId === Number(patientId));
+    list = list.map((r) => ({
+      ...r,
+      orderStatus: r.resultStatus === 'Completed' ? 'Received report' : 'Send out',
+      orderCreatedAt: r.createdAt,
+      orderUpdatedAt: r.updatedAt || r.createdAt,
+    }));
+    if (params.testId) list = list.filter((r) => r.testId && r.testId.toLowerCase().includes(String(params.testId).toLowerCase()));
+    if (params.testName) list = list.filter((r) => r.testName && r.testName.toLowerCase().includes(String(params.testName).toLowerCase()));
+    if (params.orderStatus) list = list.filter((r) => r.orderStatus === params.orderStatus);
+    return Promise.resolve({ data: list });
+  },
+
   // Test Catalog
   getTestCatalogList() {
     try {
@@ -986,5 +1032,50 @@ export const labApi = {
     list.push(newReport);
     localStorage.setItem(this.LAB_REPORT_RECEIVED_KEY, JSON.stringify(list));
     return Promise.resolve(newReport);
+  },
+};
+
+// Facility config for order routing (onsite vs external)
+export const facilityConfigApi = {
+  async getConfig(locationId) {
+    const params = locationId ? `?locationId=${encodeURIComponent(locationId)}` : '';
+    const response = await fetch(`${API_BASE_URL}/facility-config${params}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+};
+
+// Patient orders (persisted, routed by facility config)
+export const orderApi = {
+  async createOrders({ patientId, appointmentId, locationId, orders, orderedBy }) {
+    const response = await fetch(`${API_BASE_URL}/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({
+        patientId,
+        appointmentId: appointmentId || null,
+        locationId: locationId || null,
+        orders,
+        orderedBy: orderedBy || null,
+      }),
+    });
+    return handleResponse(response);
+  },
+  async getOrders(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.patientId) searchParams.set('patientId', params.patientId);
+    if (params.appointmentId) searchParams.set('appointmentId', params.appointmentId);
+    if (params.category) searchParams.set('category', params.category);
+    if (params.destination) searchParams.set('destination', params.destination);
+    if (params.page) searchParams.set('page', params.page);
+    if (params.limit) searchParams.set('limit', params.limit);
+    const response = await fetch(`${API_BASE_URL}/orders?${searchParams}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
   },
 };

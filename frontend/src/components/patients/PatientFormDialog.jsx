@@ -147,7 +147,7 @@ const sampleDocuments = [
   },
 ];
 
-export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoading }) {
+export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isOpen = true }) {
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
   const [insuranceProviders, setInsuranceProviders] = useState([]);
@@ -163,7 +163,7 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
 
   const isEditing = !!patient;
 
-  // Fetch insurance providers on mount
+  // Fetch insurance providers on mount / when open
   useEffect(() => {
     const fetchProviders = async () => {
       setLoadingProviders(true);
@@ -177,10 +177,10 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
       }
     };
 
-    if (open) {
+    if (isOpen) {
       fetchProviders();
     }
-  }, [open]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (patient) {
@@ -259,7 +259,7 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
     }
     setErrors({});
     setActiveTab('patient');
-  }, [patient, open]);
+  }, [patient, isOpen]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -357,13 +357,7 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} >
-      <DialogContent className="min-w-[700px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Patient' : 'Add New Patient'}</DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="patient">Patient Info</TabsTrigger>
@@ -1444,15 +1438,32 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
             </TabsContent>
           </Tabs>
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end pt-4">
+            <Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
               {isLoading ? 'Saving...' : isEditing ? 'Update Patient' : 'Create Patient'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
+  );
+}
+
+export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoading }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{patient ? 'Edit Patient' : 'Add New Patient'}</DialogTitle>
+        </DialogHeader>
+        <PatientFormContent
+          patient={patient}
+          onSubmit={onSubmit}
+          isLoading={isLoading}
+          onCancel={() => onOpenChange(false)}
+          isOpen={open}
+        />
       </DialogContent>
     </Dialog>
   );

@@ -131,9 +131,9 @@ export function PatientMedicationViewPage() {
                       {STATUS_OPTIONS.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
                     </SelectContent>
                   </Select>
-                  <Button variant="ghost" size="icon" title="Edit Medication" onClick={() => setEditModal(med)}><Edit className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" title="Edit Medication" onClick={() => setEditModal(med)}><Edit className="h-4 w-4 icon-action-edit" /></Button>
                   <Button variant="ghost" size="icon" title="Feedback" onClick={() => setFeedbackModal(med)}><MessageSquare className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" title="Print labels" onClick={() => setBarcodeModal(med)}><Printer className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" title="Print labels" onClick={() => setBarcodeModal(med)}><Printer className="h-4 w-4 icon-action-print" /></Button>
                   <Button variant="ghost" size="icon" title="Stock Status" onClick={() => setStockModal(med)}><Package className="h-4 w-4" /></Button>
                 </div>
               </div>
@@ -148,7 +148,7 @@ export function PatientMedicationViewPage() {
 
       {feedbackModal && (
         <Dialog open={!!feedbackModal} onOpenChange={(o) => !o && setFeedbackModal(null)}>
-          <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Feedback &amp; Clinical Notes</DialogTitle></DialogHeader>
             <p className="text-sm text-muted-foreground">{feedbackModal.medicationName}</p>
             <div>
@@ -165,7 +165,7 @@ export function PatientMedicationViewPage() {
 
       {barcodeModal && (
         <Dialog open={!!barcodeModal} onOpenChange={(o) => !o && setBarcodeModal(null)}>
-          <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Print Barcode Labels</DialogTitle></DialogHeader>
             <p className="text-sm">{barcodeModal.medicationName}</p>
             <div>
@@ -182,7 +182,7 @@ export function PatientMedicationViewPage() {
 
       {stockModal && (
         <Dialog open={!!stockModal} onOpenChange={(o) => !o && setStockModal(null)}>
-          <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Stock Status</DialogTitle></DialogHeader>
             <p className="text-sm font-medium">{stockModal.medicationName}</p>
             <div className="text-sm text-muted-foreground">

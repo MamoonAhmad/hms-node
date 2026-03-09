@@ -98,7 +98,7 @@ export function CreateLabOrderTransportDialog({ open, onOpenChange, onSaved }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-lg">
+      <DialogContent className="min-w-[800px] max-w-lg">
         <DialogHeader>
           <DialogTitle>Create Lab Order (Transport)</DialogTitle>
         </DialogHeader>

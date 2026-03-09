@@ -1,11 +1,12 @@
 const jwt = require('jsonwebtoken');
-const prisma = require('../lib/prisma');
+const authDb = require('../lib/authDb');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'hms-secret-key-change-in-production';
 
 /**
  * Authentication middleware
- * Verifies JWT token and attaches user to request
+ * Verifies JWT token and attaches user to request.
+ * Uses pg (authDb) to avoid Prisma client issues in some environments.
  */
 const auth = async (req, res, next) => {
   try {
@@ -22,18 +23,7 @@ const auth = async (req, res, next) => {
 
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      
-      // Fetch user from database to ensure they still exist and are active
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          isActive: true,
-        },
-      });
+      const user = await authDb.findUserById(decoded.userId);
 
       if (!user) {
         return res.status(401).json({
@@ -84,16 +74,7 @@ const optionalAuth = async (req, res, next) => {
 
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          isActive: true,
-        },
-      });
+      const user = await authDb.findUserById(decoded.userId);
 
       if (user && user.isActive) {
         req.user = user;

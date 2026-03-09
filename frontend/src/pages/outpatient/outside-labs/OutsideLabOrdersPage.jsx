@@ -32,8 +32,8 @@ export function OutsideLabOrdersPage() {
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
-    status: '',
-    externalLabId: '',
+    status: 'all',
+    externalLabId: 'all',
   });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -44,7 +44,12 @@ export function OutsideLabOrdersPage() {
   const fetchOrders = async () => {
     setIsLoading(true);
     try {
-      const data = await outsideLabsStore.getLabOrders(filters);
+      const effectiveFilters = {
+      ...filters,
+      status: filters.status === 'all' ? '' : filters.status,
+      externalLabId: filters.externalLabId === 'all' ? '' : filters.externalLabId,
+    };
+    const data = await outsideLabsStore.getLabOrders(effectiveFilters);
       setOrders(data);
     } catch (err) {
       setMessage({ type: 'error', text: err.message || 'Failed to load orders' });
@@ -174,12 +179,12 @@ export function OutsideLabOrdersPage() {
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Status</label>
-          <Select value={filters.status} onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}>
+          <Select value={filters.status || 'all'} onValueChange={(v) => setFilters((f) => ({ ...f, status: v }))}>
             <SelectTrigger className="w-44">
               <SelectValue placeholder="All" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All</SelectItem>
+              <SelectItem value="all">All</SelectItem>
               {STATUS_OPTIONS.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
@@ -188,12 +193,12 @@ export function OutsideLabOrdersPage() {
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">External Lab</label>
-          <Select value={filters.externalLabId} onValueChange={(v) => setFilters((f) => ({ ...f, externalLabId: v }))}>
+          <Select value={filters.externalLabId || 'all'} onValueChange={(v) => setFilters((f) => ({ ...f, externalLabId: v }))}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="All labs" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All labs</SelectItem>
+              <SelectItem value="all">All labs</SelectItem>
               {externalLabs.map((l) => (
                 <SelectItem key={l.id} value={String(l.id)}>{l.labName}</SelectItem>
               ))}
@@ -245,14 +250,14 @@ export function OutsideLabOrdersPage() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1 flex-wrap">
                       <Button variant="ghost" size="sm" onClick={() => handleViewOrder(row)} title="View Order">
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-4 w-4 icon-action-view" />
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => handleUploadReport(row)} title="Upload Report">
                         <Upload className="h-4 w-4" />
                       </Button>
                       {row.uploadedReports?.length > 0 && (
                         <Button variant="ghost" size="sm" onClick={() => handleViewOrder(row)} title="View Report">
-                          <FileText className="h-4 w-4" />
+                          <FileText className="h-4 w-4 icon-action-view" />
                         </Button>
                       )}
                       {row.status !== 'Result Received' && row.status !== 'Reviewed' && row.status !== 'Closed' && (

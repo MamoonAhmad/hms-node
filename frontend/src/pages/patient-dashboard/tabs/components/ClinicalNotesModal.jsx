@@ -217,7 +217,7 @@ export function ClinicalNotesModal({ isOpen, onClose, onSave, patient, note }) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="min-w-[700px] max-w-7xl w-[95vw] max-h-[95vh] overflow-y-auto">
+      <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[95vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isAddendum ? 'Add Addendum' : note ? 'Edit Clinical Note' : 'Add Clinical Note'}
@@ -315,8 +315,8 @@ export function ClinicalNotesModal({ isOpen, onClose, onSave, patient, note }) {
           </Card>
 
           {isAddendum && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm font-medium text-blue-900">
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+              <p className="text-sm font-medium text-primary">
                 Addendum to Note dated: {note?.date ? new Date(note.date).toLocaleDateString() : 'N/A'}
               </p>
             </div>
@@ -325,7 +325,7 @@ export function ClinicalNotesModal({ isOpen, onClose, onSave, patient, note }) {
           {/* S: Subjective Section */}
           <Card>
             <CardHeader
-              className="bg-blue-50 cursor-pointer"
+              className="bg-primary/5 cursor-pointer"
               onClick={() => toggleSection('subjective')}
             >
               <div className="flex items-center justify-between">

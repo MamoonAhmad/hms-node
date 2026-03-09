@@ -168,7 +168,7 @@ export function TestCatalogPage() {
       </Card>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Lab Test</DialogTitle></DialogHeader>
           <div className="space-y-6">
             <div>

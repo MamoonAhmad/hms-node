@@ -67,7 +67,7 @@ export function UploadReportDialog({ open, onOpenChange, order, onSubmit, isLoad
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-md">
+      <DialogContent className="min-w-[800px] max-w-md">
         <DialogHeader>
           <DialogTitle>Upload External Lab Report</DialogTitle>
         </DialogHeader>

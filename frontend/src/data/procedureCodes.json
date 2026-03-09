@@ -1,0 +1,233 @@
+[
+  {
+    "id": "RAD001",
+    "code": "XR-CHEST",
+    "name": "Chest X-Ray",
+    "category": "Radiology",
+    "subcategory": "X-Ray",
+    "price": 500,
+    "description": "Standard chest radiograph",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "RAD002",
+    "code": "XR-ABDOMEN",
+    "name": "Abdomen X-Ray",
+    "category": "Radiology",
+    "subcategory": "X-Ray",
+    "price": 450,
+    "description": "Plain film abdomen",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "RAD003",
+    "code": "CT-HEAD",
+    "name": "CT Head (without contrast)",
+    "category": "Radiology",
+    "subcategory": "CT",
+    "price": 1200,
+    "description": "Computed tomography of head",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "RAD004",
+    "code": "MRI-BRAIN",
+    "name": "MRI Brain",
+    "category": "Radiology",
+    "subcategory": "MRI",
+    "price": 1800,
+    "description": "Magnetic resonance imaging of brain",
+    "requiresConsent": true,
+    "requiresFasting": false
+  },
+  {
+    "id": "RAD005",
+    "code": "US-ABDOMEN",
+    "name": "Ultrasound Abdomen",
+    "category": "Radiology",
+    "subcategory": "Ultrasound",
+    "price": 600,
+    "description": "Complete abdominal ultrasound",
+    "requiresConsent": false,
+    "requiresFasting": true
+  },
+  {
+    "id": "LAB001",
+    "code": "CBC",
+    "name": "Complete Blood Count",
+    "category": "Lab",
+    "subcategory": "Hematology",
+    "price": 300,
+    "description": "Full CBC with differential",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "LAB002",
+    "code": "CMP",
+    "name": "Comprehensive Metabolic Panel",
+    "category": "Lab",
+    "subcategory": "Chemistry",
+    "price": 350,
+    "description": "14-panel metabolic panel",
+    "requiresConsent": false,
+    "requiresFasting": true
+  },
+  {
+    "id": "LAB003",
+    "code": "HbA1c",
+    "name": "Hemoglobin A1c",
+    "category": "Lab",
+    "subcategory": "Chemistry",
+    "price": 280,
+    "description": "Glycated hemoglobin",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "LAB004",
+    "code": "UA",
+    "name": "Urinalysis",
+    "category": "Lab",
+    "subcategory": "Urinalysis",
+    "price": 120,
+    "description": "Routine urinalysis",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "LAB005",
+    "code": "TSH",
+    "name": "Thyroid Stimulating Hormone",
+    "category": "Lab",
+    "subcategory": "Endocrinology",
+    "price": 320,
+    "description": "TSH level",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "LAB006",
+    "code": "LIPID",
+    "name": "Lipid Panel",
+    "category": "Lab",
+    "subcategory": "Chemistry",
+    "price": 380,
+    "description": "Total cholesterol, LDL, HDL, triglycerides",
+    "requiresConsent": false,
+    "requiresFasting": true
+  },
+  {
+    "id": "PHM001",
+    "code": "AMOX-500",
+    "name": "Amoxicillin 500mg Capsule",
+    "category": "Pharmacy",
+    "subcategory": "Antibiotic",
+    "price": 25,
+    "description": "Oral antibiotic",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PHM002",
+    "code": "LISIN-10",
+    "name": "Lisinopril 10mg Tablet",
+    "category": "Pharmacy",
+    "subcategory": "Cardiovascular",
+    "price": 18,
+    "description": "ACE inhibitor",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PHM003",
+    "code": "METFORMIN-500",
+    "name": "Metformin 500mg Tablet",
+    "category": "Pharmacy",
+    "subcategory": "Diabetes",
+    "price": 22,
+    "description": "Biguanide oral hypoglycemic",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PHM004",
+    "code": "IBU-400",
+    "name": "Ibuprofen 400mg Tablet",
+    "category": "Pharmacy",
+    "subcategory": "NSAID",
+    "price": 12,
+    "description": "Over-the-counter NSAID",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PHM005",
+    "code": "OMEP-20",
+    "name": "Omeprazole 20mg Capsule",
+    "category": "Pharmacy",
+    "subcategory": "GI",
+    "price": 28,
+    "description": "Proton pump inhibitor",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PROC001",
+    "code": "EKG-12",
+    "name": "12-Lead EKG",
+    "category": "Procedures",
+    "subcategory": "Cardiac",
+    "price": 150,
+    "description": "Standard 12-lead electrocardiogram",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PROC002",
+    "code": "SPIRO",
+    "name": "Spirometry",
+    "category": "Procedures",
+    "subcategory": "Pulmonary",
+    "price": 220,
+    "description": "Lung function test",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PROC003",
+    "code": "IV-INSERT",
+    "name": "IV Insertion",
+    "category": "Procedures",
+    "subcategory": "Nursing",
+    "price": 85,
+    "description": "Peripheral IV placement",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PROC004",
+    "code": "VENIPUNCTURE",
+    "name": "Venipuncture",
+    "category": "Procedures",
+    "subcategory": "Lab Draw",
+    "price": 45,
+    "description": "Blood draw for lab",
+    "requiresConsent": false,
+    "requiresFasting": false
+  },
+  {
+    "id": "PROC005",
+    "code": "INJ-IM",
+    "name": "Intramuscular Injection",
+    "category": "Procedures",
+    "subcategory": "Nursing",
+    "price": 55,
+    "description": "IM injection administration",
+    "requiresConsent": false,
+    "requiresFasting": false
+  }
+]

@@ -110,13 +110,13 @@ export function DocumentsTab({ patient }) {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-4 w-4 icon-action-view" />
                           </Button>
                           <Button variant="ghost" size="sm">
                             <Download className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash2 className="h-4 w-4 icon-action-delete" />
                           </Button>
                         </div>
                       </TableCell>

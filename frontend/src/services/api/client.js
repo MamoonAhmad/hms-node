@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:5000/api';
+export const API_BASE_URL = 'http://localhost:3000/api';
 
 const TOKEN_KEY = 'hms_token';
 
@@ -8,7 +8,13 @@ export function getAuthHeaders() {
 }
 
 export async function handleResponse(response) {
-  const data = await response.json();
+  let data;
+  try {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = {};
+  }
   if (!response.ok) {
     // Handle 401 Unauthorized - redirect to login
     if (response.status === 401) {

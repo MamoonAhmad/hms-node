@@ -159,7 +159,7 @@ export function MedicationPrescriptionsPage() {
             emptyMessage="No records"
             actions={(row) => (
               <div className="flex gap-1">
-                <Button variant="ghost" size="sm" title="View Tests" onClick={() => navigate(`/pharmacy/e-prescribe-med-reconciliation/patient/${row.id}`)}><Eye className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="sm" title="View Tests" onClick={() => navigate(`/pharmacy/e-prescribe-med-reconciliation/patient/${row.id}`)}><Eye className="h-4 w-4 icon-action-view" /></Button>
                 <Button variant="ghost" size="sm" title="Generate Barcode Labels" onClick={() => setBarcodeRow(row)}><Barcode className="h-4 w-4" /></Button>
               </div>
             )}
@@ -168,7 +168,7 @@ export function MedicationPrescriptionsPage() {
       </Card>
 
       <Dialog open={!!barcodeRow} onOpenChange={(o) => !o && setBarcodeRow(null)}>
-        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Generate Barcode Labels</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">{barcodeRow?.name} — MRN: {barcodeRow?.mrn}</p>
           <div>

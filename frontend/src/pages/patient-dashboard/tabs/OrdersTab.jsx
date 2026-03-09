@@ -215,7 +215,7 @@ export function OrdersTab({ patient }) {
 
       {/* Add Order Modal */}
       <Dialog open={isAddOrderModalOpen} onOpenChange={setIsAddOrderModalOpen}>
-        <DialogContent className="min-w-[700px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Order</DialogTitle>
           </DialogHeader>

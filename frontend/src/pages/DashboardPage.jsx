@@ -65,7 +65,7 @@ export function DashboardPage() {
   };
 
   const statusColors = {
-    Scheduled: 'text-blue-600',
+    Scheduled: 'text-primary',
     'Checked-In': 'text-yellow-600',
     'In Progress': 'text-purple-600',
     Completed: 'text-green-600',

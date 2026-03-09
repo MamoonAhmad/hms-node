@@ -70,7 +70,7 @@ export function TenantFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="min-w-[800px] max-w-md">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Tenant' : 'Add Tenant'}

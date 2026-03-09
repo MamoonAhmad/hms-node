@@ -59,6 +59,7 @@ function useDebouncedValue(value, delay) {
  * @param {number[]} [props.pageSizeOptions] - Options for records per page
  * @param {number} [props.searchDebounceMs] - Debounce delay for search
  * @param {string} [props.className] - Extra class for wrapper
+ * @param {boolean} [props.hideToolbar] - If true, hide search and rows-per-page toolbar (use custom bar above)
  *
  * @example
  * // Server-side (parent fetches when page, pageSize, or search change):
@@ -102,6 +103,7 @@ export function DataTable({
   pageSizeOptions = DEFAULT_PAGE_SIZES,
   searchDebounceMs = DEFAULT_DEBOUNCE_MS,
   className,
+  hideToolbar = false,
 }) {
   const [localSearch, setLocalSearch] = useState(searchValue ?? '');
   const debouncedSearch = useDebouncedValue(localSearch, searchDebounceMs);
@@ -113,8 +115,8 @@ export function DataTable({
 
   // Notify parent when debounced search differs from controlled value (avoids redundant fetch on mount)
   useEffect(() => {
-    if (debouncedSearch !== (searchValue ?? '')) {
-      onSearch(debouncedSearch);
+    if (!hideToolbar && debouncedSearch !== (searchValue ?? '')) {
+      onSearch?.(debouncedSearch);
     }
   }, [debouncedSearch]); // eslint-disable-line react-hooks/exhaustive-deps -- only when debounced value changes
 
@@ -143,49 +145,51 @@ export function DataTable({
 
   return (
     <div className={cn('space-y-4', className)}>
-      {/* Toolbar: search + page size */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <Input
-            type="search"
-            placeholder={searchPlaceholder}
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            className="pl-9 pr-9"
-            aria-label="Search table"
-          />
-          {localSearch && (
-            <button
-              type="button"
-              onClick={handleClearSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Clear search"
+      {/* Toolbar: search + page size (optional) */}
+      {!hideToolbar && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              type="search"
+              placeholder={searchPlaceholder}
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              className="pl-9 pr-9"
+              aria-label="Search table"
+            />
+            {localSearch && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-sm text-muted-foreground">Rows per page</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={handlePageSizeChange}
+              aria-label="Rows per page"
             >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+              <SelectTrigger className="w-[72px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {pageSizeOptions.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="whitespace-nowrap text-sm text-muted-foreground">Rows per page</span>
-          <Select
-            value={String(pageSize)}
-            onValueChange={handlePageSizeChange}
-            aria-label="Rows per page"
-          >
-            <SelectTrigger className="w-[72px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {pageSizeOptions.map((size) => (
-                <SelectItem key={size} value={String(size)}>
-                  {size}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      )}
 
       {/* Table */}
       <div className="rounded-lg border bg-card overflow-hidden">

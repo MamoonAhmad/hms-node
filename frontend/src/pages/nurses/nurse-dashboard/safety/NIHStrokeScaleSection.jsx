@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -9,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Activity } from 'lucide-react';
 
 const NIH_STROKE_ITEMS = [
   { id: '1a', label: '1a. Level of Consciousness', options: ['0 - Alert', '1 - Not alert; arousable by minor stimulation', '2 - Repeated stimulation to attend', '3 - Reflex only or unresponsive'] },
@@ -52,21 +51,6 @@ export function NIHStrokeScaleSection() {
 
   return (
     <Card>
-      <CardHeader className="rounded-t-lg border-b bg-primary px-6 py-4 text-primary-foreground">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-foreground/20">
-            <Activity className="h-4 w-4" />
-          </div>
-          <div className="space-y-0.5">
-            <CardTitle className="text-lg font-semibold text-primary-foreground">
-              NIH Stroke Scale
-            </CardTitle>
-            <p className="text-sm text-primary-foreground/90">
-              Administer items in order. Record performance after each subscale. Do not go back and change scores.
-            </p>
-          </div>
-        </div>
-      </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
           <div className="space-y-2">

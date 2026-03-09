@@ -103,7 +103,7 @@ export function CodesSection({ patientId }) {
         </Tabs>
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add Codes</DialogTitle>
             </DialogHeader>

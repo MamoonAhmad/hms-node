@@ -147,10 +147,10 @@ export function SpecimenCollectionPage() {
         actions={(group) => (
           <div className="flex items-center justify-end gap-1">
             <Button variant="ghost" size="sm" onClick={() => handleViewDetail(group.patientId)} className="h-8 w-8 p-0" title="View order detail">
-              <Eye className="h-4 w-4" />
+              <Eye className="h-4 w-4 icon-action-view" />
             </Button>
             <Button variant="ghost" size="sm" onClick={() => handlePrintBarcodes(group)} className="h-8 w-8 p-0" title="Print barcodes for lab order">
-              <Printer className="h-4 w-4" />
+              <Printer className="h-4 w-4 icon-action-print" />
             </Button>
           </div>
         )}

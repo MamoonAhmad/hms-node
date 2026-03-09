@@ -132,7 +132,7 @@ const ChiefComplaint = () => {
       />
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="min-w-[700px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedComplaint ? 'Edit Chief Complaint' : 'Add Chief Complaint'}</DialogTitle>
           </DialogHeader>
@@ -159,7 +159,7 @@ const ChiefComplaint = () => {
       </Dialog>
 
       <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-        <DialogContent className="min-w-[700px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>View Chief Complaint</DialogTitle>
           </DialogHeader>

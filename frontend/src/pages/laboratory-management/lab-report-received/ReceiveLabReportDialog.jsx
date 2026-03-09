@@ -146,7 +146,7 @@ export function ReceiveLabReportDialog({ open, onOpenChange, onSaved }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[800px] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Receive lab report</DialogTitle>
         </DialogHeader>

@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Brain } from 'lucide-react';
 
 const GAD7_RESPONSE_OPTIONS = [
   { value: '0', label: 'Not at all', score: 0 },
@@ -53,21 +52,6 @@ export function GAD7Section() {
 
   return (
     <Card>
-      <CardHeader className="rounded-t-lg border-b bg-primary px-6 py-4 text-primary-foreground">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-foreground/20">
-            <Brain className="h-4 w-4" />
-          </div>
-          <div className="space-y-0.5">
-            <CardTitle className="text-lg font-semibold text-primary-foreground">
-              GAD-7 Anxiety Severity
-            </CardTitle>
-            <p className="text-sm text-primary-foreground/90">
-              Over the last two weeks, how often have you been bothered by the following problems?
-            </p>
-          </div>
-        </div>
-      </CardHeader>
       <CardContent className="space-y-6 pt-6">
         <div className="space-y-4">
           {GAD7_QUESTIONS.map((q) => (
@@ -75,13 +59,8 @@ export function GAD7Section() {
               key={q.id}
               className="flex flex-col gap-3 rounded-lg border border-border/60 p-3"
             >
-              <div className="flex items-start gap-2">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary text-xs font-medium text-primary-foreground">
-                  {q.id}
-                </span>
-                <p className="text-sm font-medium text-foreground">{q.text}</p>
-              </div>
-              <div className="flex flex-wrap gap-2 pl-8">
+              <p className="text-sm font-medium text-foreground">{q.text}</p>
+              <div className="flex flex-wrap gap-2">
                 {GAD7_RESPONSE_OPTIONS.map((opt) => (
                   <Button
                     key={opt.value}

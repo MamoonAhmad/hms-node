@@ -6,7 +6,7 @@ const START_HOUR = 0; // 12 AM (midnight)
 const END_HOUR = 23; // 11 PM
 
 const statusColors = {
-  Scheduled: 'bg-blue-500 hover:bg-blue-600 border-blue-600',
+  Scheduled: 'bg-primary hover:bg-primary/90 border-primary',
   'Checked-In': 'bg-yellow-500 hover:bg-yellow-600 border-yellow-600',
   'In Progress': 'bg-purple-500 hover:bg-purple-600 border-purple-600',
   Completed: 'bg-green-500 hover:bg-green-600 border-green-600',
@@ -262,7 +262,7 @@ export function AppointmentTimeline({
                 className={cn(
                   'absolute rounded-md border-l-4 px-2 py-1 cursor-pointer transition-all shadow-sm z-10',
                   'text-white text-sm overflow-hidden',
-                  statusColors[appointment.status] || 'bg-blue-500'
+                  statusColors[appointment.status] || 'bg-primary'
                 )}
                 style={{
                   top: `${top}px`,
