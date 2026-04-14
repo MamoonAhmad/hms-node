@@ -88,7 +88,7 @@ export function PermissionFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="min-w-[800px] max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Permission' : 'Add Permission'}

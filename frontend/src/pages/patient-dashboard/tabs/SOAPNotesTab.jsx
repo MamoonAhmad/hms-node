@@ -170,7 +170,7 @@ export function SOAPNotesTab({ patient }) {
                         className="h-8 w-8 p-0"
                         title="View"
                       >
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-4 w-4 icon-action-view" />
                       </Button>
                       <Button 
                         variant="ghost" 
@@ -179,7 +179,7 @@ export function SOAPNotesTab({ patient }) {
                         className="h-8 w-8 p-0"
                         title="Edit"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4 icon-action-edit" />
                       </Button>
                       <Button 
                         variant="outline" 
@@ -215,7 +215,7 @@ export function SOAPNotesTab({ patient }) {
                       {note.addendums.map((addendum) => (
                         <div
                           key={addendum.id}
-                          className="bg-muted/50 p-3 rounded-lg border-l-4 border-blue-500"
+                          className="bg-muted/50 p-3 rounded-lg border-l-4 border-primary"
                         >
                           <div className="flex items-center justify-between mb-1">
                             <p className="text-sm font-medium">{addendum.addedBy}</p>

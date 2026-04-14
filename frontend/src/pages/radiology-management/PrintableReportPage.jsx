@@ -29,7 +29,7 @@ export function PrintableReportPage() {
           Close
         </Button>
         <Button onClick={handlePrint}>
-          <Printer className="h-4 w-4 mr-2" />
+          <Printer className="h-4 w-4 mr-2 icon-action-print" />
           Print
         </Button>
       </div>

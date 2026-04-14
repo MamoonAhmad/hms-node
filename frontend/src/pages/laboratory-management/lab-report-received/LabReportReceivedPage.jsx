@@ -63,7 +63,7 @@ export function LabReportReceivedPage() {
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold">Lab report received</h1>
+        <h1 className="text-2xl font-bold">Receive External Lab Reports</h1>
         <p className="text-muted-foreground">
           Patient has come from another facility with lab reports. Receive and attach reports to the chart for the doctor to view.
         </p>

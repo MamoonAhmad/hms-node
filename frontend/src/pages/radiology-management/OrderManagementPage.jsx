@@ -108,10 +108,10 @@ export function OrderManagementPage() {
             actions={(r) => (
               <div className="flex items-center justify-end gap-1">
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="View detail" onClick={() => handleViewDetail(r.patientId)}>
-                  <Eye className="h-4 w-4" />
+                  <Eye className="h-4 w-4 icon-action-view" />
                 </Button>
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Print barcode" onClick={() => handlePrintBarcode(r.patientId)}>
-                  <Printer className="h-4 w-4" />
+                  <Printer className="h-4 w-4 icon-action-print" />
                 </Button>
               </div>
             )}

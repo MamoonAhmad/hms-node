@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom';
+import { FacilityConfigProvider } from '@/contexts/FacilityConfigContext';
 import { Sidebar } from './Sidebar';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { Topbar } from './Topbar';
@@ -17,7 +18,7 @@ function LayoutContent() {
         )}
       >
         <Topbar />
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-8 overflow-auto min-h-0">
           <Outlet />
         </div>
       </main>
@@ -27,9 +28,11 @@ function LayoutContent() {
 
 export function Layout() {
   return (
-    <SidebarProvider>
-      <LayoutContent />
-    </SidebarProvider>
+    <FacilityConfigProvider>
+      <SidebarProvider>
+        <LayoutContent />
+      </SidebarProvider>
+    </FacilityConfigProvider>
   );
 }
 

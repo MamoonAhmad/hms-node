@@ -35,6 +35,12 @@ function toDatetimeLocal(isoString) {
   return d.toISOString().slice(0, 16);
 }
 
+function toDateLocal(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  return d.toISOString().slice(0, 10);
+}
+
 export function EditRadiologyReportDialog({ open, onClose, order, patient, onSave }) {
   const [formData, setFormData] = useState({
     chiefComplaint: '',
@@ -47,6 +53,10 @@ export function EditRadiologyReportDialog({ open, onClose, order, patient, onSav
     interpretedBy: '',
     imagingDetailDateTime: '',
   });
+  const [sendOutLocation, setSendOutLocation] = useState('');
+  const [sendOutDate, setSendOutDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportReceivedDate, setReportReceivedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportReceivedNotes, setReportReceivedNotes] = useState('');
 
   useEffect(() => {
     if (order) {
@@ -61,6 +71,10 @@ export function EditRadiologyReportDialog({ open, onClose, order, patient, onSav
         interpretedBy: order.interpretedBy ?? '',
         imagingDetailDateTime: toDatetimeLocal(order.imagingDetailDateTime || order.orderDateTime),
       });
+      setSendOutLocation(order.sendOutLocation ?? '');
+      setSendOutDate(order.sendOutDate ? toDateLocal(order.sendOutDate) : new Date().toISOString().slice(0, 10));
+      setReportReceivedDate(order.reportReceivedAt ? toDateLocal(order.reportReceivedAt) : new Date().toISOString().slice(0, 10));
+      setReportReceivedNotes(order.reportReceivedNotes ?? '');
     }
   }, [order, patient, open]);
 
@@ -86,7 +100,7 @@ export function EditRadiologyReportDialog({ open, onClose, order, patient, onSav
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Radiology Report</DialogTitle>
         </DialogHeader>
@@ -95,6 +109,79 @@ export function EditRadiologyReportDialog({ open, onClose, order, patient, onSav
             <Label className="text-muted-foreground">Order name</Label>
             <Input value={order.orderName ?? ''} readOnly className="bg-muted" />
           </div>
+
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+            <Label className="text-base font-medium">Send out / Receive</Label>
+            <p className="text-sm text-muted-foreground">Send this radiology order to another location or record that the report was received.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-sm">Send order to another location</Label>
+                <Input
+                  placeholder="Location or facility name"
+                  value={sendOutLocation}
+                  onChange={(e) => setSendOutLocation(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  value={sendOutDate}
+                  onChange={(e) => setSendOutDate(e.target.value)}
+                  className="mt-1"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    if (!sendOutLocation.trim()) return;
+                    onSave({
+                      ...order,
+                      ...formData,
+                      sendOutLocation: sendOutLocation.trim(),
+                      sendOutDate: sendOutDate ? new Date(sendOutDate).toISOString() : new Date().toISOString(),
+                      lastUpdatedAt: new Date().toISOString(),
+                      lastUpdatedBy: 'Current User',
+                    });
+                    onClose();
+                  }}
+                >
+                  Send to location
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Receive radiology report</Label>
+                <Input
+                  type="date"
+                  value={reportReceivedDate}
+                  onChange={(e) => setReportReceivedDate(e.target.value)}
+                />
+                <Input
+                  placeholder="Notes (optional)"
+                  value={reportReceivedNotes}
+                  onChange={(e) => setReportReceivedNotes(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    onSave({
+                      ...order,
+                      ...formData,
+                      reportReceivedAt: reportReceivedDate ? new Date(reportReceivedDate).toISOString() : new Date().toISOString(),
+                      reportReceivedNotes: reportReceivedNotes.trim() || undefined,
+                      status: 'Completed',
+                      lastUpdatedAt: new Date().toISOString(),
+                      lastUpdatedBy: 'Current User',
+                    });
+                    onClose();
+                  }}
+                >
+                  Receive report
+                </Button>
+              </div>
+            </div>
+          </div>
+
           <div>
             <Label>Chief complaint</Label>
             <Input

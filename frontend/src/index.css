@@ -3,8 +3,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* HMS theme: Facebook-style blue (#1877F2) – clean, familiar, high contrast */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -12,44 +13,62 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.5rem;
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.2 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.2 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.2 0 0);
+  /* Primary: Facebook blue #1877F2 */
+  --primary: oklch(0.55 0.2 264);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.96 0.01 264);
+  --secondary-foreground: oklch(0.25 0.02 264);
+  --muted: oklch(0.965 0.005 264);
+  --muted-foreground: oklch(0.45 0.02 264);
+  --accent: oklch(0.94 0.03 264);
+  --accent-foreground: oklch(0.25 0.02 264);
+  --destructive: oklch(0.55 0.22 25);
+  --border: oklch(0.91 0.01 264);
+  --input: oklch(0.91 0.01 264);
+  --ring: oklch(0.55 0.2 264);
+  --chart-1: oklch(0.55 0.2 264);
+  --chart-2: oklch(0.6 0.18 250);
+  --chart-3: oklch(0.5 0.15 270);
+  --chart-4: oklch(0.65 0.14 264);
+  --chart-5: oklch(0.45 0.12 255);
+  --sidebar: oklch(0.982 0.012 264);
+  --sidebar-foreground: oklch(0.25 0.02 264);
+  --sidebar-primary: oklch(0.55 0.2 264);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.06 264);
+  --sidebar-accent-foreground: oklch(0.28 0.04 264);
+  --sidebar-border: oklch(0.92 0.015 264);
+  --sidebar-ring: oklch(0.55 0.2 264);
+  --sidebar-active-bar: oklch(0.55 0.2 264);
+  /* Sidebar: soft blue icon; stronger blue on hover/active */
+  --sidebar-icon: oklch(0.5 0.14 264);
+  --sidebar-icon-hover: oklch(0.55 0.2 264);
+  /* Login hero gradient – Facebook-style blue */
+  --theme-gradient-start: oklch(0.55 0.2 264);
+  --theme-gradient-mid: oklch(0.5 0.18 260);
+  --theme-gradient-end: oklch(0.45 0.16 255);
+}
+
+html {
+  /* Larger base font for easier reading across all pages */
+  font-size: 1.125rem; /* 18px when browser default is 16px */
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  line-height: 1.55;
+  /* Fallback so content is visible even if Tailwind/theme vars don't load */
+  background-color: #fafafa;
+  color: #1a1a1a;
 }
 
 #root {
@@ -92,40 +111,49 @@ body {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-icon: var(--sidebar-icon);
+  --color-sidebar-icon-hover: var(--sidebar-icon-hover);
+  --color-sidebar-active-bar: var(--sidebar-active-bar);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.2 0.02 264);
+  --foreground: oklch(0.95 0.01 264);
+  --card: oklch(0.24 0.02 264);
+  --card-foreground: oklch(0.95 0.01 264);
+  --popover: oklch(0.24 0.02 264);
+  --popover-foreground: oklch(0.95 0.01 264);
+  --primary: oklch(0.55 0.2 264);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.3 0.03 264);
+  --secondary-foreground: oklch(0.95 0 0);
+  --muted: oklch(0.3 0.03 264);
+  --muted-foreground: oklch(0.65 0.02 264);
+  --accent: oklch(0.35 0.06 264);
+  --accent-foreground: oklch(0.95 0 0);
+  --destructive: oklch(0.55 0.22 25);
+  --border: oklch(0.35 0.03 264);
+  --input: oklch(0.3 0.03 264);
+  --ring: oklch(0.55 0.2 264);
+  --chart-1: oklch(0.55 0.2 264);
+  --chart-2: oklch(0.5 0.15 250);
+  --chart-3: oklch(0.6 0.14 270);
+  --chart-4: oklch(0.45 0.12 255);
+  --chart-5: oklch(0.5 0.1 264);
+  --sidebar: oklch(0.22 0.03 264);
+  --sidebar-foreground: oklch(0.95 0.01 264);
+  --sidebar-primary: oklch(0.55 0.2 264);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.32 0.06 264);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.35 0.03 264);
+  --sidebar-ring: oklch(0.55 0.2 264);
+  --sidebar-active-bar: oklch(0.55 0.2 264);
+  --sidebar-icon: oklch(0.65 0.15 264);
+  --sidebar-icon-hover: oklch(0.95 0 0);
+  --theme-gradient-start: oklch(0.5 0.18 264);
+  --theme-gradient-mid: oklch(0.45 0.16 260);
+  --theme-gradient-end: oklch(0.4 0.14 255);
 }
 
 @layer base {
@@ -135,4 +163,52 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  h1 {
+    @apply text-foreground;
+  }
+  h2 {
+    @apply text-foreground;
+  }
+}
+
+@layer utilities {
+  .theme-hero-gradient {
+    background: linear-gradient(
+      to bottom right,
+      var(--theme-gradient-start),
+      var(--theme-gradient-mid),
+      var(--theme-gradient-end)
+    );
+  }
+  /* Action icon colors: delete=red, edit=green, view=blue, print=reddish */
+  .icon-action-delete { @apply text-red-600; }
+  .icon-action-edit { @apply text-green-600; }
+  .icon-action-view { @apply text-blue-600; }
+  .icon-action-print { @apply text-rose-600; }
+  /* Sidebar active item left border */
+  .border-l-sidebar-active-bar {
+    border-left-color: var(--sidebar-active-bar);
+  }
+}
+
+/* Form modals: min-width 800px - use class dialog-form-min on DialogContent (non-RCM) */
+.dialog-form-min {
+  min-width: 800px;
+}
+
+/* Same width for inputs, selects, dropdowns in forms (modals and pages) */
+[data-slot="dialog-content"] [data-slot="input"],
+[data-slot="dialog-content"] [data-slot="select-trigger"],
+[data-slot="dialog-content"] select {
+  width: 100%;
+  min-width: 0;
+}
+[data-slot="dialog-content"] select {
+  height: 2.25rem; /* match Input h-9 */
+}
+.form-same-width [data-slot="input"],
+.form-same-width [data-slot="select-trigger"],
+.form-same-width select {
+  width: 100%;
+  min-width: 0;
 }

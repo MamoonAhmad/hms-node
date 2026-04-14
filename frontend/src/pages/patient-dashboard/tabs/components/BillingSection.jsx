@@ -71,7 +71,7 @@ export function BillingSection({ patientId }) {
                         setIsViewDialogOpen(true);
                       }}
                     >
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4 icon-action-view" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -91,7 +91,7 @@ export function BillingSection({ patientId }) {
         </Table>
 
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Claim Details</DialogTitle>
             </DialogHeader>
@@ -112,7 +112,7 @@ export function BillingSection({ patientId }) {
         </Dialog>
 
         <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-          <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Make Payment</DialogTitle>
             </DialogHeader>

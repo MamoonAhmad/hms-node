@@ -50,21 +50,21 @@ export function Topbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center justify-end gap-2 border-b px-6 bg-[#2d2d73] text-white">
+    <header className="sticky top-0 z-40 flex h-14 items-center justify-end gap-2 border-b border-primary/30 px-6 bg-primary text-primary-foreground">
       <div className="flex items-center gap-3">
         {/* Notifications */}
         <div className="relative" ref={notificationsRef}>
           <Button
             variant="ghost"
             size="icon"
-            className="relative text-white hover:bg-white/10 hover:text-white"
+            className="relative text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
             onClick={() => {
               setNotificationsOpen((o) => !o);
               setProfileOpen(false);
             }}
             aria-label="Notifications"
           >
-            <Bell className="size-5 text-white" />
+            <Bell className="size-5 text-primary-foreground" />
           </Button>
           {notificationsOpen && (
             <div
@@ -107,7 +107,7 @@ export function Topbar() {
         <div className="relative" ref={profileRef}>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-full text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+            className="flex items-center gap-2 rounded-full text-primary-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/50"
             onClick={() => {
               setProfileOpen((o) => !o);
               setNotificationsOpen(false);
@@ -116,12 +116,12 @@ export function Topbar() {
           >
             {/* Dummy profile pic - replace with real user avatar later */}
             <img
-              src="https://placehold.co/36x36/6366f1/ffffff?text=U"
+              src="https://placehold.co/36x36/1877F2/ffffff?text=U"
               alt="Profile"
               className="size-9 rounded-full object-cover"
             />
             <ChevronDown
-              className={cn('size-4 text-white/90 transition-transform', profileOpen && 'rotate-180')}
+              className={cn('size-4 text-primary-foreground/90 transition-transform', profileOpen && 'rotate-180')}
             />
           </button>
           {profileOpen && (
@@ -130,7 +130,7 @@ export function Topbar() {
               <div className="border-b p-4">
                 <div className="flex items-center gap-3">
                   <img
-                    src="https://placehold.co/48x48/6366f1/ffffff?text=U"
+                    src="https://placehold.co/48x48/1877F2/ffffff?text=U"
                     alt="Profile"
                     className="size-12 rounded-full object-cover"
                   />

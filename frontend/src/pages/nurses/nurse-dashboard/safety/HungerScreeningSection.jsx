@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { UtensilsCrossed, Users, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const FOOD_INSECURITY_OPTIONS = [
@@ -60,30 +59,12 @@ export function HungerScreeningSection() {
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <UtensilsCrossed className="h-4 w-4" />
-          </div>
-          <div className="space-y-1">
-            <CardTitle className="text-lg font-semibold text-foreground">
-              Hunger Screening Assessment
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Food insecurity and hunger screening questions.
-            </p>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 pt-6">
         <Input id="hunger-timestamp" className="hidden" disabled />
 
         {/* Food Insecurity Section */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-base font-semibold text-foreground">Food Insecurity</h3>
-          </div>
+          <h3 className="text-base font-semibold text-foreground">Food Insecurity</h3>
           {foodInsecurityQuestions.map((q) => (
             <div
               key={q.id}
@@ -112,12 +93,9 @@ export function HungerScreeningSection() {
 
         {/* Who answered Section */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-base font-semibold text-foreground">
-              Who answered the hunger screening questions?
-            </h3>
-          </div>
+          <h3 className="text-base font-semibold text-foreground">
+            Who answered the hunger screening questions?
+          </h3>
           <div className="flex flex-col gap-3 rounded-lg border border-border/60 p-3">
             <p className="text-sm font-medium text-foreground">
               Who answered the hunger screening questions?

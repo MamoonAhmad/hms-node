@@ -202,7 +202,7 @@ export function ChargeMasterPage() {
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete Charge</DialogTitle>
             <DialogDescription>

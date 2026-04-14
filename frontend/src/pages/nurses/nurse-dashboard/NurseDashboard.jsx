@@ -47,6 +47,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import {
+  Activity,
+  AlertCircle,
+  UtensilsCrossed,
+  Heart,
+  Pill,
+  Brain,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 const noteTypes = [
   'Triage Note',
@@ -92,14 +101,14 @@ const NURSE_ASSESSMENT_ITEMS = [
 ];
 
 const SCREENING_ASSESSMENT_ITEMS = [
-  { id: 'fall-risk', name: 'Fall Risk Assessment', tab: 'patient-screening', component: <FallRiskSection /> },
-  { id: 'suicide', name: 'Suicide Assessment', tab: 'patient-screening', component: <SuicideAssessmentSection /> },
-  { id: 'hunger', name: 'Hunger Screening', tab: 'patient-screening', component: <HungerScreeningSection /> },
-  { id: 'phq9', name: 'PHQ-9 Depression Screening', tab: 'patient-screening', component: <PHQ9Section /> },
-  { id: 'dast10', name: 'Drug Abuse Screening (DAST-10)', tab: 'patient-screening', component: <DAST10Section /> },
-  { id: 'gad7', name: 'GAD-7 Anxiety Severity', tab: 'patient-screening', component: <GAD7Section /> },
-  { id: 'nih-stroke', name: 'NIH Stroke Scale', tab: 'patient-screening', component: <NIHStrokeScaleSection /> },
-  { id: 'pain', name: 'Pain Assessment', tab: 'patient-screening', component: <PainAssessmentSection /> },
+  { id: 'fall-risk', name: 'Fall Risk Assessment', tab: 'patient-screening', icon: Activity, component: <FallRiskSection /> },
+  { id: 'suicide', name: 'Suicide Assessment', tab: 'patient-screening', icon: AlertCircle, component: <SuicideAssessmentSection /> },
+  { id: 'hunger', name: 'Hunger Screening', tab: 'patient-screening', icon: UtensilsCrossed, component: <HungerScreeningSection /> },
+  { id: 'phq9', name: 'PHQ-9 Depression Screening', tab: 'patient-screening', icon: Heart, component: <PHQ9Section /> },
+  { id: 'dast10', name: 'Drug Abuse Screening (DAST-10)', tab: 'patient-screening', icon: Pill, component: <DAST10Section /> },
+  { id: 'gad7', name: 'GAD-7 Anxiety Severity', tab: 'patient-screening', icon: Brain, component: <GAD7Section /> },
+  { id: 'nih-stroke', name: 'NIH Stroke Scale', tab: 'patient-screening', icon: Activity, component: <NIHStrokeScaleSection /> },
+  { id: 'pain', name: 'Pain Assessment', tab: 'patient-screening', icon: SlidersHorizontal, component: <PainAssessmentSection /> },
 ];
 
 const ALL_ASSESSMENTS = [...NURSE_ASSESSMENT_ITEMS, ...SCREENING_ASSESSMENT_ITEMS];
@@ -285,10 +294,17 @@ export function NurseDashboard() {
             onValueChange={setOpenAccordions}
             className="w-full space-y-1"
           >
-            {SCREENING_ASSESSMENT_ITEMS.map(({ id, name, component }) => (
+            {SCREENING_ASSESSMENT_ITEMS.map(({ id, name, icon: Icon, component }) => (
               <AccordionItem key={id} value={id} className="border rounded-lg px-4 bg-card">
                 <AccordionTrigger className="hover:no-underline [&[data-state=open]>svg]:rotate-180">
-                  <span className="font-semibold text-foreground">{name}</span>
+                  <span className="flex items-center gap-2 font-semibold text-foreground">
+                    {Icon && (
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                    )}
+                    {name}
+                  </span>
                 </AccordionTrigger>
                 <AccordionContent className="pb-4">{component}</AccordionContent>
               </AccordionItem>
@@ -345,7 +361,7 @@ export function NurseDashboard() {
 
       {/* Assessment View Modal (read-only) */}
       <Dialog open={!!viewAssessmentId} onOpenChange={(open) => !open && setViewAssessmentId(null)}>
-        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{viewAssessment?.name ?? 'Assessment'}</DialogTitle>
           </DialogHeader>
@@ -364,7 +380,7 @@ export function NurseDashboard() {
 
       {/* Nurse Notes Modal */}
       <Dialog open={isNotesModalOpen} onOpenChange={setIsNotesModalOpen}>
-        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Nurse Notes</DialogTitle>
           </DialogHeader>

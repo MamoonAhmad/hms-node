@@ -175,9 +175,9 @@ export function MedicinesManagementPage() {
                       <TableCell className="text-right">{row.currentQuantity}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => setViewMedicine(row)} title="View"><Eye className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => setEditMedicine(row)} title="Edit"><Edit className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(row)} title="Delete" className="text-destructive hover:text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => setViewMedicine(row)} title="View"><Eye className="h-4 w-4 icon-action-view" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditMedicine(row)} title="Edit"><Edit className="h-4 w-4 icon-action-edit" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(row)} title="Delete"><Trash2 className="h-4 w-4 icon-action-delete" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>

@@ -13,7 +13,12 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const response = await authApi.login(email, password);
-    const { user: userData, token: authToken } = response.data;
+    const payload = response.data ?? response;
+    const userData = payload.user;
+    const authToken = payload.token;
+    if (!userData || !authToken) {
+      throw new Error('Invalid login response');
+    }
 
     // Save to state
     setUser(userData);
@@ -42,17 +47,24 @@ export function AuthProvider({ children }) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
 
-      // Validate token by fetching current user
+      // Validate token by fetching current user (with timeout so we don't hang on blank screen)
+      const timeoutMs = 10000;
+      const timeoutId = setTimeout(() => {
+        setIsLoading(false);
+      }, timeoutMs);
+
       authApi
         .me(storedToken)
         .then((response) => {
-          setUser(response.data);
+          const userData = response?.data ?? response;
+          if (userData) setUser(userData);
         })
         .catch(() => {
           // Token is invalid, clear auth state
           logout();
         })
         .finally(() => {
+          clearTimeout(timeoutId);
           setIsLoading(false);
         });
     } else {

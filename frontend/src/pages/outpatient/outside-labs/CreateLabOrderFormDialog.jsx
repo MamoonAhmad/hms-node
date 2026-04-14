@@ -116,7 +116,7 @@ export function CreateLabOrderFormDialog({ open, onOpenChange, onSubmit, onSaveA
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[800px] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Lab Order (External)</DialogTitle>
         </DialogHeader>

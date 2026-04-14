@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { SlidersHorizontal } from 'lucide-react';
 
 const WONG_BAKER_FACES = [
   { value: 0, label: 'No Hurt' },
@@ -22,21 +21,6 @@ export function PainAssessmentSection() {
 
   return (
     <Card>
-      <CardHeader className="rounded-t-lg border-b bg-primary px-6 py-4 text-primary-foreground">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-foreground/20">
-            <SlidersHorizontal className="h-4 w-4" />
-          </div>
-          <div className="space-y-0.5">
-            <CardTitle className="text-lg font-semibold text-primary-foreground">
-              Pain Assessment Scales
-            </CardTitle>
-            <p className="text-sm text-primary-foreground/90">
-              Wong-Baker FACES® and 0–10 Numeric Pain Rating (NIPC™)
-            </p>
-          </div>
-        </div>
-      </CardHeader>
       <CardContent className="space-y-6 pt-6">
         {/* Wong-Baker FACES Pain Rating Scale */}
         <div className="space-y-3 rounded-lg border border-border/60 p-4">

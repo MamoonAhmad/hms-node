@@ -12,14 +12,20 @@ import {
   MessageSquare,
   Code,
   FolderTree,
+  FileText,
   ChevronDown,
   ChevronRight,
   PanelLeft,
   PanelLeftClose,
+  ListOrdered,
+  Activity,
   FlaskConical,
   Camera,
   Pill,
   Calendar,
+  CalendarClock,
+  LogOut as LogoutIcon,
+  BarChart2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./SidebarContext";
@@ -50,23 +56,66 @@ const administrationItems = [
     href: "/administration/procedure-codes",
     icon: Code,
   },
+  {
+    name: "Billing Providers",
+    href: "/administration/billing-providers",
+    icon: UserCheck,
+  },
+  {
+    name: "Facility",
+    href: "/administration/facility",
+    icon: Building2,
+  },
+  {
+    name: "CPT Codes",
+    href: "/administration/cpt-codes",
+    icon: FileText,
+  },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 const patientManagementItems = [
   { name: "Patients", href: "/patients", icon: Users },
   { name: "Appointments", href: "/appointments", icon: Calendar },
-  { name: "Nurses", href: "/nurse-assessment", icon: Stethoscope },
+  { name: "Nurse Assessment", href: "/nurse-assessment", icon: Stethoscope },
+  {
+    name: "Nurse Tracking Board",
+    href: "/nurse-tracking-board",
+    icon: Activity,
+  },
+  {
+    name: "Provider Tracking Board",
+    href: "/provider-tracking-board",
+    icon: Activity,
+  },
   {
     name: "Patient Dashboard",
     href: "/patient-dashboard",
     icon: ClipboardList,
   },
+  {
+    name: "Custom Order Set",
+    href: "/custom-order-set",
+    icon: ListOrdered,
+  },
+];
+
+const physiologicalTestsItems = [
+  {
+    name: "Physiological order management",
+    href: "/physiological-tests/order-management",
+    icon: Activity,
+  },
+  {
+    name: "Outside physiological tests",
+    href: "/physiological-tests/outside",
+    icon: Activity,
+  },
 ];
 
 const laboratoryManagementItems = [
   {
-    name: "Laboratory Dashboard",
+    name: "Onsite Laboratory Management",
     href: "/laboratory-management",
     icon: LayoutDashboard,
   },
@@ -76,53 +125,31 @@ const laboratoryManagementItems = [
     icon: FlaskConical,
   },
   {
-    name: "Specimen Transport",
-    href: "/laboratory-management/specimen-transport",
-    icon: FlaskConical,
-  },
-  {
-    name: "Specimen Receiver",
-    href: "/laboratory-management/specimen-receiver",
-    icon: FlaskConical,
-  },
-  {
-    name: "Lab Order Transport",
-    href: "/laboratory-management/lab-order-transport",
-    icon: FlaskConical,
-  },
-  {
-    name: "Lab Report Received",
-    href: "/laboratory-management/lab-report-received",
-    icon: FlaskConical,
-  },
-  {
     name: "Result Management",
     href: "/laboratory-management/result-management",
     icon: FlaskConical,
   },
   {
-    name: "Test Catalog",
-    href: "/laboratory-management/test-catalog",
+    name: "Outside Labs management",
+    href: "/laboratory-management/outside-labs",
     icon: FlaskConical,
   },
 ];
 
 const radiologyManagementItems = [
-  { name: "Radiology Dashboard", href: "/radiology-management", icon: Camera },
   {
-    name: "Order Management",
+    name: "Radiology Order & Report Management",
     href: "/radiology-management/order-management",
+    icon: Camera,
+  },
+  {
+    name: "Outside radiology orders",
+    href: "/radiology-management/outside-radiology-orders",
     icon: Camera,
   },
 ];
 
 const pharmacyItems = [
-  { name: "Dashboard", href: "/pharmacy", icon: LayoutDashboard },
-  {
-    name: "Medication Analytics",
-    href: "/pharmacy?report=medication",
-    icon: Pill,
-  },
   { name: "Inventory Reports", href: "/pharmacy?report=inventory", icon: Pill },
   {
     name: "Medication Prescriptions",
@@ -131,36 +158,61 @@ const pharmacyItems = [
   },
 ];
 
-const outsidePharmacyItems = [
-  { name: "Outpatient Medicines", href: "/outpatient/medicines", icon: Pill },
+const claimsReportItems = [
+  { name: "Claim Summary Report", href: "/rcm/reports/claim-summary" },
+  { name: "Claim Status Report", href: "/rcm/reports/claim-status" },
+  { name: "Patient Statement / Billing Report", href: "/rcm/reports/patient-statement-billing" },
+  { name: "Provider Performance Report", href: "/rcm/reports/provider-performance" },
+  { name: "Denial Report", href: "/rcm/reports/denial" },
+  { name: "Payment Reconciliation Report", href: "/rcm/reports/payment-reconciliation" },
+  { name: "ICD / CPT Mapping Report", href: "/rcm/reports/icd-cpt-mapping" },
+  { name: "Encounter / Visit Report", href: "/rcm/reports/encounter-visit" },
+  { name: "Aging Report", href: "/rcm/reports/aging" },
+  { name: "Claim Adjustment Report", href: "/rcm/reports/claim-adjustment" },
+  { name: "Audit / Compliance Report", href: "/rcm/reports/audit-compliance" },
+  { name: "Top Procedure Report", href: "/rcm/reports/top-procedure" },
+  { name: "Insurance Payer Analysis Report", href: "/rcm/reports/insurance-payer-analysis" },
+  { name: "Claim Trend Report", href: "/rcm/reports/claim-trend" },
+  { name: "Revenue by Department / Facility", href: "/rcm/reports/revenue-by-department-facility" },
+  { name: "Claim Resubmission Report", href: "/rcm/reports/claim-resubmission" },
+  { name: "Pending Authorizations Report", href: "/rcm/reports/pending-authorizations" },
+  { name: "Duplicate Claims Report", href: "/rcm/reports/duplicate-claims" },
+  { name: "Write-Off / Adjustment Analysis", href: "/rcm/reports/write-off-adjustment-analysis" },
+  { name: "Patient Balance Report", href: "/rcm/reports/patient-balance" },
+  { name: "Provider Compliance Report", href: "/rcm/reports/provider-compliance" },
+  { name: "Rejected Claims Summary", href: "/rcm/reports/rejected-claims-summary" },
+  { name: "Attachment / Document Report", href: "/rcm/reports/attachment-document" },
 ];
 
-// Sections for Lab/Radiology/Prescription (Laboratory, Pharmacy, Radiology)
-const onsiteOrdersSections = [
-  {
-    title: "Laboratory Management",
-    icon: FlaskConical,
-    items: laboratoryManagementItems,
-  },
-  { title: "Pharmacy", icon: Pill, items: pharmacyItems },
-  {
-    title: "Radiology Management",
-    icon: Camera,
-    items: radiologyManagementItems,
-  },
+const claimsItems = [
+  { name: "Claim Tracker", href: "/rcm/claim-tracker", icon: Activity },
+  { name: "Claims listing", href: "/rcm/claims", icon: ClipboardList },
+  { name: "Follow Up Management", href: "/rcm/follow-up-management", icon: CalendarClock },
+  { name: "CMS 1500", href: "/rcm/cms-1500", icon: FileText },
+  { name: "Claim UB-04", href: "/rcm/claim-ub04", icon: FileText },
+  { name: "Reports", icon: BarChart2, children: claimsReportItems },
 ];
 
-function MenuDropdown({ title, items, isCollapsed }) {
+function getItemHrefs(item) {
+  if (item.href) return [item.href];
+  if (item.children) return item.children.map((c) => c.href);
+  return [];
+}
+
+function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openNested, setOpenNested] = useState(null);
   const location = useLocation();
+  const ResolvedIcon = Icon ?? LayoutDashboard;
 
-  // Check if any item in the dropdown is active (pathname match; hash/query ignored for nav)
+  // Check if any item (or nested child) in the dropdown is active
   const isActive = items.some((item) => {
-    const itemPath = item.href.split("?")[0];
+    const hrefs = getItemHrefs(item);
     const locPath = location.pathname;
-    return (
-      locPath === itemPath || (itemPath !== "/" && locPath.startsWith(itemPath))
-    );
+    return hrefs.some((href) => {
+      const itemPath = href.split("?")[0];
+      return locPath === itemPath || (itemPath !== "/" && locPath.startsWith(itemPath));
+    });
   });
 
   // Auto-open if any item is active
@@ -174,183 +226,110 @@ function MenuDropdown({ title, items, isCollapsed }) {
   useEffect(() => {
     if (isCollapsed) {
       setIsOpen(false);
+      setOpenNested(null);
     }
   }, [isCollapsed]);
 
+  // Auto-open nested section (e.g. Reports) when a child route is active
+  useEffect(() => {
+    const activeNested = items.find((item) => {
+      if (!item.children) return false;
+      return item.children.some((c) => {
+        const p = c.href.split("?")[0];
+        return location.pathname === p || (p !== "/" && location.pathname.startsWith(p));
+      });
+    });
+    if (activeNested) setOpenNested(activeNested.name);
+  }, [location.pathname, items]);
+
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+          "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 [&_svg]:shrink-0 border-l-[3px] border-transparent",
           isActive
-            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-          isCollapsed && "justify-center",
+            ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover border-l-sidebar-active-bar"
+            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
+          isCollapsed && "justify-center border-l-0",
         )}
         title={isCollapsed ? title : ""}
       >
         <div className="flex items-center gap-3">
-          <Icon className="h-5 w-5" />
+          <ResolvedIcon className="h-5 w-5" />
           {!isCollapsed && <span>{title}</span>}
         </div>
         {!isCollapsed &&
           (isOpen ? (
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-4 w-4 opacity-70" />
           ) : (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 opacity-70" />
           ))}
       </button>
       {isOpen && !isCollapsed && (
-        <div className="mt-1 space-y-1 pl-4">
+        <div className="mt-0.5 space-y-0.5 pl-2 ml-2 border-l border-sidebar-border">
           {items.map((item) => {
-            const ItemIcon = item.icon;
+            if (item.children) {
+              const isNestedOpen = openNested === item.name;
+              const isNestedActive = item.children.some((c) => {
+                const itemPath = c.href.split("?")[0];
+                return location.pathname === itemPath || (itemPath !== "/" && location.pathname.startsWith(itemPath));
+              });
+              const NestedIcon = item.icon ?? BarChart2;
+              return (
+                <div key={item.name} className="space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setOpenNested(isNestedOpen ? null : item.name)}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 border-l-[3px] -ml-[2px] pl-[11px]",
+                      isNestedActive ? "border-l-sidebar-active-bar bg-sidebar-accent/80 text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover" : "border-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
+                    )}
+                  >
+                    <NestedIcon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1 text-left">{item.name}</span>
+                    {isNestedOpen ? <ChevronDown className="h-3.5 w-3.5 opacity-70" /> : <ChevronRight className="h-3.5 w-3.5 opacity-70" />}
+                  </button>
+                  {isNestedOpen && (
+                    <div className="pl-2 ml-2 space-y-0.5 border-l border-sidebar-border">
+                      {item.children.map((child) => (
+                        <NavLink
+                          key={child.name}
+                          to={child.href}
+                          className={({ isActive: childActive }) =>
+                            cn(
+                              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 -ml-[2px] pl-[11px]",
+                              childActive
+                                ? "bg-sidebar-accent/80 text-sidebar-accent-foreground border-l-sidebar-active-bar border-l-[3px]"
+                                : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                            )
+                          }
+                        >
+                          {child.name}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            const ItemIcon = item.icon ?? LayoutDashboard;
             return (
               <NavLink
                 key={item.name}
                 to={item.href}
-                className={({ isActive }) =>
+                className={({ isActive: linkActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 [&_svg]:text-current border-l-[3px] border-transparent -ml-[2px] pl-[11px]",
+                    linkActive
+                      ? "bg-sidebar-accent/80 text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover border-l-sidebar-active-bar"
+                      : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
                   )
                 }
               >
-                <ItemIcon className="h-4 w-4" />
+                <ItemIcon className="h-4 w-4 shrink-0" />
                 {item.name}
               </NavLink>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NestedMenuDropdown({ title, sections, icon: Icon, isCollapsed }) {
-  const [isParentOpen, setIsParentOpen] = useState(false);
-  const [openSectionIndex, setOpenSectionIndex] = useState(null);
-  const location = useLocation();
-
-  const isActive = sections.some((section) =>
-    section.items.some((item) => {
-      const itemPath = item.href.split("?")[0];
-      return (
-        location.pathname === itemPath ||
-        (itemPath !== "/" && location.pathname.startsWith(itemPath))
-      );
-    }),
-  );
-
-  useEffect(() => {
-    if (isActive) {
-      setIsParentOpen(true);
-      const idx = sections.findIndex((section) =>
-        section.items.some((item) => {
-          const itemPath = item.href.split("?")[0];
-          return (
-            location.pathname === itemPath ||
-            (itemPath !== "/" && location.pathname.startsWith(itemPath))
-          );
-        }),
-      );
-      if (idx >= 0) setOpenSectionIndex(idx);
-    }
-  }, [isActive, location.pathname, sections]);
-
-  useEffect(() => {
-    if (isCollapsed) {
-      setIsParentOpen(false);
-      setOpenSectionIndex(null);
-    }
-  }, [isCollapsed]);
-
-  return (
-    <div className="space-y-1">
-      <button
-        onClick={() => setIsParentOpen(!isParentOpen)}
-        className={cn(
-          "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-          isActive
-            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-          isCollapsed && "justify-center",
-        )}
-        title={isCollapsed ? title : ""}
-      >
-        <div className="flex items-center gap-3">
-          <Icon className="h-5 w-5" />
-          {!isCollapsed && <span>{title}</span>}
-        </div>
-        {!isCollapsed &&
-          (isParentOpen ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          ))}
-      </button>
-      {isParentOpen && !isCollapsed && (
-        <div className="mt-1 space-y-1 pl-4">
-          {sections.map((section, idx) => {
-            const SectionIcon = section.icon;
-            const isSectionOpen = openSectionIndex === idx;
-            const isSectionActive = section.items.some((item) => {
-              const itemPath = item.href.split("?")[0];
-              return (
-                location.pathname === itemPath ||
-                (itemPath !== "/" && location.pathname.startsWith(itemPath))
-              );
-            });
-            return (
-              <div key={section.title} className="space-y-1">
-                <button
-                  onClick={() =>
-                    setOpenSectionIndex(isSectionOpen ? null : idx)
-                  }
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isSectionActive
-                      ? "bg-sidebar-accent/80 text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <SectionIcon className="h-4 w-4" />
-                    {section.title}
-                  </div>
-                  {isSectionOpen ? (
-                    <ChevronDown className="h-3 w-3" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3" />
-                  )}
-                </button>
-                {isSectionOpen && (
-                  <div className="pl-4 space-y-0.5">
-                    {section.items.map((item) => {
-                      const ItemIcon = item.icon;
-                      return (
-                        <NavLink
-                          key={item.name}
-                          to={item.href}
-                          className={({ isActive: itemActive }) =>
-                            cn(
-                              "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                              itemActive
-                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                            )
-                          }
-                        >
-                          <ItemIcon className="h-4 w-4" />
-                          {item.name}
-                        </NavLink>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             );
           })}
         </div>
@@ -373,14 +352,14 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 bg-sidebar border-r border-sidebar-border transition-all duration-300",
+        "fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar border-r border-sidebar-border shadow-[4px_0_24px_-4px_rgba(0,0,0,0.06)] transition-all duration-300",
         isCollapsed ? "w-16" : "w-[17.6rem]",
       )}
     >
-      <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
+      <div className="flex h-16 shrink-0 items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar/95">
         {!isCollapsed && (
           <>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-sm">
               <span className="text-lg font-bold text-primary-foreground">
                 H
               </span>
@@ -394,7 +373,10 @@ export function Sidebar() {
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
-          className={cn("ml-auto", isCollapsed && "mx-auto")}
+          className={cn(
+            "ml-auto text-sidebar-icon hover:text-sidebar-icon-hover hover:bg-sidebar-accent/60 rounded-lg transition-colors",
+            isCollapsed && "mx-auto",
+          )}
         >
           {isCollapsed ? (
             <PanelLeft className="h-5 w-5" />
@@ -404,17 +386,17 @@ export function Sidebar() {
         </Button>
       </div>
 
-      <nav className="flex flex-col gap-1 p-4 overflow-y-auto">
+      <nav className="flex flex-1 min-h-0 flex-col gap-0.5 p-3 overflow-y-auto">
         {/* Dashboard */}
         <NavLink
           to="/"
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 [&_svg]:shrink-0 border-l-[3px] border-transparent",
               isActive
-                ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-              isCollapsed && "justify-center",
+                ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover border-l-sidebar-active-bar"
+                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
+              isCollapsed && "justify-center border-l-0",
             )
           }
           title={isCollapsed ? "Dashboard" : ""}
@@ -424,7 +406,7 @@ export function Sidebar() {
         </NavLink>
 
         {!isCollapsed && (
-          <div className="border-t border-sidebar-border py-2" />
+          <div className="border-t border-sidebar-border my-2" />
         )}
 
         {/* Providers Dropdown */}
@@ -436,7 +418,7 @@ export function Sidebar() {
         />
 
         {!isCollapsed && (
-          <div className="border-t border-sidebar-border py-2" />
+          <div className="border-t border-sidebar-border my-2" />
         )}
 
         {/* Administration Dropdown */}
@@ -448,7 +430,7 @@ export function Sidebar() {
         />
 
         {!isCollapsed && (
-          <div className="border-t border-sidebar-border py-2" />
+          <div className="border-t border-sidebar-border my-2" />
         )}
 
         {/* Patient Management Dropdown */}
@@ -460,58 +442,96 @@ export function Sidebar() {
         />
 
         {!isCollapsed && (
-          <div className="border-t border-sidebar-border py-2" />
+          <div className="border-t border-sidebar-border my-2" />
         )}
 
-        {/* Outside Pharmacy Dropdown (clinic outpatient - outside pharmacy section) */}
+        {/* Physiological tests Dropdown */}
         <MenuDropdown
-          title="Outside Pharmacy"
-          items={outsidePharmacyItems}
-          icon={Building2}
+          title="Physiological tests"
+          items={physiologicalTestsItems}
+          icon={Activity}
           isCollapsed={isCollapsed}
         />
 
         {!isCollapsed && (
-          <div className="border-t border-sidebar-border py-2" />
+          <div className="border-t border-sidebar-border my-2" />
         )}
 
-        {/* Lab/Radiology/Prescription Dropdown (Laboratory, Pharmacy, Radiology) */}
-        <NestedMenuDropdown
-          title="Lab/Radiology/Prescription"
-          sections={onsiteOrdersSections}
-          icon={ClipboardList}
+        {/* Laboratory Management Dropdown */}
+        <MenuDropdown
+          title="Laboratory Management"
+          items={laboratoryManagementItems}
+          icon={FlaskConical}
           isCollapsed={isCollapsed}
         />
 
         {!isCollapsed && (
-          <div className="border-t border-sidebar-border py-2" />
+          <div className="border-t border-sidebar-border my-2" />
+        )}
+
+        {/* Pharmacy Dropdown */}
+        <MenuDropdown
+          title="Pharmacy"
+          items={pharmacyItems}
+          icon={Pill}
+          isCollapsed={isCollapsed}
+        />
+
+        {!isCollapsed && (
+          <div className="border-t border-sidebar-border my-2" />
+        )}
+
+        {/* Radiology Management Dropdown */}
+        <MenuDropdown
+          title="Radiology Management"
+          items={radiologyManagementItems}
+          icon={Camera}
+          isCollapsed={isCollapsed}
+        />
+
+        {!isCollapsed && (
+          <div className="border-t border-sidebar-border my-2" />
+        )}
+
+        {/* Claims Dropdown */}
+        <MenuDropdown
+          title="Claims"
+          items={claimsItems}
+          icon={FileText}
+          isCollapsed={isCollapsed}
+        />
+
+        {!isCollapsed && (
+          <div className="border-t border-sidebar-border my-2" />
         )}
       </nav>
 
       {/* User section at bottom */}
-      <div className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600/10 text-emerald-600 font-semibold text-sm">
-            {user?.name?.[0]?.toUpperCase() ||
-              user?.email?.[0]?.toUpperCase() ||
-              "U"}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">
-              {user?.name || "User"}
-            </p>
-            <p className="text-xs text-sidebar-foreground/60 truncate">
-              {user?.email}
-            </p>
+      <div className="shrink-0 p-3 border-t border-sidebar-border bg-sidebar/80">
+        <div className="rounded-xl bg-sidebar-accent/50 p-3 mb-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-sm ring-2 ring-primary/20">
+              {user?.name?.[0]?.toUpperCase() ||
+                user?.email?.[0]?.toUpperCase() ||
+                "U"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-sidebar-foreground truncate">
+                {user?.name || "User"}
+              </p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">
+                {user?.email}
+              </p>
+            </div>
           </div>
         </div>
         <Button
           variant="ghost"
           size="sm"
           onClick={handleLogout}
-          className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+          className="w-full justify-start gap-2 rounded-xl text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors"
         >
-          <LogOut className="h-4 w-4" />
+          <LogoutIcon className="h-4 w-4" />
           Sign out
         </Button>
       </div>

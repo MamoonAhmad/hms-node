@@ -64,7 +64,7 @@ export function EditMedicationDialog({ open, onOpenChange, medication, onSave })
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Edit Medication</DialogTitle></DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>

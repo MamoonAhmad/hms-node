@@ -80,7 +80,7 @@ export function EditSpecimenDialog({ open, onOpenChange, labTest, onSaved }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Specimen (Collection Step)</DialogTitle>
         </DialogHeader>
@@ -137,6 +137,9 @@ export function EditSpecimenDialog({ open, onOpenChange, labTest, onSaved }) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange?.(false)}>Cancel</Button>
+          <Button variant="secondary" onClick={() => { /* Transferred to lab action */ onOpenChange?.(false); onSaved?.(); }}>
+            Transferred to lab
+          </Button>
           <Button onClick={handleSave} disabled={saving}>Update Lab Test</Button>
         </DialogFooter>
       </DialogContent>

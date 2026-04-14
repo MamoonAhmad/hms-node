@@ -178,10 +178,10 @@ export function PatientResultDetailPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setViewTest(row)} title="View result"><Eye className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => setEditTest(row)} title="Edit result"><Edit className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => navigate(`/laboratory-management/result-management/report/${row.id}`)} title="Print lab report"><FileText className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => navigate(`/laboratory-management/specimen-collection/labels?specimenId=${row.id}&count=1`)} title="Print barcode"><Printer className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => setViewTest(row)} title="View result"><Eye className="h-4 w-4 icon-action-view" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditTest(row)} title="Edit result"><Edit className="h-4 w-4 icon-action-edit" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/laboratory-management/result-management/report/${row.id}`)} title="Print lab report"><FileText className="h-4 w-4 icon-action-print" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => navigate(`/laboratory-management/specimen-collection/labels?specimenId=${row.id}&count=1`)} title="Print barcode"><Printer className="h-4 w-4 icon-action-print" /></Button>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -25,7 +25,7 @@ export function PrintableLabelsPage() {
     <div className="p-6">
       <div className="flex justify-end mb-4 print:hidden">
         <Button onClick={() => window.print()}>
-          <Printer className="h-4 w-4 mr-2" />
+          <Printer className="h-4 w-4 mr-2 icon-action-print" />
           Print
         </Button>
       </div>

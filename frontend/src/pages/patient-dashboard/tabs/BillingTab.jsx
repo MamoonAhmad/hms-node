@@ -128,7 +128,7 @@ export function BillingTab({ patient }) {
             <CardTitle className="text-sm">Paid</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-green-600">{balanceSummary.paid}</p>
+            <p className="text-2xl font-bold text-primary">{balanceSummary.paid}</p>
           </CardContent>
         </Card>
         <Card>

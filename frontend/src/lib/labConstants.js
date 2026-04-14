@@ -34,8 +34,8 @@ export const LAB_RESULT_STATUS = {
 export const LAB_STATUS_BADGE_CLASSES = {
   Pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
   Submitted: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  Collected: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  'In Progress': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  Collected: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
+  'In Progress': 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
   Completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   Received: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   Accepted: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
@@ -87,8 +87,8 @@ export const LAB_ORDER_TRANSPORT_STATUS = {
 
 export const LAB_ORDER_TRANSPORT_BADGE_CLASSES = {
   Draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  'Sent for collection': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  'In transport': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  'Sent for collection': 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
+  'In transport': 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
   'Received at lab': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
   Cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400',
 };

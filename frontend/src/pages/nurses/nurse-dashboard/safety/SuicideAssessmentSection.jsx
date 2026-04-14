@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 const suicideQuestions = [
@@ -56,10 +56,7 @@ export function SuicideAssessmentSection() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-foreground">Suicide Severity Rating</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 pt-0">
         <Input id="suicide-timestamp" className="hidden" disabled />
         {suicideQuestions.map((q) =>
           shouldShowQuestion(q) ? (

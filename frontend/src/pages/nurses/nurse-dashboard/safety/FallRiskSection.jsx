@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,10 +29,7 @@ export function FallRiskSection() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-foreground">Fall Risk Assessment</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 pt-0">
         <Input id="fall-timestamp" className="hidden" disabled />
         {fallRiskQuestions.map((q) => (
           <div key={q.id} className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">

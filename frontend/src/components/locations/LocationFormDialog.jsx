@@ -28,6 +28,9 @@ const initialFormData = {
   phone: '',
   tenantId: '',
   isActive: true,
+  hasOnsiteLab: true,
+  hasOnsitePharmacy: true,
+  hasOnsiteRadiology: true,
 };
 
 export function LocationFormDialog({
@@ -74,6 +77,9 @@ export function LocationFormDialog({
         phone: location.phone || '',
         tenantId: location.tenantId || '',
         isActive: location.isActive !== undefined ? location.isActive : true,
+        hasOnsiteLab: location.hasOnsiteLab !== undefined ? location.hasOnsiteLab : true,
+        hasOnsitePharmacy: location.hasOnsitePharmacy !== undefined ? location.hasOnsitePharmacy : true,
+        hasOnsiteRadiology: location.hasOnsiteRadiology !== undefined ? location.hasOnsiteRadiology : true,
       });
     } else {
       setFormData(initialFormData);
@@ -111,6 +117,9 @@ export function LocationFormDialog({
       phone: formData.phone.trim() || null,
       tenantId: formData.tenantId,
       isActive: formData.isActive,
+      hasOnsiteLab: formData.hasOnsiteLab,
+      hasOnsitePharmacy: formData.hasOnsitePharmacy,
+      hasOnsiteRadiology: formData.hasOnsiteRadiology,
     };
 
     onSubmit(submitData);
@@ -118,7 +127,7 @@ export function LocationFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="min-w-[800px] max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Location' : 'Add Location'}
@@ -225,6 +234,45 @@ export function LocationFormDialog({
             <Label htmlFor="isActive" className="cursor-pointer">
               Active
             </Label>
+          </div>
+
+          <div className="space-y-3 rounded-lg border p-4">
+            <p className="text-sm font-medium">Facility (order routing)</p>
+            <p className="text-xs text-muted-foreground">
+              When unchecked, orders for this department are sent externally only.
+            </p>
+            <div className="flex flex-wrap gap-6">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="hasOnsiteLab"
+                  checked={formData.hasOnsiteLab}
+                  onCheckedChange={(checked) => handleChange('hasOnsiteLab', !!checked)}
+                />
+                <Label htmlFor="hasOnsiteLab" className="cursor-pointer text-sm">
+                  Has onsite laboratory
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="hasOnsitePharmacy"
+                  checked={formData.hasOnsitePharmacy}
+                  onCheckedChange={(checked) => handleChange('hasOnsitePharmacy', !!checked)}
+                />
+                <Label htmlFor="hasOnsitePharmacy" className="cursor-pointer text-sm">
+                  Has onsite pharmacy
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="hasOnsiteRadiology"
+                  checked={formData.hasOnsiteRadiology}
+                  onCheckedChange={(checked) => handleChange('hasOnsiteRadiology', !!checked)}
+                />
+                <Label htmlFor="hasOnsiteRadiology" className="cursor-pointer text-sm">
+                  Has onsite radiology
+                </Label>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>

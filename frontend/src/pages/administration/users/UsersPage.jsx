@@ -174,14 +174,14 @@ export function UsersPage() {
                           size="sm"
                           onClick={() => handleEdit(user)}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Pencil className="h-4 w-4 icon-action-edit" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(user)}
                         >
-                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <Trash2 className="h-4 w-4 icon-action-delete" />
                         </Button>
                       </div>
                     </TableCell>
@@ -202,7 +202,7 @@ export function UsersPage() {
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[700px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete User</DialogTitle>
             <DialogDescription>

@@ -57,7 +57,7 @@ export function ExternalLabFormDialog({ open, onOpenChange, lab, onSubmit, isLoa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-md">
+      <DialogContent className="min-w-[800px] max-w-md">
         <DialogHeader>
           <DialogTitle>{lab ? 'Edit Lab' : 'Add Lab'}</DialogTitle>
         </DialogHeader>

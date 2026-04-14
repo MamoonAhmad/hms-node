@@ -101,7 +101,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[800px] max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl">Add Provider</DialogTitle>
         </DialogHeader>

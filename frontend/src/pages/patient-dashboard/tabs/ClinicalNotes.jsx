@@ -62,7 +62,7 @@ export function ClinicalNotes({ patientId }) {
                     <TableCell>{new Date(note.createdAt).toLocaleString()}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-4 w-4 icon-action-view" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -89,7 +89,7 @@ export function ClinicalNotes({ patientId }) {
                     <TableCell>{new Date(note.createdAt).toLocaleString()}</TableCell>
                     <TableCell>
                       <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
+                        <Eye className="h-4 w-4 icon-action-view" />
                       </Button>
                     </TableCell>
                   </TableRow>
