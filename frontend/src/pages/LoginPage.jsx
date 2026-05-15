@@ -145,12 +145,12 @@ export function LoginPage() {
         <div className="absolute -bottom-48 -left-48 w-[500px] h-[500px] border border-white/5 rounded-full" />
       </div>
 
-      {/* Right Panel - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-background">
-        <div className="w-full max-w-md">
+      {/* Right Panel - Login Form (Facebook-style card) */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-background">
+        <div className="w-full max-w-[396px] rounded-lg border border-border bg-card p-6 shadow-[var(--shadow-panel)] sm:p-8">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary">
               <span className="text-xl font-bold text-white">H</span>
             </div>
             <div>
@@ -162,7 +162,7 @@ export function LoginPage() {
           </div>
 
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-foreground mb-2">
+            <h2 className="text-2xl font-bold text-foreground mb-2">
               Welcome back
             </h2>
             <p className="text-muted-foreground">

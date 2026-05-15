@@ -1,6 +1,13 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DataTable } from '@/components/ui/data-table';
@@ -16,6 +23,7 @@ const ChiefComplaint = () => {
   ]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [complaintToDelete, setComplaintToDelete] = useState(null);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [chiefComplaintName, setChiefComplaintName] = useState('');
   const [search, setSearch] = useState('');
@@ -78,10 +86,14 @@ const ChiefComplaint = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (complaint) => {
-    if (window.confirm(`Are you sure you want to delete "${complaint.name}"?`)) {
-      setComplaints(complaints.filter((c) => c.id !== complaint.id));
-    }
+  const handleDeleteClick = (complaint) => {
+    setComplaintToDelete(complaint);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!complaintToDelete) return;
+    setComplaints((prev) => prev.filter((c) => c.id !== complaintToDelete.id));
+    setComplaintToDelete(null);
   };
 
   const handleAddNew = () => {
@@ -102,7 +114,14 @@ const ChiefComplaint = () => {
 
       <DataTable
         columns={[
-          { key: '_srNo', label: 'Serial Number', render: (row) => row._srNo },
+          {
+            key: '_srNo',
+            label: 'Sr. No.',
+            align: 'center',
+            className: 'w-14 min-w-14 max-w-16 px-2',
+            cellClassName: 'w-14 min-w-14 max-w-16 px-2 tabular-nums',
+            render: (row) => row._srNo,
+          },
           { key: 'name', label: 'Chief Complaint Name' },
         ]}
         data={rows}
@@ -124,7 +143,7 @@ const ChiefComplaint = () => {
             <Button variant="ghost" size="sm" onClick={() => handleEdit(complaint)} className="h-8 w-8 p-0" title="Edit">
               <Edit className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleDelete(complaint)} className="h-8 w-8 p-0" title="Delete">
+            <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(complaint)} className="h-8 w-8 p-0" title="Delete">
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
@@ -147,12 +166,37 @@ const ChiefComplaint = () => {
               />
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-3">
             <Button type="button" variant="outline" onClick={handleCancel} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button type="button" onClick={handleAddComplaint} className="w-full sm:w-auto">
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!complaintToDelete}
+        onOpenChange={(open) => {
+          if (!open) setComplaintToDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Delete chief complaint</DialogTitle>
+            <DialogDescription className="text-white">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-white">{complaintToDelete?.name}</span>? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-3 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setComplaintToDelete(null)} className="w-full sm:w-auto">
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={handleDeleteConfirm} className="w-full sm:w-auto">
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

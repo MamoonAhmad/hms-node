@@ -16,6 +16,9 @@ const createInsuranceProviderSchema = Joi.object({
       'string.email': 'Invalid email format',
     }),
   address: Joi.string().trim().max(500).allow('', null),
+  city: Joi.string().trim().max(100).allow('', null),
+  state: Joi.string().trim().max(50).allow('', null),
+  zip: Joi.string().trim().max(20).allow('', null),
   website: Joi.string().trim().uri().allow('', null)
     .messages({
       'string.uri': 'Invalid website URL',
@@ -38,6 +41,9 @@ const updateInsuranceProviderSchema = Joi.object({
       'string.email': 'Invalid email format',
     }),
   address: Joi.string().trim().max(500).allow('', null),
+  city: Joi.string().trim().max(100).allow('', null),
+  state: Joi.string().trim().max(50).allow('', null),
+  zip: Joi.string().trim().max(20).allow('', null),
   website: Joi.string().trim().uri().allow('', null)
     .messages({
       'string.uri': 'Invalid website URL',

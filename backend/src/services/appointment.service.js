@@ -36,7 +36,7 @@ const appointmentService = {
   /**
    * Get all appointments with optional pagination and filters
    */
-  async findAll({ page = 1, limit = 10, search = '', status, appointmentType, department, date, patientId }) {
+  async findAll({ page = 1, limit = 10, search = '', status, appointmentType, department, provider, date, patientId }) {
     const skip = (page - 1) * parseInt(limit);
 
     // Build where clause
@@ -69,6 +69,11 @@ const appointmentService = {
     // Department filter
     if (department) {
       conditions.push({ department: { contains: department, mode: 'insensitive' } });
+    }
+
+    // Provider filter
+    if (provider) {
+      conditions.push({ provider: { contains: provider, mode: 'insensitive' } });
     }
 
     // Date filter

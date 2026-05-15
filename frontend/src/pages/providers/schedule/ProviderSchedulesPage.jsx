@@ -33,12 +33,13 @@ function formatTimeSlot(start, end) {
 
 const SCHEDULE_COLUMNS = [
   { key: 'providerName', label: 'Provider Name', cellClassName: 'font-medium' },
-  { key: 'clinicName', label: 'Clinic Name' },
   { key: 'specialty', label: 'Specialty', render: (row) => row.specialty || '-' },
   { key: 'subSpecialty', label: 'Sub-Specialty', render: (row) => row.subSpecialty || '-' },
   { key: 'days', label: 'Days', render: (row) => (row.days || []).join(', ') || '-' },
   { key: 'timeSlot', label: 'Time Slot(s)', render: (row) => formatTimeSlot(row.startTime, row.endTime) },
   { key: 'appointmentType', label: 'Appointment Type' },
+  { key: 'overBooking', label: 'Over booking', render: (row) => (row.overBooking ?? 0) },
+  { key: 'locations', label: 'Locations', render: (row) => (row.locations || []).join(', ') || '-' },
   {
     key: 'status',
     label: 'Status',
@@ -120,19 +121,21 @@ export function ProviderSchedulesPage() {
     if (!q) return schedules;
     return schedules.filter((row) => {
       const providerName = (row.providerName || '').toLowerCase();
-      const clinicName = (row.clinicName || '').toLowerCase();
       const specialty = (row.specialty || '').toLowerCase();
       const subSpecialty = (row.subSpecialty || '').toLowerCase();
       const days = (row.days || []).join(' ').toLowerCase();
       const appointmentType = (row.appointmentType || '').toLowerCase();
+      const locations = (row.locations || []).join(' ').toLowerCase();
+      const overBooking = String(row.overBooking ?? '').toLowerCase();
       const status = (row.displayStatus || row.status || '').toLowerCase();
       return (
         providerName.includes(q) ||
-        clinicName.includes(q) ||
         specialty.includes(q) ||
         subSpecialty.includes(q) ||
         days.includes(q) ||
         appointmentType.includes(q) ||
+        locations.includes(q) ||
+        overBooking.includes(q) ||
         status.includes(q)
       );
     });
@@ -338,7 +341,7 @@ export function ProviderSchedulesPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-        searchPlaceholder="Search by provider, clinic, specialty, days, type, status..."
+          searchPlaceholder="Search by provider, specialty, days, type, locations, status..."
         emptyMessage="No schedules found. Click Add Schedule to create one."
         actions={(row) => (
           <div className="flex items-center gap-1">

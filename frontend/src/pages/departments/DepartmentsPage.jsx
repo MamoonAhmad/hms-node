@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -48,13 +48,11 @@ const mockDepartments = [
 const DEPARTMENT_COLUMNS = [
   { key: 'departmentName', label: 'Department Name', cellClassName: 'font-medium' },
   { key: 'departmentCode', label: 'Department Code', cellClassName: 'font-mono text-xs' },
-  { key: 'departmentType', label: 'Department Type' },
-  { key: 'facilityName', label: 'Facility / Clinic Name' },
   {
     key: 'status',
-    label: 'Status',
+    label: 'Department Status',
     render: (row) =>
-      row.status === 'Active' ? (
+      String(row.status).toLowerCase() === 'active' ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
           <Check className="h-3 w-3" />
           Active
@@ -66,9 +64,6 @@ const DEPARTMENT_COLUMNS = [
         </span>
       ),
   },
-  { key: 'departmentHead', label: 'Department Head' },
-  { key: 'assignedProviders', label: 'Assigned Providers' },
-  { key: 'operatingHours', label: 'Operating Hours' },
 ];
 
 export function DepartmentsPage() {
@@ -85,6 +80,7 @@ export function DepartmentsPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formMode, setFormMode] = useState('create'); // create | edit | view
 
   useEffect(() => {
     setIsLoading(true);
@@ -153,11 +149,19 @@ export function DepartmentsPage() {
 
   const handleCreate = () => {
     setSelectedDepartment(null);
+    setFormMode('create');
     setIsFormOpen(true);
   };
 
   const handleEdit = (department) => {
     setSelectedDepartment(department);
+    setFormMode('edit');
+    setIsFormOpen(true);
+  };
+
+  const handleView = (department) => {
+    setSelectedDepartment(department);
+    setFormMode('view');
     setIsFormOpen(true);
   };
 
@@ -235,10 +239,18 @@ export function DepartmentsPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-        searchPlaceholder="Search by name, code, type, facility, status..."
+        searchPlaceholder="Search by name, code, or status..."
         emptyMessage="No departments found"
         actions={(row) => (
           <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => handleView(row)}
+              aria-label="View"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -266,6 +278,8 @@ export function DepartmentsPage() {
         department={selectedDepartment}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
+        mode={formMode}
+        onDelete={() => handleDelete(selectedDepartment)}
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

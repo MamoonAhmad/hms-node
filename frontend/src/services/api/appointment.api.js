@@ -11,6 +11,7 @@ export const appointmentApi = {
     if (params.status) searchParams.set('status', params.status);
     if (params.appointmentType) searchParams.set('appointmentType', params.appointmentType);
     if (params.department) searchParams.set('department', params.department);
+    if (params.provider) searchParams.set('provider', params.provider);
     if (params.date) searchParams.set('date', params.date);
     if (params.patientId) searchParams.set('patientId', params.patientId);
 

@@ -1,10 +1,29 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { usePatientChart } from './PatientChartContext';
+import { formatPatientName } from './patientChartUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Edit, FileText } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Plus, Trash2, Edit, FileText, LayoutTemplate, BookmarkPlus } from 'lucide-react';
+import {
+  BUILTIN_SOAP_TEMPLATES,
+  loadCustomTemplates,
+  saveCustomTemplates,
+  applySoapTemplateContent,
+  emptyMedicationRow,
+} from '@/pages/patient-dashboard/soapNoteTemplates';
 import {
   Table,
   TableBody,
@@ -30,15 +49,30 @@ const defaultAllergyForm = () => ({
   comment: '',
 });
 
-export function SOAPNotesTab() {
+export function SOAPNotesTab({ onDirtyChange }) {
+  const { patient, encounter, appointment } = usePatientChart();
+
   const [header, setHeader] = useState({
-    patientName: 'John Doe',
-    encounterId: 'ENC-2025-001',
+    patientName: '',
+    encounterId: '',
     dateOfService: new Date().toISOString().slice(0, 10),
     chiefComplaint: '',
-    provider: 'Dr. Sarah Smith',
-    location: 'Main Clinic',
+    provider: '',
+    location: '',
   });
+
+  useEffect(() => {
+    if (!patient) return;
+    setHeader((h) => ({
+      ...h,
+      patientName: formatPatientName(patient),
+      encounterId: appointment?.id?.slice(0, 8).toUpperCase() || encounter?.id?.slice(0, 8) || '—',
+      chiefComplaint: encounter?.reason || appointment?.visitReason || h.chiefComplaint,
+      provider: encounter?.visitProvider || appointment?.provider || '—',
+      location: encounter?.location || appointment?.department || '—',
+      dateOfService: encounter?.appointmentDate || h.dateOfService,
+    }));
+  }, [patient, encounter, appointment]);
 
   const [subjective, setSubjective] = useState({
     chiefComplaint: '',
@@ -79,6 +113,107 @@ export function SOAPNotesTab() {
   const [addendumNoteId, setAddendumNoteId] = useState(null);
   const [addendumText, setAddendumText] = useState('');
 
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [customTemplates, setCustomTemplates] = useState([]);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateDescription, setNewTemplateDescription] = useState('');
+
+  const openTemplateDialog = () => {
+    setCustomTemplates(loadCustomTemplates());
+    setTemplateDialogOpen(true);
+  };
+
+  useEffect(() => {
+    const dirty =
+      Boolean(
+        subjective.hpi ||
+          subjective.chiefComplaint ||
+          physicalExam ||
+          planText ||
+          diagnosticTestingResults,
+      );
+    onDirtyChange?.(dirty);
+  }, [subjective, physicalExam, planText, diagnosticTestingResults, onDirtyChange]);
+
+  const buildCurrentContentSnapshot = useCallback(
+    () => ({
+      headerChiefComplaint: header.chiefComplaint,
+      subjective: { ...subjective },
+      physicalExam,
+      diagnosticTestingResults,
+      diagnoses: diagnoses.map((d) => ({ ...d })),
+      differential,
+      clinicalImpression,
+      planText,
+      medications: medications.map((m) => ({ ...m })),
+      followUp,
+      patientEducation,
+      referrals,
+    }),
+    [
+      header.chiefComplaint,
+      subjective,
+      physicalExam,
+      diagnosticTestingResults,
+      diagnoses,
+      differential,
+      clinicalImpression,
+      planText,
+      medications,
+      followUp,
+      patientEducation,
+      referrals,
+    ],
+  );
+
+  const templateSetters = useMemo(
+    () => ({
+      setHeader,
+      setSubjective,
+      setPhysicalExam,
+      setDiagnosticTestingResults,
+      setDiagnoses,
+      setDifferential,
+      setClinicalImpression,
+      setPlanText,
+      setMedications,
+      setFollowUp,
+      setPatientEducation,
+      setReferrals,
+    }),
+    [],
+  );
+
+  const handleApplyTemplate = (template) => {
+    applySoapTemplateContent(template.content, templateSetters);
+    setTemplateDialogOpen(false);
+  };
+
+  const handleSaveCustomTemplate = () => {
+    const name = newTemplateName.trim();
+    if (!name) return;
+    const entry = {
+      id: `custom-${Date.now()}`,
+      name,
+      description: newTemplateDescription.trim() || 'User-saved template',
+      category: 'My templates',
+      content: buildCurrentContentSnapshot(),
+    };
+    const next = [entry, ...customTemplates];
+    setCustomTemplates(next);
+    saveCustomTemplates(next);
+    setSaveTemplateOpen(false);
+    setNewTemplateName('');
+    setNewTemplateDescription('');
+  };
+
+  const handleDeleteCustomTemplate = (id) => {
+    const next = customTemplates.filter((t) => t.id !== id);
+    setCustomTemplates(next);
+    saveCustomTemplates(next);
+  };
+
   const updateHeader = (field, value) => setHeader((p) => ({ ...p, [field]: value }));
   const updateSubjective = (field, value) => setSubjective((p) => ({ ...p, [field]: value }));
 
@@ -113,6 +248,7 @@ export function SOAPNotesTab() {
     };
     setSoapNotes((prev) => [newNote, ...prev]);
     setEditingNoteId(newNote.id);
+    onDirtyChange?.(false);
   };
 
   const handleSignAndLock = () => {
@@ -123,6 +259,7 @@ export function SOAPNotesTab() {
       status: 'locked',
     };
     setSoapNotes((prev) => [newNote, ...prev]);
+    onDirtyChange?.(false);
   };
 
   const handleSaveAddendum = () => {
@@ -149,10 +286,141 @@ export function SOAPNotesTab() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">SOAP Note</h1>
-      <p className="text-muted-foreground text-sm">
-        Document this encounter in SOAP format.
-      </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">SOAP Note</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Document this encounter in SOAP format. Use templates to load common structures, then edit
+            for this patient.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <Button type="button" variant="default" className="gap-2" onClick={openTemplateDialog}>
+            <LayoutTemplate className="h-4 w-4" />
+            SOAP templates
+          </Button>
+          <Button type="button" variant="outline" className="gap-2" onClick={() => setSaveTemplateOpen(true)}>
+            <BookmarkPlus className="h-4 w-4" />
+            Save as template
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-hidden flex flex-col gap-0 p-0 sm:max-w-2xl">
+          <DialogHeader className="!m-0 flex flex-col gap-0 rounded-t-lg border-b border-white/20 bg-primary px-8 py-7 text-left sm:text-left">
+            <DialogTitle className="text-xl font-semibold leading-snug tracking-tight text-white">
+              SOAP note templates
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="mt-4 max-w-none space-y-3 text-[15px] font-normal leading-relaxed text-white/95">
+                <p className="m-0 text-white">
+                  Apply a template to fill Subjective, Objective, Assessment, and Plan fields.
+                </p>
+                <p className="m-0 text-white/95">
+                  Patient metadata, allergies, and vitals you already entered are not removed—review and edit after
+                  applying.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <Tabs defaultValue="library" className="flex min-h-0 flex-1 flex-col px-6 pb-4">
+            <TabsList className="mt-2 grid w-full grid-cols-2">
+              <TabsTrigger value="library">Library</TabsTrigger>
+              <TabsTrigger value="mine">My templates</TabsTrigger>
+            </TabsList>
+            <TabsContent value="library" className="mt-4 max-h-[50vh] overflow-y-auto space-y-3 pr-1">
+              {BUILTIN_SOAP_TEMPLATES.map((t) => (
+                <Card key={t.id} className="border-border/80">
+                  <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-foreground">{t.name}</p>
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          {t.category}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{t.description}</p>
+                    </div>
+                    <Button type="button" size="sm" className="shrink-0" onClick={() => handleApplyTemplate(t)}>
+                      Apply
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+            <TabsContent value="mine" className="mt-4 max-h-[50vh] overflow-y-auto space-y-3 pr-1">
+              {customTemplates.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  No saved templates yet. Use &quot;Save as template&quot; on the SOAP page to store your current
+                  note structure.
+                </p>
+              ) : (
+                customTemplates.map((t) => (
+                  <Card key={t.id} className="border-border/80">
+                    <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 space-y-1">
+                        <p className="font-medium text-foreground">{t.name}</p>
+                        <p className="text-sm text-muted-foreground">{t.description}</p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button type="button" size="sm" variant="outline" onClick={() => handleDeleteCustomTemplate(t.id)}>
+                          Delete
+                        </Button>
+                        <Button type="button" size="sm" onClick={() => handleApplyTemplate(t)}>
+                          Apply
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md">
+          <DialogHeader className="!m-0 flex flex-col gap-0 rounded-t-lg border-b border-white/20 bg-primary px-8 py-7 text-left sm:text-left">
+            <DialogTitle className="text-xl font-semibold leading-snug tracking-tight text-white">
+              Save current note as template
+            </DialogTitle>
+            <DialogDescription className="mt-4 max-w-none text-[15px] font-normal leading-relaxed text-white/95">
+              Stores today&apos;s Subjective, Objective, Assessment, Plan text (and chief complaint) so you can reuse
+              it later from My templates.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 bg-background px-6 py-5">
+            <div className="space-y-2">
+              <Label htmlFor="tpl-name">Template name</Label>
+              <Input
+                id="tpl-name"
+                value={newTemplateName}
+                onChange={(e) => setNewTemplateName(e.target.value)}
+                placeholder="e.g., My clinic — diabetes follow-up"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tpl-desc">Description (optional)</Label>
+              <Input
+                id="tpl-desc"
+                value={newTemplateDescription}
+                onChange={(e) => setNewTemplateDescription(e.target.value)}
+                placeholder="Short reminder of when to use this"
+              />
+            </div>
+          </div>
+          <DialogFooter className="border-t border-border/80 bg-muted/25 px-6 py-4 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setSaveTemplateOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleSaveCustomTemplate} disabled={!newTemplateName.trim()}>
+              Save template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* SOAP Notes listing */}
       <Card>

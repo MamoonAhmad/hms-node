@@ -1,0 +1,120 @@
+/** Sample chart data for /patient-dashboard (no live API). */
+
+export const SAMPLE_PATIENT_ID = 'sample';
+
+export function getSampleChartData() {
+  const patient = {
+    id: SAMPLE_PATIENT_ID,
+    mrn: 'MRN-001234',
+    firstName: 'John',
+    middleName: null,
+    lastName: 'Doe',
+    preferredName: 'Johnny',
+    dateOfBirth: '1979-03-15T00:00:00.000Z',
+    gender: 'Male',
+    genderIdentity: 'Male',
+    contactNumber: '(555) 123-4567',
+    cellPhone: '(555) 123-4567',
+    email: 'john.doe@email.example',
+    address: '123 Oak Street',
+    city: 'Springfield',
+    state: 'IL',
+    zip: '62701',
+    language: 'English',
+    interpreterRequired: true,
+    interpreterLanguageRequired: 'Spanish',
+    generalNotes: 'Diabetes – monitor A1C; fall risk',
+    policyNumber: 'XYZ-1234567890',
+    copay: 25,
+    insuranceProvider: { id: 'ins-1', name: 'Blue Cross PPO' },
+    primaryCarePhysician: 'Dr. Robert Williams, MD',
+  };
+
+  const appointments = [
+    {
+      id: 'apt-sample-today',
+      patientId: SAMPLE_PATIENT_ID,
+      appointmentDate: '2026-05-15T00:00:00.000Z',
+      appointmentTime: '09:30',
+      duration: 30,
+      appointmentType: 'Office Visit',
+      visitReason: 'Follow-up diabetes and hypertension',
+      department: 'Ambulatory Clinic – North',
+      provider: 'Dr. Sarah Chen, MD',
+      status: 'In Progress',
+      notes: null,
+    },
+    {
+      id: 'apt-sample-past',
+      patientId: SAMPLE_PATIENT_ID,
+      appointmentDate: '2026-02-10T00:00:00.000Z',
+      appointmentTime: '10:00',
+      duration: 30,
+      appointmentType: 'Follow-up',
+      visitReason: 'Chronic disease management',
+      department: 'Ambulatory Clinic – North',
+      provider: 'Dr. Sarah Chen, MD',
+      status: 'Completed',
+      notes: null,
+    },
+    {
+      id: 'apt-sample-future',
+      patientId: SAMPLE_PATIENT_ID,
+      appointmentDate: '2026-06-12T00:00:00.000Z',
+      appointmentTime: '09:30',
+      duration: 30,
+      appointmentType: 'Follow-up',
+      visitReason: 'Diabetes review',
+      department: 'Ambulatory Clinic – North',
+      provider: 'Dr. Sarah Chen, MD',
+      status: 'Scheduled',
+      notes: null,
+    },
+  ];
+
+  const orders = [
+    {
+      id: 'ord-sample-1',
+      patientId: SAMPLE_PATIENT_ID,
+      appointmentId: 'apt-sample-today',
+      category: 'Lab',
+      procedureCode: '80053',
+      procedureName: 'Comprehensive metabolic panel',
+      status: 'Scheduled',
+      destination: 'onsite',
+      orderedBy: 'Dr. Sarah Chen, MD',
+      orderDateTime: '2026-05-15T09:20:00.000Z',
+    },
+    {
+      id: 'ord-sample-2',
+      patientId: SAMPLE_PATIENT_ID,
+      appointmentId: 'apt-sample-today',
+      category: 'Radiology',
+      procedureCode: '71046',
+      procedureName: 'Chest X-ray 2 views',
+      status: 'Scheduled',
+      destination: 'onsite',
+      orderedBy: 'Dr. Sarah Chen, MD',
+      orderDateTime: '2026-05-15T09:22:00.000Z',
+    },
+    {
+      id: 'ord-sample-3',
+      patientId: SAMPLE_PATIENT_ID,
+      appointmentId: 'apt-sample-past',
+      category: 'Lab',
+      procedureCode: '83036',
+      procedureName: 'HbA1c',
+      status: 'Completed',
+      destination: 'onsite',
+      orderedBy: 'Dr. Sarah Chen, MD',
+      orderDateTime: '2026-02-10T10:05:00.000Z',
+    },
+  ];
+
+  return {
+    patient,
+    appointments,
+    orders,
+    defaultAppointmentId: 'apt-sample-today',
+  };
+}

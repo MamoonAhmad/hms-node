@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils';
 import procedureCodesData from '@/data/procedureCodes.json';
 import { useAuth } from '@/contexts/AuthContext';
 import { orderApi } from '@/services/api';
+import { usePatientChart } from './PatientChartContext';
+import { apiOrderToRow } from './patientChartUtils';
 
 const MIN_SEARCH_LENGTH = 2;
 const DEBOUNCE_MS = 300;
@@ -94,6 +96,7 @@ function formatDateTime(isoString) {
 
 export function PatientOrderEntryTab({ patientId, appointmentId }) {
   const { user } = useAuth();
+  const { refreshChart, isSampleChart, setOrders: setContextOrders, orders: contextOrders } = usePatientChart();
   const [searchRaw, setSearchRaw] = useState('');
   const [orders, setOrders] = useState([]);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -112,6 +115,33 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
 
   const orderingDoctorName = user?.name?.trim() || user?.email || 'Logged-in user';
   const debouncedSearch = useDebounce(searchRaw.trim(), DEBOUNCE_MS);
+
+  useEffect(() => {
+    if (isSampleChart) {
+      setOrders(contextOrders.map(apiOrderToRow));
+      return undefined;
+    }
+    if (!patientId) {
+      setOrders([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await orderApi.getOrders({
+          patientId,
+          appointmentId: appointmentId || undefined,
+          limit: 200,
+        });
+        if (!cancelled) setOrders((res?.data ?? []).map(apiOrderToRow));
+      } catch {
+        if (!cancelled) setOrders([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId, appointmentId, isSampleChart, contextOrders]);
   const procedures = useMemo(() => procedureCodesData, []);
 
   const searchResults = useMemo(() => {
@@ -217,31 +247,60 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
     const ordersToSave = orders.map((o) => ({ ...o, orderedBy: o.orderedBy || orderingDoctorName }));
     setOrders(ordersToSave);
 
-    if (!patientId) {
-      setSaveError('Open a patient chart (patient context required) to persist orders.');
-      return;
-    }
-    if (ordersToSave.length === 0) {
-      setSaveError('Add at least one order before saving.');
+    const newOrders = ordersToSave.filter((o) => !o._persisted);
+    if (newOrders.length === 0) {
+      setSaveError('Add at least one new order before saving.');
       return;
     }
 
     setSaving(true);
     try {
-      const payload = {
-        patientId,
-        appointmentId: appointmentId || null,
-        locationId: null,
-        orderedBy: orderingDoctorName,
-        orders: ordersToSave.map((o) => ({
+      if (isSampleChart) {
+        const now = new Date().toISOString();
+        const created = newOrders.map((o, i) => ({
+          id: `ord-sample-new-${Date.now()}-${i}`,
+          patientId,
+          appointmentId: appointmentId || null,
+          category: o.procedure?.category ?? 'Procedures',
           procedureCode: o.procedure?.code ?? o.procedure?.id ?? '',
           procedureName: o.procedure?.name ?? '',
-          category: o.procedure?.category ?? 'Procedures',
           status: o.status ?? 'Scheduled',
-          site: o.site ?? '',
-        })),
-      };
-      await orderApi.createOrders(payload);
+          destination: 'onsite',
+          orderedBy: orderingDoctorName,
+          orderDateTime: now,
+        }));
+        setContextOrders((prev) => [...created, ...prev]);
+        setOrders((prev) => [
+          ...created.map(apiOrderToRow),
+          ...prev.filter((o) => o._persisted),
+        ]);
+      } else {
+        if (!patientId) {
+          setSaveError('Open a patient chart (patient context required) to persist orders.');
+          return;
+        }
+        const payload = {
+          patientId,
+          appointmentId: appointmentId || null,
+          locationId: null,
+          orderedBy: orderingDoctorName,
+          orders: newOrders.map((o) => ({
+            procedureCode: o.procedure?.code ?? o.procedure?.id ?? '',
+            procedureName: o.procedure?.name ?? '',
+            category: o.procedure?.category ?? 'Procedures',
+            status: o.status ?? 'Scheduled',
+            site: o.site ?? '',
+          })),
+        };
+        await orderApi.createOrders(payload);
+        await refreshChart();
+        const res = await orderApi.getOrders({
+          patientId,
+          appointmentId: appointmentId || undefined,
+          limit: 200,
+        });
+        setOrders((res?.data ?? []).map(apiOrderToRow));
+      }
       const savedAt = new Date().toISOString();
       setLastSavedConsent({
         orderedBy: orderingDoctorName,
@@ -252,7 +311,7 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
     } finally {
       setSaving(false);
     }
-  }, [orders, orderingDoctorName, patientId, appointmentId]);
+  }, [orders, orderingDoctorName, patientId, appointmentId, refreshChart, isSampleChart, setContextOrders]);
 
   const getOrderedBy = useCallback(
     (order) => order.orderedBy || orderingDoctorName,

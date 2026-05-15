@@ -147,7 +147,7 @@ export function DataTable({
     <div className={cn('space-y-4', className)}>
       {/* Toolbar: search + page size (optional) */}
       {!hideToolbar && (
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="content-panel ehr-table-toolbar flex flex-col gap-4 rounded-t-lg border-b-0 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
@@ -192,7 +192,7 @@ export function DataTable({
       )}
 
       {/* Table */}
-      <div className="rounded-lg border bg-card overflow-hidden">
+      <div className="content-panel overflow-hidden rounded-t-none border-t-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -262,7 +262,7 @@ export function DataTable({
 
         {/* Pagination */}
         <div
-          className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 border-t border-border/70 bg-muted/25 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between"
           role="navigation"
           aria-label="Table pagination"
         >

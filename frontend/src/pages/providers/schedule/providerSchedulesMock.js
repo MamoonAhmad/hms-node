@@ -9,6 +9,13 @@ const MOCK_PROVIDERS = [
   { id: 4, firstName: 'Emily', lastName: 'Davis', specialty: 'Orthopedics', subSpecialty: 'Sports Medicine', status: 'Inactive' },
 ];
 
+const MOCK_LOCATIONS = [
+  { value: 'Main Building', label: 'Main Building' },
+  { value: 'Annex', label: 'Annex' },
+  { value: 'West Wing', label: 'West Wing' },
+  { value: 'Telehealth', label: 'Telehealth' },
+];
+
 const DAYS_OPTIONS = [
   { value: 'Mon', label: 'Monday' },
   { value: 'Tue', label: 'Tuesday' },
@@ -38,6 +45,8 @@ let schedules = [
     slotDuration: 30,
     appointmentType: 'Both',
     maxAppointmentsPerSlot: 2,
+    overBooking: 0,
+    locations: ['Main Building', 'Annex'],
     locationRoom: 'Room 101',
     teleconsultationAllowed: true,
     effectiveStartDate: '2025-01-01',
@@ -85,6 +94,10 @@ export const providerSchedulesStore = {
         name: `${p.firstName} ${p.lastName}`,
       }))
     );
+  },
+
+  getLocations() {
+    return Promise.resolve(MOCK_LOCATIONS);
   },
 
   getDaysOptions() {
@@ -152,6 +165,8 @@ export const providerSchedulesStore = {
       slotDuration: data.slotDuration || 30,
       appointmentType: data.appointmentType || 'Both',
       maxAppointmentsPerSlot: data.maxAppointmentsPerSlot ?? 1,
+      overBooking: Number.isFinite(Number(data.overBooking)) ? Number(data.overBooking) : 0,
+      locations: Array.isArray(data.locations) ? data.locations : [],
       locationRoom: data.locationRoom || null,
       teleconsultationAllowed: !!data.teleconsultationAllowed,
       effectiveStartDate: data.effectiveStartDate || new Date().toISOString().split('T')[0],
@@ -174,6 +189,8 @@ export const providerSchedulesStore = {
       providerName: provider ? `${provider.firstName} ${provider.lastName}` : schedules[idx].providerName,
       specialty: data.specialty !== undefined ? data.specialty : (provider?.specialty ?? schedules[idx].specialty),
       subSpecialty: data.subSpecialty !== undefined ? data.subSpecialty : (provider?.subSpecialty ?? schedules[idx].subSpecialty),
+      overBooking: data.overBooking !== undefined ? (Number.isFinite(Number(data.overBooking)) ? Number(data.overBooking) : schedules[idx].overBooking) : schedules[idx].overBooking,
+      locations: data.locations !== undefined ? (Array.isArray(data.locations) ? data.locations : schedules[idx].locations) : schedules[idx].locations,
     };
     return Promise.resolve(schedules[idx]);
   },

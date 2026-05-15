@@ -18,6 +18,7 @@ export function ViewScheduleDialog({ open, onOpenChange, schedule }) {
   const status = schedule.effectiveEndDate && schedule.effectiveEndDate < new Date().toISOString().split('T')[0]
     ? 'Inactive (Expired)'
     : schedule.status;
+  const locationsLabel = (schedule.locations || []).join(', ') || '-';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -30,10 +31,6 @@ export function ViewScheduleDialog({ open, onOpenChange, schedule }) {
             <div className="space-y-1">
               <Label className="text-muted-foreground">Provider</Label>
               <p className="font-medium">{schedule.providerName}</p>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-muted-foreground">Clinic</Label>
-              <p className="font-medium">{schedule.clinicName}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-muted-foreground">Specialty</Label>
@@ -66,16 +63,18 @@ export function ViewScheduleDialog({ open, onOpenChange, schedule }) {
               <p className="font-medium">{schedule.maxAppointmentsPerSlot}</p>
             </div>
             <div className="space-y-1">
+              <Label className="text-muted-foreground">Over booking</Label>
+              <p className="font-medium">{schedule.overBooking ?? 0}</p>
+            </div>
+            <div className="space-y-1">
               <Label className="text-muted-foreground">Status</Label>
               <Badge variant={status === 'Active' ? 'default' : 'secondary'}>{status}</Badge>
             </div>
           </div>
-          {schedule.locationRoom && (
-            <div className="space-y-1">
-              <Label className="text-muted-foreground">Location / Room</Label>
-              <p className="font-medium">{schedule.locationRoom}</p>
-            </div>
-          )}
+          <div className="space-y-1">
+            <Label className="text-muted-foreground">Locations</Label>
+            <p className="font-medium">{locationsLabel}</p>
+          </div>
           <div className="flex items-center gap-2">
             <Label className="text-muted-foreground">Teleconsultation allowed</Label>
             <span className="font-medium">{schedule.teleconsultationAllowed ? 'Yes' : 'No'}</span>

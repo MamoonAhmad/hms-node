@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -54,16 +54,50 @@ const initialFormData = {
 const fieldClass = 'w-full min-w-0';
 const sectionTitleClass = 'text-sm font-semibold text-foreground border-b border-border pb-2 mb-3';
 
-export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) {
+function toDateInputValue(value) {
+  if (!value) return '';
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+}
+
+function mapProviderToForm(provider) {
+  if (!provider) return initialFormData;
+  return {
+    ...initialFormData,
+    ...provider,
+    dateOfBirth: toDateInputValue(provider.dateOfBirth),
+    deaEffectiveDate: toDateInputValue(provider.deaEffectiveDate),
+    deaExpiryDate: toDateInputValue(provider.deaExpiryDate),
+    stateLicenseEffectiveDate: toDateInputValue(provider.stateLicenseEffectiveDate),
+    stateLicenseExpiryDate: toDateInputValue(provider.stateLicenseExpiryDate),
+    csrExpiryDate: toDateInputValue(provider.csrExpiryDate),
+    cprsTabEffectiveDate: toDateInputValue(provider.cprsTabEffectiveDate),
+  };
+}
+
+export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading, provider, mode = 'create' }) {
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
 
+  const readOnly = mode === 'view';
+  const title = useMemo(() => {
+    if (mode === 'edit') return 'Edit Provider';
+    if (mode === 'view') return 'View Provider';
+    return 'Add Provider';
+  }, [mode]);
+  const submitLabel = mode === 'edit' ? 'Save Updates' : 'Create Provider';
+
   useEffect(() => {
     if (open) {
-      setFormData(initialFormData);
+      setFormData(mapProviderToForm(provider));
       setErrors({});
     }
-  }, [open]);
+  }, [open, provider]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -95,6 +129,10 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) {
+      onOpenChange(false);
+      return;
+    }
     if (!validate()) return;
     onSubmit(formData);
   };
@@ -103,7 +141,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-[800px] max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl">Add Provider</DialogTitle>
+          <DialogTitle className="text-xl">{title}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -117,6 +155,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="npi"
                   value={formData.npi}
                   onChange={(e) => handleChange('npi', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                   aria-invalid={!!errors.npi}
                 />
@@ -128,6 +167,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="initials"
                   value={formData.initials}
                   onChange={(e) => handleChange('initials', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -137,6 +177,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="firstName"
                   value={formData.firstName}
                   onChange={(e) => handleChange('firstName', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                   aria-invalid={!!errors.firstName}
                 />
@@ -148,6 +189,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="lastName"
                   value={formData.lastName}
                   onChange={(e) => handleChange('lastName', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                   aria-invalid={!!errors.lastName}
                 />
@@ -159,13 +201,14 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="middleName"
                   value={formData.middleName}
                   onChange={(e) => handleChange('middleName', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="gender">Gender *</Label>
-                <Select value={formData.gender} onValueChange={(v) => handleChange('gender', v)}>
-                  <SelectTrigger className={fieldClass} aria-invalid={!!errors.gender}>
+                <Select value={formData.gender} onValueChange={(v) => handleChange('gender', v)} disabled={readOnly || isLoading}>
+                  <SelectTrigger className={fieldClass} aria-invalid={!!errors.gender} disabled={readOnly || isLoading}>
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -183,6 +226,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   type="date"
                   value={formData.dateOfBirth}
                   onChange={(e) => handleChange('dateOfBirth', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -195,8 +239,8 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Specialty</Label>
-                <Select value={formData.specialty} onValueChange={(v) => handleChange('specialty', v)}>
-                  <SelectTrigger className={fieldClass}>
+                <Select value={formData.specialty} onValueChange={(v) => handleChange('specialty', v)} disabled={readOnly || isLoading}>
+                  <SelectTrigger className={fieldClass} disabled={readOnly || isLoading}>
                     <SelectValue placeholder="Select specialty" />
                   </SelectTrigger>
                   <SelectContent>
@@ -212,8 +256,8 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
               </div>
               <div className="space-y-2">
                 <Label>Sub specialty</Label>
-                <Select value={formData.subSpecialty} onValueChange={(v) => handleChange('subSpecialty', v)}>
-                  <SelectTrigger className={fieldClass}>
+                <Select value={formData.subSpecialty} onValueChange={(v) => handleChange('subSpecialty', v)} disabled={readOnly || isLoading}>
+                  <SelectTrigger className={fieldClass} disabled={readOnly || isLoading}>
                     <SelectValue placeholder="Select sub specialty" />
                   </SelectTrigger>
                   <SelectContent>
@@ -226,8 +270,8 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
               </div>
               <div className="space-y-2">
                 <Label>Department</Label>
-                <Select value={formData.department} onValueChange={(v) => handleChange('department', v)}>
-                  <SelectTrigger className={fieldClass}>
+                <Select value={formData.department} onValueChange={(v) => handleChange('department', v)} disabled={readOnly || isLoading}>
+                  <SelectTrigger className={fieldClass} disabled={readOnly || isLoading}>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
@@ -246,6 +290,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="taxonomy"
                   value={formData.taxonomy}
                   onChange={(e) => handleChange('taxonomy', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -263,6 +308,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleChange('email', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                   aria-invalid={!!errors.email}
                 />
@@ -274,6 +320,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="taxId"
                   value={formData.taxId}
                   onChange={(e) => handleChange('taxId', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                   aria-invalid={!!errors.taxId}
                 />
@@ -285,6 +332,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="group"
                   value={formData.group}
                   onChange={(e) => handleChange('group', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -301,6 +349,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="deaNumber"
                   value={formData.deaNumber}
                   onChange={(e) => handleChange('deaNumber', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -311,6 +360,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   type="date"
                   value={formData.deaEffectiveDate}
                   onChange={(e) => handleChange('deaEffectiveDate', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -321,6 +371,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   type="date"
                   value={formData.deaExpiryDate}
                   onChange={(e) => handleChange('deaExpiryDate', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -337,6 +388,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="stateLicenseNumber"
                   value={formData.stateLicenseNumber}
                   onChange={(e) => handleChange('stateLicenseNumber', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -347,6 +399,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   type="date"
                   value={formData.stateLicenseEffectiveDate}
                   onChange={(e) => handleChange('stateLicenseEffectiveDate', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -357,6 +410,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   type="date"
                   value={formData.stateLicenseExpiryDate}
                   onChange={(e) => handleChange('stateLicenseExpiryDate', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -373,6 +427,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="csrLicenseNumber"
                   value={formData.csrLicenseNumber}
                   onChange={(e) => handleChange('csrLicenseNumber', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -383,6 +438,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   type="date"
                   value={formData.csrExpiryDate}
                   onChange={(e) => handleChange('csrExpiryDate', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -399,6 +455,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="mobileNumber"
                   value={formData.mobileNumber}
                   onChange={(e) => handleChange('mobileNumber', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -409,6 +466,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   value={formData.degree}
                   onChange={(e) => handleChange('degree', e.target.value)}
                   placeholder="e.g. MD, DO"
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -419,6 +477,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   value={formData.experience}
                   onChange={(e) => handleChange('experience', e.target.value)}
                   placeholder="e.g. 10 years"
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -428,6 +487,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="address"
                   value={formData.address}
                   onChange={(e) => handleChange('address', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -437,6 +497,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="city"
                   value={formData.city}
                   onChange={(e) => handleChange('city', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -446,6 +507,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="state"
                   value={formData.state}
                   onChange={(e) => handleChange('state', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -455,6 +517,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   id="zip"
                   value={formData.zip}
                   onChange={(e) => handleChange('zip', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -467,8 +530,8 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Treatment</Label>
-                <Select value={formData.treatment} onValueChange={(v) => handleChange('treatment', v)}>
-                  <SelectTrigger className={fieldClass}>
+                <Select value={formData.treatment} onValueChange={(v) => handleChange('treatment', v)} disabled={readOnly || isLoading}>
+                  <SelectTrigger className={fieldClass} disabled={readOnly || isLoading}>
                     <SelectValue placeholder="Select treatment" />
                   </SelectTrigger>
                   <SelectContent>
@@ -486,6 +549,7 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
                   type="date"
                   value={formData.cprsTabEffectiveDate}
                   onChange={(e) => handleChange('cprsTabEffectiveDate', e.target.value)}
+                  disabled={readOnly || isLoading}
                   className={fieldClass}
                 />
               </div>
@@ -494,11 +558,13 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading }) 
 
           <DialogFooter className="gap-2 pt-4 border-t border-border">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : 'Create Provider'}
-            </Button>
+            {!readOnly && (
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? 'Saving...' : submitLabel}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

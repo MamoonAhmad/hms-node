@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { Trash2 } from 'lucide-react';
 
 const initialFormData = {
   // Basic Information
@@ -61,13 +62,15 @@ const initialFormData = {
   acceptsInsurance: false,
 };
 
-export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit, isLoading }) {
+export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit, isLoading, mode = 'create', onDelete }) {
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
   const [activeTab, setActiveTab] = useState('basic');
   const [providers, setProviders] = useState([]); // Mock providers list
 
-  const isEditing = !!department;
+  const isEditing = mode === 'edit';
+  const isViewing = mode === 'view';
+  const readOnly = isViewing;
 
   useEffect(() => {
     // Mock providers - replace with actual API call
@@ -162,6 +165,10 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) {
+      onOpenChange(false);
+      return;
+    }
     if (!validate()) {
       setActiveTab('basic');
       return;
@@ -183,7 +190,9 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Department' : 'Add New Department'}</DialogTitle>
+          <DialogTitle>
+            {isViewing ? 'View Department' : isEditing ? 'Edit Department' : 'Add New Department'}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -201,6 +210,7 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
                       value={formData.departmentName}
                       onChange={(e) => handleChange('departmentName', e.target.value)}
                       className={errors.departmentName ? 'border-destructive' : ''}
+                      disabled={readOnly || isLoading}
                     />
                     {errors.departmentName && (
                       <p className="text-xs text-destructive">{errors.departmentName}</p>
@@ -213,6 +223,7 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
                       value={formData.departmentCode}
                       onChange={(e) => handleChange('departmentCode', e.target.value)}
                       className={errors.departmentCode ? 'border-destructive' : ''}
+                      disabled={readOnly || isLoading}
                     />
                     {errors.departmentCode && (
                       <p className="text-xs text-destructive">{errors.departmentCode}</p>
@@ -223,8 +234,9 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
                     <Select
                       value={formData.status}
                       onValueChange={(value) => handleChange('status', value)}
+                      disabled={readOnly || isLoading}
                     >
-                      <SelectTrigger className={`w-full ${errors.status ? 'border-destructive' : ''}`}>
+                      <SelectTrigger className={`w-full ${errors.status ? 'border-destructive' : ''}`} disabled={readOnly || isLoading}>
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -244,6 +256,7 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
                     value={formData.description}
                     onChange={(e) => handleChange('description', e.target.value)}
                     rows={4}
+                    disabled={readOnly || isLoading}
                   />
                 </div>
               </div>
@@ -253,11 +266,28 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </Button>
-            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-              {isLoading ? 'Saving...' : isEditing ? 'Update Department' : 'Create Department'}
-            </Button>
+            {!readOnly && (
+              <div className="flex w-full sm:w-auto items-center gap-2 justify-end">
+                {isEditing && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onDelete}
+                    className="text-destructive hover:text-destructive"
+                    aria-label="Delete"
+                    disabled={isLoading}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                  {isLoading ? 'Saving...' : isEditing ? 'Save Updates' : 'Create Department'}
+                </Button>
+              </div>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
