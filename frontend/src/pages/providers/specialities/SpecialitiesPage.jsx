@@ -1,14 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, Eye, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { SpecialtyFormDialog } from '@/components/providers/SpecialtyFormDialog';
-
-const mockSpecialities = [
-  { id: 1, name: 'Cardiology', code: 'CARD', isActive: true },
-  { id: 2, name: 'Pediatrics', code: 'PED', isActive: true },
-];
+import { specialtyApi } from '@/services/api';
 
 const COLUMNS = [
   { key: '_srNo', label: 'Sr No', render: (row) => row._srNo },
@@ -33,7 +29,12 @@ const COLUMNS = [
 
 export function SpecialitiesPage() {
   const [rows, setRows] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,43 +45,51 @@ export function SpecialitiesPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
+  const fetchSpecialties = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    const t = setTimeout(() => {
-      setRows(mockSpecialities);
+    try {
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (search) params.search = search;
+
+      const response = await specialtyApi.getAll(params);
+      setRows(response.data || []);
+      setPagination((prev) => ({ ...prev, ...response.pagination }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
       setIsLoading(false);
-    }, 250);
-    return () => clearTimeout(t);
+    }
+  }, [pagination.page, pagination.limit, search]);
+
+  useEffect(() => {
+    fetchSpecialties();
+  }, [fetchSpecialties]);
+
+  const tableData = useMemo(
+    () =>
+      rows.map((r, i) => ({
+        ...r,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [rows, pagination.page, pagination.limit]
+  );
+
+  const handleSearch = useCallback((keyword) => {
+    setSearch(keyword);
+    setPagination((prev) => ({ ...prev, page: 1 }));
   }, []);
 
-  const tableData = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    const filtered = !q
-      ? rows
-      : rows.filter(
-          (r) =>
-            (r.name && r.name.toLowerCase().includes(q)) ||
-            (r.code && String(r.code).toLowerCase().includes(q))
-        );
-    const total = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-    const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
-    const base = (currentPage - 1) * pagination.limit;
-    return filtered
-      .slice(base, base + pagination.limit)
-      .map((r, i) => ({ ...r, _srNo: base + i + 1 }));
-  }, [rows, pagination.page, pagination.limit, search]);
+  const handlePageChange = useCallback((page) => {
+    setPagination((prev) => ({ ...prev, page }));
+  }, []);
 
-  const total = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return rows.length;
-    return rows.filter(
-      (r) =>
-        (r.name && r.name.toLowerCase().includes(q)) ||
-        (r.code && String(r.code).toLowerCase().includes(q))
-    ).length;
-  }, [rows, search]);
+  const handlePageSizeChange = useCallback((limit) => {
+    setPagination((prev) => ({ ...prev, limit, page: 1 }));
+  }, []);
 
   const handleCreate = () => {
     setSelected(null);
@@ -106,12 +115,12 @@ export function SpecialitiesPage() {
     setIsSubmitting(true);
     try {
       if (formMode === 'edit' && selected?.id) {
-        setRows((prev) => prev.map((r) => (r.id === selected.id ? { ...r, ...payload } : r)));
+        await specialtyApi.update(selected.id, payload);
       } else {
-        const nextId = Math.max(0, ...rows.map((r) => Number(r.id) || 0)) + 1;
-        setRows((prev) => [{ ...payload, id: nextId }, ...prev]);
+        await specialtyApi.create(payload);
       }
       setIsFormOpen(false);
+      fetchSpecialties();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -122,8 +131,9 @@ export function SpecialitiesPage() {
   const handleDeleteConfirm = async () => {
     setIsSubmitting(true);
     try {
-      setRows((prev) => prev.filter((r) => r.id !== selected.id));
+      await specialtyApi.delete(selected?.id);
       setIsDeleteOpen(false);
+      fetchSpecialties();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -153,17 +163,14 @@ export function SpecialitiesPage() {
       <DataTable
         columns={COLUMNS}
         data={tableData}
-        total={total}
+        total={pagination.total}
         page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
-        onSearch={(q) => {
-          setSearch(q);
-          setPagination((p) => ({ ...p, page: 1 }));
-        }}
-        onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
-        onPageSizeChange={(limit) => setPagination((p) => ({ ...p, limit, page: 1 }))}
+        onSearch={handleSearch}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
         getRowId={(r) => r.id}
         searchPlaceholder="Search by name or code..."
         emptyMessage="No specialities found"
@@ -202,7 +209,14 @@ export function SpecialitiesPage() {
           <DialogHeader>
             <DialogTitle>Delete Speciality</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <span className="font-semibold">{selected?.name}</span>? This action cannot be undone.
+              Are you sure you want to delete <span className="font-semibold">{selected?.name}</span>? This action
+              cannot be undone.
+              {selected?._count?.subSpecialties > 0 && (
+                <span className="block mt-2 text-destructive">
+                  Warning: deleting this speciality removes {selected._count.subSpecialties} linked sub-specialties
+                  (cascade).
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -218,4 +232,3 @@ export function SpecialitiesPage() {
     </div>
   );
 }
-

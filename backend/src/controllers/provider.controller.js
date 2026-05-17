@@ -104,6 +104,18 @@ const providerController = {
         data: provider,
       });
     } catch (error) {
+      if (error?.status === 400) {
+        return res.status(400).json({
+          success: false,
+          message: error.message || 'Bad request',
+        });
+      }
+      if (error?.code === 'P2003') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid reference (specialty, sub-specialty, or department)',
+        });
+      }
       // Prisma unique constraint (e.g., duplicate NPI)
       if (error?.code === 'P2002') {
         return res.status(409).json({
@@ -163,6 +175,18 @@ const providerController = {
         data: updated,
       });
     } catch (error) {
+      if (error?.status === 400) {
+        return res.status(400).json({
+          success: false,
+          message: error.message || 'Bad request',
+        });
+      }
+      if (error?.code === 'P2003') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid reference (specialty, sub-specialty, or department)',
+        });
+      }
       if (error?.code === 'P2002') {
         return res.status(409).json({
           success: false,

@@ -9,6 +9,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "seed:admin": "node src/scripts/seedAdmin.js",
+    "seed:demo": "node src/scripts/seedDemoData.js",
+    "seed:demo:wipe": "node src/scripts/seedDemoData.js --wipe",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

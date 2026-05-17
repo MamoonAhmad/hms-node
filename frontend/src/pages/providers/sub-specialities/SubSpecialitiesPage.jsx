@@ -1,33 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, Eye, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { SubSpecialtyFormDialog } from '@/components/providers/SubSpecialtyFormDialog';
-
-const mockSpecialities = [
-  { id: 1, name: 'Cardiology', code: 'CARD', isActive: true },
-  { id: 2, name: 'Pediatrics', code: 'PED', isActive: true },
-];
-
-const mockSubSpecialities = [
-  {
-    id: 1,
-    specialtyId: 1,
-    specialty: { id: 1, name: 'Cardiology', code: 'CARD' },
-    name: 'Interventional Cardiology',
-    code: 'ICARD',
-    isActive: true,
-  },
-  {
-    id: 2,
-    specialtyId: 2,
-    specialty: { id: 2, name: 'Pediatrics', code: 'PED' },
-    name: 'General Pediatrics',
-    code: 'GPED',
-    isActive: true,
-  },
-];
+import { specialtyApi, subSpecialtyApi } from '@/services/api';
 
 const COLUMNS = [
   { key: '_srNo', label: 'Sr No', render: (row) => row._srNo },
@@ -59,7 +36,12 @@ const COLUMNS = [
 export function SubSpecialitiesPage() {
   const [rows, setRows] = useState([]);
   const [specialties, setSpecialties] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -70,46 +52,65 @@ export function SubSpecialitiesPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-    const t = setTimeout(() => {
-      setSpecialties(mockSpecialities);
-      setRows(mockSubSpecialities);
-      setIsLoading(false);
-    }, 250);
-    return () => clearTimeout(t);
+  const fetchSpecialtiesForForms = useCallback(async () => {
+    try {
+      const res = await specialtyApi.getActive();
+      setSpecialties(res.data || []);
+    } catch (err) {
+      console.error('Failed to load specialities for sub-specialty form:', err);
+      setSpecialties([]);
+    }
   }, []);
 
-  const tableData = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    const filtered = !q
-      ? rows
-      : rows.filter(
-          (r) =>
-            (r.specialty?.name && r.specialty.name.toLowerCase().includes(q)) ||
-            (r.name && r.name.toLowerCase().includes(q)) ||
-            (r.code && String(r.code).toLowerCase().includes(q))
-        );
-    const total = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-    const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
-    const base = (currentPage - 1) * pagination.limit;
-    return filtered
-      .slice(base, base + pagination.limit)
-      .map((r, i) => ({ ...r, _srNo: base + i + 1 }));
-  }, [rows, pagination.page, pagination.limit, search]);
+  const fetchSubSpecialties = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (search) params.search = search;
 
-  const total = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return rows.length;
-    return rows.filter(
-      (r) =>
-        (r.specialty?.name && r.specialty.name.toLowerCase().includes(q)) ||
-        (r.name && r.name.toLowerCase().includes(q)) ||
-        (r.code && String(r.code).toLowerCase().includes(q))
-    ).length;
-  }, [rows, search]);
+      const response = await subSpecialtyApi.getAll(params);
+      setRows(response.data || []);
+      setPagination((prev) => ({ ...prev, ...response.pagination }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.page, pagination.limit, search]);
+
+  useEffect(() => {
+    fetchSpecialtiesForForms();
+  }, [fetchSpecialtiesForForms]);
+
+  useEffect(() => {
+    fetchSubSpecialties();
+  }, [fetchSubSpecialties]);
+
+  const tableData = useMemo(
+    () =>
+      rows.map((r, i) => ({
+        ...r,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [rows, pagination.page, pagination.limit]
+  );
+
+  const handleSearch = useCallback((keyword) => {
+    setSearch(keyword);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const handlePageChange = useCallback((page) => {
+    setPagination((prev) => ({ ...prev, page }));
+  }, []);
+
+  const handlePageSizeChange = useCallback((limit) => {
+    setPagination((prev) => ({ ...prev, limit, page: 1 }));
+  }, []);
 
   const handleCreate = () => {
     setSelected(null);
@@ -135,33 +136,13 @@ export function SubSpecialitiesPage() {
     setIsSubmitting(true);
     try {
       if (formMode === 'edit' && selected?.id) {
-        const specialty = specialties.find((s) => String(s.id) === String(payload.specialtyId));
-        setRows((prev) =>
-          prev.map((r) =>
-            r.id === selected.id
-              ? {
-                  ...r,
-                  ...payload,
-                  specialtyId: payload.specialtyId,
-                  specialty: specialty ? { id: specialty.id, name: specialty.name, code: specialty.code } : r.specialty,
-                }
-              : r
-          )
-        );
+        await subSpecialtyApi.update(selected.id, payload);
       } else {
-        const nextId = Math.max(0, ...rows.map((r) => Number(r.id) || 0)) + 1;
-        const specialty = specialties.find((s) => String(s.id) === String(payload.specialtyId));
-        setRows((prev) => [
-          {
-            ...payload,
-            id: nextId,
-            specialtyId: payload.specialtyId,
-            specialty: specialty ? { id: specialty.id, name: specialty.name, code: specialty.code } : null,
-          },
-          ...prev,
-        ]);
+        await subSpecialtyApi.create(payload);
       }
       setIsFormOpen(false);
+      fetchSubSpecialties();
+      fetchSpecialtiesForForms();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -172,8 +153,9 @@ export function SubSpecialitiesPage() {
   const handleDeleteConfirm = async () => {
     setIsSubmitting(true);
     try {
-      setRows((prev) => prev.filter((r) => r.id !== selected.id));
+      await subSpecialtyApi.delete(selected?.id);
       setIsDeleteOpen(false);
+      fetchSubSpecialties();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -186,11 +168,11 @@ export function SubSpecialitiesPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Sub Specialities</h1>
-          <p className="text-muted-foreground">Manage provider sub specialities</p>
+          <p className="text-muted-foreground">Manage provider sub specialities (linked to a parent speciality).</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Speciality
+          Add Sub Speciality
         </Button>
       </div>
 
@@ -203,17 +185,14 @@ export function SubSpecialitiesPage() {
       <DataTable
         columns={COLUMNS}
         data={tableData}
-        total={total}
+        total={pagination.total}
         page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
-        onSearch={(q) => {
-          setSearch(q);
-          setPagination((p) => ({ ...p, page: 1 }));
-        }}
-        onPageChange={(page) => setPagination((p) => ({ ...p, page }))}
-        onPageSizeChange={(limit) => setPagination((p) => ({ ...p, limit, page: 1 }))}
+        onSearch={handleSearch}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
         getRowId={(r) => r.id}
         searchPlaceholder="Search by parent speciality, name, or code..."
         emptyMessage="No sub specialities found"
@@ -253,7 +232,13 @@ export function SubSpecialitiesPage() {
           <DialogHeader>
             <DialogTitle>Delete Sub Speciality</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <span className="font-semibold">{selected?.name}</span>? This action cannot be undone.
+              Are you sure you want to delete <span className="font-semibold">{selected?.name}</span>? This action
+              cannot be undone.
+              {selected?.specialty?.name && (
+                <span className="block mt-2 text-muted-foreground">
+                  Parent speciality: {selected.specialty.name}
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -269,4 +254,3 @@ export function SubSpecialitiesPage() {
     </div>
   );
 }
-

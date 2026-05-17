@@ -1,5 +1,18 @@
 const Joi = require('joi');
 
+const optionalFkUuid = (label) =>
+  Joi.any()
+    .custom((value, helpers) => {
+      if (value === undefined || value === null || value === '') return null;
+      if (typeof value !== 'string') return helpers.error('any.invalid');
+      const parsed = Joi.string().uuid().validate(value);
+      if (parsed.error) {
+        return helpers.error('any.invalid', { message: `${label} must be a valid UUID` });
+      }
+      return parsed.value;
+    })
+    .optional();
+
 const npiSchema = Joi.string()
   .trim()
   .pattern(/^\d{10}$/)
@@ -30,9 +43,9 @@ const createProviderSchema = Joi.object({
     'string.empty': 'Gender is required',
   }),
   dateOfBirth: Joi.date().iso().allow(null, ''),
-  specialty: Joi.string().trim().max(200).allow('', null),
-  subSpecialty: Joi.string().trim().max(200).allow('', null),
-  department: Joi.string().trim().max(200).allow('', null),
+  specialtyId: optionalFkUuid('Specialty id'),
+  subSpecialtyId: optionalFkUuid('Sub-specialty id'),
+  departmentId: optionalFkUuid('Department id'),
   taxonomy: Joi.string().trim().max(200).allow('', null),
   email: Joi.string().trim().email().allow('', null).messages({
     'string.email': 'Invalid email format',
@@ -73,9 +86,9 @@ const updateProviderSchema = Joi.object({
   lastName: Joi.string().trim().min(1).max(100),
   gender: Joi.string().trim().max(50),
   dateOfBirth: Joi.date().iso().allow(null, ''),
-  specialty: Joi.string().trim().max(200).allow('', null),
-  subSpecialty: Joi.string().trim().max(200).allow('', null),
-  department: Joi.string().trim().max(200).allow('', null),
+  specialtyId: optionalFkUuid('Specialty id'),
+  subSpecialtyId: optionalFkUuid('Sub-specialty id'),
+  departmentId: optionalFkUuid('Department id'),
   taxonomy: Joi.string().trim().max(200).allow('', null),
   email: Joi.string().trim().email().allow('', null).messages({
     'string.email': 'Invalid email format',

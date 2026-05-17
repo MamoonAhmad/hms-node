@@ -16,6 +16,7 @@ const permissionRoutes = require('./permission.routes');
 const roleRoutes = require('./role.routes');
 const orderRoutes = require('./order.routes');
 const facilityConfigRoutes = require('./facilityConfig.routes');
+const departmentRoutes = require('./department.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -29,6 +30,7 @@ router.use('/specialties', auth, specialtyRoutes);
 router.use('/sub-specialties', auth, subSpecialtyRoutes);
 router.use('/tenants', auth, tenantRoutes);
 router.use('/locations', auth, locationRoutes);
+router.use('/departments', auth, departmentRoutes);
 router.use('/permissions', auth, permissionRoutes);
 router.use('/roles', auth, roleRoutes);
 router.use('/orders', auth, orderRoutes);

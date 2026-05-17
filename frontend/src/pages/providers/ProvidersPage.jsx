@@ -11,33 +11,14 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-
-const mockProviders = [
-  {
-    id: 1,
-    npi: '1234567890',
-    firstName: 'John',
-    middleName: 'Michael',
-    lastName: 'Smith',
-    email: 'john.smith@hospital.com',
-    mobileNumber: '(555) 123-4567',
-    specialty: 'Cardiology',
-  },
-  {
-    id: 2,
-    npi: '0987654321',
-    firstName: 'Sarah',
-    middleName: '',
-    lastName: 'Johnson',
-    email: 'sarah.johnson@hospital.com',
-    mobileNumber: '(555) 234-5678',
-    specialty: 'Pediatrics',
-  },
-];
+import { providerApi } from '@/services/api';
 
 const COLUMNS = [
-  { key: 'serialNum', label: 'Serial Num' },
-  { key: 'npi', label: 'Provider NPI', cellClassName: 'font-mono text-xs' },
+  {
+    key: 'npi',
+    label: 'Provider NPI',
+    cellClassName: 'font-mono text-xs',
+  },
   {
     key: 'name',
     label: 'Provider Name',
@@ -45,62 +26,92 @@ const COLUMNS = [
     render: (row) =>
       `${row.firstName || ''} ${row.middleName ? `${row.middleName} ` : ''}${row.lastName || ''}`.trim() || '-',
   },
-  { key: 'email', label: 'Provider Email' },
+  { key: 'email', label: 'Provider Email', render: (row) => row.email || '-' },
   { key: 'mobileNumber', label: 'Provider Phone', render: (row) => row.mobileNumber || '-' },
-  { key: 'specialty', label: 'Specialty' },
+  {
+    key: 'specialtyLabel',
+    label: 'Specialty',
+    render: (row) => row.specialty?.name ?? <span className="text-muted-foreground">—</span>,
+  },
+  {
+    key: 'subSpecialtyLabel',
+    label: 'Sub-specialty',
+    render: (row) => row.subSpecialty?.name ?? <span className="text-muted-foreground">—</span>,
+  },
+  {
+    key: 'departmentLabel',
+    label: 'Department',
+    render: (row) =>
+      row.department?.departmentName ?? <span className="text-muted-foreground">—</span>,
+  },
 ];
 
 export function ProvidersPage() {
   const [providers, setProviders] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [search, setSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
-  const [formMode, setFormMode] = useState('create'); // create | edit | view
+  const [formMode, setFormMode] = useState('create');
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  useEffect(() => {
+  const fetchProviders = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    const t = setTimeout(() => {
-      setProviders(mockProviders);
+    try {
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (search.trim()) params.search = search.trim();
+
+      const response = await providerApi.getAll(params);
+      setProviders(response.data || []);
+      setPagination((prev) => ({
+        ...prev,
+        ...(response.pagination || {}),
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
       setIsLoading(false);
-    }, 300);
-    return () => clearTimeout(t);
-  }, []);
+    }
+  }, [pagination.page, pagination.limit, search]);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return providers;
-    return providers.filter(
-      (p) =>
-        (p.npi && String(p.npi).toLowerCase().includes(q)) ||
-        `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase().includes(q) ||
-        (p.email && String(p.email).toLowerCase().includes(q)) ||
-        (p.specialty && String(p.specialty).toLowerCase().includes(q)) ||
-        (p.mobileNumber && String(p.mobileNumber).toLowerCase().includes(q))
-    );
-  }, [providers, search]);
+  useEffect(() => {
+    fetchProviders();
+  }, [fetchProviders]);
 
-  const rows = useMemo(() => {
-    const total = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-    const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
-    const base = (currentPage - 1) * pagination.limit;
-    return filtered
-      .slice(base, base + pagination.limit)
-      .map((row, i) => ({ ...row, _srNo: base + i + 1 }));
-  }, [filtered, pagination.page, pagination.limit]);
+  const tableRows = useMemo(
+    () =>
+      providers.map((row, i) => ({
+        ...row,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [providers, pagination.page, pagination.limit],
+  );
 
   const handleSearch = useCallback((keyword) => {
     setSearch(keyword);
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
-  const handlePageChange = useCallback((page) => setPagination((p) => ({ ...p, page })), []);
-  const handlePageSizeChange = useCallback((limit) => setPagination((p) => ({ ...p, limit, page: 1 })), []);
+
+  const handlePageChange = useCallback((page) => {
+    setPagination((p) => ({ ...p, page }));
+  }, []);
+
+  const handlePageSizeChange = useCallback((limit) => {
+    setPagination((p) => ({ ...p, limit, page: 1 }));
+  }, []);
 
   const handleCreate = () => {
     setSelectedProvider(null);
@@ -108,16 +119,26 @@ export function ProvidersPage() {
     setIsFormOpen(true);
   };
 
-  const handleView = (provider) => {
-    setSelectedProvider(provider);
-    setFormMode('view');
-    setIsFormOpen(true);
+  const handleView = async (provider) => {
+    try {
+      const detail = await providerApi.getById(provider.id);
+      setSelectedProvider(detail.data ?? detail);
+      setFormMode('view');
+      setIsFormOpen(true);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
-  const handleEdit = (provider) => {
-    setSelectedProvider(provider);
-    setFormMode('edit');
-    setIsFormOpen(true);
+  const handleEdit = async (provider) => {
+    try {
+      const detail = await providerApi.getById(provider.id);
+      setSelectedProvider(detail.data ?? detail);
+      setFormMode('edit');
+      setIsFormOpen(true);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleDelete = (provider) => {
@@ -125,16 +146,17 @@ export function ProvidersPage() {
     setIsDeleteOpen(true);
   };
 
-  const handleFormSubmit = async (data) => {
+  const handleFormSubmit = async (payload) => {
     setIsSubmitting(true);
     try {
       if (formMode === 'edit' && selectedProvider?.id) {
-        setProviders((prev) => prev.map((p) => (p.id === selectedProvider.id ? { ...p, ...data } : p)));
+        await providerApi.update(selectedProvider.id, payload);
       } else {
-        const nextId = Math.max(0, ...providers.map((p) => Number(p.id) || 0)) + 1;
-        setProviders((prev) => [{ ...data, id: nextId }, ...prev]);
+        await providerApi.create(payload);
       }
       setIsFormOpen(false);
+      setSelectedProvider(null);
+      await fetchProviders();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -143,10 +165,13 @@ export function ProvidersPage() {
   };
 
   const handleDeleteConfirm = async () => {
+    if (!selectedProvider?.id) return;
     setIsSubmitting(true);
     try {
-      setProviders((prev) => prev.filter((p) => p.id !== selectedProvider.id));
+      await providerApi.delete(selectedProvider.id);
       setIsDeleteOpen(false);
+      setSelectedProvider(null);
+      await fetchProviders();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -160,12 +185,8 @@ export function ProvidersPage() {
       label: 'Serial Num',
       render: (row) => row._srNo,
     },
-    ...COLUMNS.filter((c) => c.key !== 'serialNum'),
+    ...COLUMNS,
   ];
-
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-  const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -188,9 +209,9 @@ export function ProvidersPage() {
 
       <DataTable
         columns={columnsWithSrNo}
-        data={rows}
-        total={total}
-        page={currentPage}
+        data={tableRows}
+        total={pagination.total || 0}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
@@ -198,7 +219,7 @@ export function ProvidersPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-        searchPlaceholder="Search by NPI, name, email, or specialty..."
+        searchPlaceholder="Search by NPI, name, email, specialty, department..."
         emptyMessage="No providers found"
         actions={(provider) => (
           <div className="flex justify-end gap-1">
@@ -231,14 +252,15 @@ export function ProvidersPage() {
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[800px] max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete Provider</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete{' '}
               <span className="font-semibold">
                 {selectedProvider
-                  ? `${selectedProvider.firstName || ''} ${selectedProvider.lastName || ''}`.trim() || selectedProvider.npi
+                  ? `${selectedProvider.firstName || ''} ${selectedProvider.lastName || ''}`.trim() ||
+                    selectedProvider.npi
                   : 'this provider'}
               </span>
               ? This action cannot be undone.

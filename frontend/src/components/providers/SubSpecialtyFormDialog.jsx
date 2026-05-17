@@ -40,8 +40,9 @@ export function SubSpecialtyFormDialog({
     if (!open) return;
     setErrors({});
     if (subSpecialty) {
+      const sid = subSpecialty.specialtyId ?? subSpecialty.specialty?.id;
       setFormData({
-        specialtyId: subSpecialty.specialtyId || subSpecialty.specialty?.id || '',
+        specialtyId: sid != null ? String(sid) : '',
         name: subSpecialty.name || '',
         code: subSpecialty.code || '',
         isActive: subSpecialty.isActive !== false,
@@ -92,7 +93,7 @@ export function SubSpecialtyFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {specialties.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
+                    <SelectItem key={s.id} value={String(s.id)}>
                       {s.name}
                     </SelectItem>
                   ))}

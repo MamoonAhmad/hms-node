@@ -95,5 +95,11 @@ export function formatProviderDisplayName(provider) {
   if (!provider) return '';
   const parts = [provider.firstName, provider.middleName, provider.lastName].filter(Boolean);
   const name = parts.join(' ');
-  return provider.specialty ? `${name} — ${provider.specialty}` : name;
+  let specLabel = '';
+  if (typeof provider.specialty === 'string') {
+    specLabel = provider.specialty;
+  } else if (provider.specialty?.name) {
+    specLabel = provider.specialty.name;
+  }
+  return specLabel ? `${name} — ${specLabel}` : name;
 }

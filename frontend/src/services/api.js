@@ -1,10 +1,12 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 const TOKEN_KEY = 'hms_token';
 
 // Re-export from modular API (so @/services/api resolves to this file)
 export { authApi } from './api/auth.api.js';
 export { locationApi } from './api/location.api.js';
+export { departmentApi } from './api/department.api.js';
 export { tenantApi } from './api/tenant.api.js';
+export { providerApi } from './api/provider.api.js';
 
 function getAuthHeaders() {
   const token = localStorage.getItem(TOKEN_KEY);
@@ -203,68 +205,6 @@ export const insuranceProviderApi = {
   async delete(id) {
     const response = await fetch(`${API_BASE_URL}/insurance-providers/${id}`, {
       method: 'DELETE',
-    });
-    return handleResponse(response);
-  },
-};
-
-export const providerApi = {
-  async getAll(params = {}) {
-    const searchParams = new URLSearchParams();
-
-    if (params.page) searchParams.set('page', params.page);
-    if (params.limit) searchParams.set('limit', params.limit);
-    if (params.search) searchParams.set('search', params.search);
-    if (params.isActive !== undefined) searchParams.set('isActive', params.isActive);
-
-    const response = await fetch(`${API_BASE_URL}/providers?${searchParams}`, {
-      headers: getAuthHeaders(),
-    });
-    return handleResponse(response);
-  },
-
-  async getById(id) {
-    const response = await fetch(`${API_BASE_URL}/providers/${id}`, {
-      headers: getAuthHeaders(),
-    });
-    return handleResponse(response);
-  },
-
-  async lookupByNpi(npi) {
-    const response = await fetch(`${API_BASE_URL}/providers/npi/${encodeURIComponent(npi)}`, {
-      headers: getAuthHeaders(),
-    });
-    return handleResponse(response);
-  },
-
-  async create(data) {
-    const response = await fetch(`${API_BASE_URL}/providers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-
-  async update(id, data) {
-    const response = await fetch(`${API_BASE_URL}/providers/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-
-  async delete(id) {
-    const response = await fetch(`${API_BASE_URL}/providers/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
     });
     return handleResponse(response);
   },

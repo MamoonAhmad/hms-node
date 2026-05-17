@@ -157,9 +157,12 @@ model Provider {
   lastName                 String
   gender                   String?
   dateOfBirth              DateTime?
-  specialty                String?
-  subSpecialty             String?
-  department               String?
+  specialtyId              String?
+  specialty                Specialty?   @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
+  subSpecialtyId           String?
+  subSpecialty             SubSpecialty? @relation(fields: [subSpecialtyId], references: [id], onDelete: SetNull)
+  departmentId             String?
+  department               Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   taxonomy                 String?
   email                    String?
   taxId                    String?
@@ -194,6 +197,7 @@ model Specialty {
   code         String?       @unique
   isActive     Boolean       @default(true)
   subSpecialties SubSpecialty[]
+  providers    Provider[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -207,6 +211,7 @@ model SubSpecialty {
   name        String
   code        String?
   isActive    Boolean   @default(true)
+  providers   Provider[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -312,8 +317,46 @@ model Location {
   updatedAt DateTime @updatedAt
   creator   User     @relation("CreatedLocations", fields: [createdBy], references: [id])
   updater   User     @relation("UpdatedLocations", fields: [updatedBy], references: [id])
+  departments Department[]
 
   @@map("locations")
+}
+
+model Department {
+  id                         String    @id @default(uuid())
+  departmentName             String
+  departmentCode             String    @unique
+  departmentType             String?
+  status                     String    @default("active")
+  description                String?
+  facilityName               String?
+  building                   String?
+  floor                      String?
+  roomNumber                 String?
+  address                    String?
+  city                       String?
+  state                      String?
+  zip                        String?
+  supportsAppointments       Boolean   @default(false)
+  supportsWalkIns            Boolean   @default(false)
+  defaultAppointmentDuration Int?
+  operatingDays              Json?
+  startTime                  String?
+  endTime                    String?
+  departmentHead             String?
+  assignedProviders          Json?
+  assignedNurses             Json?
+  defaultBillingProvider     String?
+  costCenter                 String?
+  revenueCode                String?
+  acceptsInsurance           Boolean   @default(false)
+  locationId                 String?
+  location                   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  providers                  Provider[]
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  @@map("departments")
 }
 
 model Permission {

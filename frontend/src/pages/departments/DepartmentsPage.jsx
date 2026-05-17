@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Pencil, Trash2, Check, X, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,39 +18,26 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-
-// Mock data - replace with actual API call
-const mockDepartments = [
-  {
-    id: 1,
-    departmentName: 'Cardiology',
-    departmentCode: 'CARD-001',
-    departmentType: 'Specialty',
-    facilityName: 'Main Hospital',
-    status: 'Active',
-    departmentHead: 'Dr. John Smith',
-    assignedProviders: 5,
-    operatingHours: '8:00 AM - 5:00 PM',
-  },
-  {
-    id: 2,
-    departmentName: 'General Medicine',
-    departmentCode: 'GEN-001',
-    departmentType: 'General',
-    facilityName: 'Main Hospital',
-    status: 'Active',
-    departmentHead: 'Dr. Sarah Johnson',
-    assignedProviders: 8,
-    operatingHours: '9:00 AM - 6:00 PM',
-  },
-];
+import { departmentApi } from '@/services/api';
 
 const DEPARTMENT_COLUMNS = [
+  { key: '_srNo', label: 'Sr No', render: (row) => row._srNo },
   { key: 'departmentName', label: 'Department Name', cellClassName: 'font-medium' },
   { key: 'departmentCode', label: 'Department Code', cellClassName: 'font-mono text-xs' },
   {
+    key: 'departmentType',
+    label: 'Type',
+    render: (row) => row.departmentType || <span className="text-muted-foreground">-</span>,
+  },
+  {
+    key: 'facility',
+    label: 'Facility',
+    render: (row) =>
+      row.location?.name || row.facilityName || <span className="text-muted-foreground">-</span>,
+  },
+  {
     key: 'status',
-    label: 'Department Status',
+    label: 'Status',
     render: (row) =>
       String(row.status).toLowerCase() === 'active' ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
@@ -68,13 +55,17 @@ const DEPARTMENT_COLUMNS = [
 
 export function DepartmentsPage() {
   const [departments, setDepartments] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState('departmentName');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -82,70 +73,57 @@ export function DepartmentsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formMode, setFormMode] = useState('create'); // create | edit | view
 
-  useEffect(() => {
+  const fetchDepartments = useCallback(async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setDepartments(mockDepartments);
+    setError(null);
+    try {
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
+
+      const response = await departmentApi.getAll(params);
+      setDepartments(response.data || []);
+      setPagination((prev) => ({ ...prev, ...response.pagination }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
       setIsLoading(false);
-    }, 500);
-  }, []);
+    }
+  }, [pagination.page, pagination.limit, search, statusFilter]);
 
-  const filteredAndSortedDepartments = useMemo(() => {
-    const searchLower = search.toLowerCase().trim();
-    return [...departments]
-      .filter(
-        (dept) =>
-          !searchLower ||
-          dept.departmentName?.toLowerCase().includes(searchLower) ||
-          dept.departmentCode?.toLowerCase().includes(searchLower) ||
-          dept.departmentType?.toLowerCase().includes(searchLower) ||
-          dept.facilityName?.toLowerCase().includes(searchLower) ||
-          dept.status?.toLowerCase().includes(searchLower) ||
-          dept.departmentHead?.toLowerCase().includes(searchLower)
-      )
-      .sort((a, b) => {
-        let aVal = a[sortBy];
-        let bVal = b[sortBy];
-        if (typeof aVal === 'string') {
-          aVal = (aVal ?? '').toLowerCase();
-          bVal = (bVal ?? '').toLowerCase();
-        }
-        if (sortOrder === 'asc') return aVal > bVal ? 1 : -1;
-        return aVal < bVal ? 1 : -1;
-      });
-  }, [departments, search, sortBy, sortOrder]);
+  useEffect(() => {
+    fetchDepartments();
+  }, [fetchDepartments]);
 
-  const total = filteredAndSortedDepartments.length;
-  const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-  const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
-  const paginatedDepartments = useMemo(
+  const tableRows = useMemo(
     () =>
-      filteredAndSortedDepartments.slice(
-        (currentPage - 1) * pagination.limit,
-        currentPage * pagination.limit
-      ),
-    [filteredAndSortedDepartments, currentPage, pagination.limit]
+      departments.map((row, i) => ({
+        ...row,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [departments, pagination.page, pagination.limit]
   );
 
-  const handleSearch = (keyword) => {
+  const handleSearch = useCallback((keyword) => {
     setSearch(keyword);
     setPagination((prev) => ({ ...prev, page: 1 }));
-  };
+  }, []);
 
-  const handlePageChange = (page) => {
+  const handlePageChange = useCallback((page) => {
     setPagination((prev) => ({ ...prev, page }));
-  };
+  }, []);
 
-  const handlePageSizeChange = (limit) => {
+  const handlePageSizeChange = useCallback((limit) => {
     setPagination((prev) => ({ ...prev, limit, page: 1 }));
-  };
+  }, []);
 
-  const handleSort = (value) => {
-    const [field, order] = value.split('-');
-    setSortBy(field);
-    setSortOrder(order);
+  const handleStatusFilterChange = (value) => {
+    setStatusFilter(value === 'all' ? '' : value);
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
-  const sortValue = `${sortBy}-${sortOrder}`;
 
   const handleCreate = () => {
     setSelectedDepartment(null);
@@ -173,23 +151,29 @@ export function DepartmentsPage() {
   const handleFormSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      // TODO: Implement API call
-      console.log('Department data:', data);
+      if (formMode === 'edit' && selectedDepartment?.id) {
+        await departmentApi.update(selectedDepartment.id, data);
+      } else {
+        await departmentApi.create(data);
+      }
       setIsFormOpen(false);
+      fetchDepartments();
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Request failed');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteConfirm = async () => {
+    if (!selectedDepartment?.id) return;
     setIsSubmitting(true);
     try {
-      // TODO: Implement API call
+      await departmentApi.delete(selectedDepartment.id);
       setIsDeleteOpen(false);
+      fetchDepartments();
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Delete failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -200,25 +184,27 @@ export function DepartmentsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Departments</h1>
-          <p className="text-muted-foreground">Manage outpatient departments</p>
+          <p className="text-muted-foreground">
+            Manage departments; optionally link each to a facility location record.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={sortValue} onValueChange={handleSort}>
-            <SelectTrigger className="w-52">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="departmentName-asc">Department Name (A–Z)</SelectItem>
-              <SelectItem value="departmentName-desc">Department Name (Z–A)</SelectItem>
-              <SelectItem value="status-asc">Status (A–Z)</SelectItem>
-              <SelectItem value="status-desc">Status (Z–A)</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Department
-          </Button>
-        </div>
+        <Button onClick={handleCreate}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Department
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Select value={statusFilter || 'all'} onValueChange={handleStatusFilterChange}>
+          <SelectTrigger className="w-[180px]" aria-label="Filter by status">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active only</SelectItem>
+            <SelectItem value="inactive">Inactive only</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {error && (
@@ -229,9 +215,9 @@ export function DepartmentsPage() {
 
       <DataTable
         columns={DEPARTMENT_COLUMNS}
-        data={paginatedDepartments}
-        total={total}
-        page={currentPage}
+        data={tableRows}
+        total={pagination.total}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
@@ -239,24 +225,14 @@ export function DepartmentsPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-        searchPlaceholder="Search by name, code, or status..."
+        searchPlaceholder="Search by name, code, type, facility, or department head..."
         emptyMessage="No departments found"
         actions={(row) => (
           <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => handleView(row)}
-              aria-label="View"
-            >
+            <Button variant="ghost" size="icon-sm" onClick={() => handleView(row)} aria-label="View">
               <Eye className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => handleEdit(row)}
-              aria-label="Edit"
-            >
+            <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(row)} aria-label="Edit">
               <Pencil className="h-4 w-4 icon-action-edit" />
             </Button>
             <Button
@@ -283,19 +259,20 @@ export function DepartmentsPage() {
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[520px] max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete Department</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete{' '}
-              <span className="font-semibold">{selectedDepartment?.departmentName}</span>?
+              <span className="font-semibold">{selectedDepartment?.departmentName}</span>? This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting}>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting || !selectedDepartment}>
               {isSubmitting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>

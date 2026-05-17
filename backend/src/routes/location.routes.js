@@ -136,6 +136,9 @@ router.post('/', validate(createLocationSchema, 'body'), locationController.crea
 // Get all locations with pagination
 router.get('/', validate(queryLocationSchema, 'query'), locationController.findAll);
 
+// Active locations for dropdowns (must be registered before '/:id')
+router.get('/active', locationController.findAllActive);
+
 // Get location by ID
 router.get('/:id', validate(locationIdSchema, 'params'), locationController.findById);
 
