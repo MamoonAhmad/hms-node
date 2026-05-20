@@ -8,6 +8,7 @@ import {
   Stethoscope,
   UserCheck,
   Building2,
+  MapPin,
   ClipboardList,
   MessageSquare,
   Code,
@@ -26,6 +27,7 @@ import {
   CalendarClock,
   LogOut as LogoutIcon,
   BarChart2,
+  Hospital,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./SidebarContext";
@@ -35,7 +37,9 @@ import { useAuth } from "@/contexts/AuthContext";
 // Provider menu: visible to Admin, Super Admin, Credentialing/Provider Management (role check can be wired here)
 const providersItems = [
   { name: "Provider List", href: "/providers", icon: UserCheck },
-  { name: "Provider Schedule", href: "/providers/schedule", icon: Calendar },
+  { name: "Specialities", href: "/providers/specialities", icon: Stethoscope },
+  { name: "Sub Specialities", href: "/providers/sub-specialities", icon: Stethoscope },
+  { name: "Locations", href: "/providers/locations", icon: MapPin },
   { name: "Departments", href: "/departments", icon: Building2 },
 ];
 
@@ -45,6 +49,11 @@ const administrationItems = [
     name: "Chief Complaints",
     href: "/administration/chief-complaint",
     icon: MessageSquare,
+  },
+  {
+    name: "Consent Forms",
+    href: "/administration/consent-forms",
+    icon: FileText,
   },
   {
     name: "Procedure Categories",
@@ -76,16 +85,10 @@ const administrationItems = [
 
 const patientManagementItems = [
   { name: "Patients", href: "/patients", icon: Users },
-  { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Nurse Assessment", href: "/nurse-assessment", icon: Stethoscope },
   {
     name: "Nurse Tracking Board",
     href: "/nurse-tracking-board",
-    icon: Activity,
-  },
-  {
-    name: "Provider Tracking Board",
-    href: "/provider-tracking-board",
     icon: Activity,
   },
   {
@@ -98,6 +101,29 @@ const patientManagementItems = [
     href: "/custom-order-set",
     icon: ListOrdered,
   },
+  {
+    name: "Rooms Management",
+    icon: Hospital,
+    children: [
+      { name: "Rooms", href: "/patient-management/rooms" },
+      { name: "Beds", href: "/patient-management/beds" },
+    ],
+  },
+];
+
+const appointmentsItems = [
+  {
+    name: "Appointment Types",
+    href: "/administration/appointment-types",
+    icon: CalendarClock,
+  },
+  {
+    name: "Provider Scheduling",
+    href: "/providers/schedule",
+    icon: Calendar,
+  },
+  { name: "Appointments", href: "/appointments", icon: Calendar },
+  { name: "Block Hours", href: "/appointments/block-hours", icon: CalendarClock },
 ];
 
 const physiologicalTestsItems = [
@@ -159,6 +185,7 @@ const pharmacyItems = [
 ];
 
 const claimsReportItems = [
+  { name: "Reporting Dashboard", href: "/rcm/reports/dashboard" },
   { name: "Claim Summary Report", href: "/rcm/reports/claim-summary" },
   { name: "Claim Status Report", href: "/rcm/reports/claim-status" },
   { name: "Patient Statement / Billing Report", href: "/rcm/reports/patient-statement-billing" },
@@ -247,7 +274,7 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 [&_svg]:shrink-0 border-l-[3px] border-transparent",
+          "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 [&_svg]:shrink-0 border-l-[3px] border-transparent",
           isActive
             ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover border-l-sidebar-active-bar"
             : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
@@ -352,21 +379,24 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col bg-sidebar border-r border-sidebar-border shadow-[4px_0_24px_-4px_rgba(0,0,0,0.06)] transition-all duration-300",
+        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar shadow-[1px_0_2px_rgba(0,0,0,0.1)] transition-all duration-300",
         isCollapsed ? "w-16" : "w-[17.6rem]",
       )}
     >
-      <div className="flex h-16 shrink-0 items-center gap-3 px-4 border-b border-sidebar-border bg-sidebar/95">
+      <div className="flex h-[3.25rem] shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4">
         {!isCollapsed && (
           <>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-sm">
-              <span className="text-lg font-bold text-primary-foreground">
-                H
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary shadow-sm">
+              <span className="text-base font-bold text-primary-foreground">H</span>
+            </div>
+            <div className="min-w-0">
+              <span className="block text-base font-semibold tracking-tight text-sidebar-foreground">
+                HMS
+              </span>
+              <span className="block truncate text-[0.65rem] font-medium uppercase tracking-wider text-sidebar-foreground/50">
+                Clinical Platform
               </span>
             </div>
-            <span className="text-xl font-semibold text-sidebar-foreground tracking-tight">
-              HMS
-            </span>
           </>
         )}
         <Button
@@ -392,7 +422,7 @@ export function Sidebar() {
           to="/"
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 [&_svg]:shrink-0 border-l-[3px] border-transparent",
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 [&_svg]:shrink-0 border-l-[3px] border-transparent",
               isActive
                 ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover border-l-sidebar-active-bar"
                 : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
@@ -414,6 +444,18 @@ export function Sidebar() {
           title="Providers"
           items={providersItems}
           icon={UserCheck}
+          isCollapsed={isCollapsed}
+        />
+
+        {!isCollapsed && (
+          <div className="border-t border-sidebar-border my-2" />
+        )}
+
+        {/* Appointments Dropdown */}
+        <MenuDropdown
+          title="Appointments"
+          items={appointmentsItems}
+          icon={CalendarClock}
           isCollapsed={isCollapsed}
         />
 

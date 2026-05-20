@@ -105,6 +105,16 @@ const locationController = {
     }
   },
 
+  async findAllActive(req, res, next) {
+    try {
+      const { tenantId } = pick(req.query, ['tenantId']);
+      const rows = await locationService.findAllActive({ tenantId });
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   /**
    * @swagger
    * /api/locations/{id}:

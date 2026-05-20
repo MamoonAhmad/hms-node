@@ -6,7 +6,7 @@ function Label({ className, ...props }) {
     <label
       data-slot="label"
       className={cn(
-        "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+        "text-xs font-semibold uppercase tracking-wide text-foreground/75 peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
         className
       )}
       {...props}

@@ -1,4 +1,4 @@
-import { useState, Component } from 'react';
+import { useMemo, useState, Component } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,28 +24,244 @@ import {
 import { Search, User, Building2, DollarSign, Check, X, Printer, ChevronDown, MoreVertical, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+/** Title-case words for dropdown display (e.g. "john doe" → "John Doe"). Preserves numbers, punctuation-only tokens, and short ALL-CAPS tokens (e.g. CMS). */
+function formatDropdownLabel(text) {
+  if (text == null || text === '') return '';
+  return String(text)
+    .trim()
+    .split(/\s+/)
+    .map((word) => {
+      if (!word) return word;
+      if (!/[a-zA-Z]/.test(word)) return word;
+      if (/^[A-Z]{2,6}$/.test(word)) return word;
+      if (/\d/.test(word) && /[()]/.test(word)) return word;
+      return word.split('/').map((part) => {
+        if (!part.length) return part;
+        if (!/[a-zA-Z]/.test(part)) return part;
+        if (/^[A-Z]{2,6}$/.test(part)) return part;
+        if (/^\d/.test(part)) return part;
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      }).join('/');
+    })
+    .join(' ');
+}
+
+function normalizeSelectOption(o) {
+  const value = typeof o === 'string' ? o : String(o.value ?? o);
+  const rawLabel = typeof o === 'string' ? o : String(o.label ?? o.value ?? '');
+  return { value, label: rawLabel, displayLabel: formatDropdownLabel(rawLabel) };
+}
+
+function sortOptionsAZWithOtherLast(options) {
+  const normalized = (options || []).map(normalizeSelectOption);
+
+  const isOther = (o) => {
+    const t = String(o.label).trim().toLowerCase();
+    return t === 'other' || t === 'others';
+  };
+
+  const others = normalized.filter((o) => isOther(o));
+  const rest = normalized.filter((o) => !isOther(o));
+
+  rest.sort((a, b) =>
+    String(a.displayLabel).localeCompare(String(b.displayLabel), undefined, { sensitivity: 'base' })
+  );
+  return [...rest, ...others];
+}
+
+function SearchableSelect({
+  value,
+  onValueChange,
+  options,
+  placeholder = 'Select',
+  disabled = false,
+  className,
+  triggerClassName,
+}) {
+  const [query, setQuery] = useState('');
+
+  const normalizedOptions = useMemo(
+    () => sortOptionsAZWithOtherLast(options || []),
+    [options]
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return normalizedOptions;
+    return normalizedOptions.filter((o) => {
+      const hay = `${o.label} ${o.displayLabel}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [normalizedOptions, query]);
+
+  return (
+    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+      <SelectTrigger className={cn('w-full', triggerClassName, className)}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <div className="p-1">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search..."
+            className="h-8"
+            onKeyDown={(e) => e.stopPropagation()}
+            disabled={disabled}
+          />
+        </div>
+        {filtered.length === 0 ? (
+          <div className="px-2 py-2 text-sm text-muted-foreground">No matches</div>
+        ) : (
+          filtered.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.displayLabel}
+            </SelectItem>
+          ))
+        )}
+      </SelectContent>
+    </Select>
+  );
+}
+
 const FREQUENCY_OPTIONS = [
   { value: '1', label: '1 - Original Claim' },
   { value: '7', label: '7 - Replacement' },
   { value: '8', label: '8 - Void/Cancel' },
 ];
 
-const CHARGE_STATUS_OPTIONS = ['BALANCE DUE PATIENT', 'PAID', 'PENDING', 'DENIED', 'ADJUSTED'];
-const SET_ALL_CHARGES_OPTIONS = ['NO CHANGE', 'PAID', 'PENDING', 'DENIED', 'ADJUSTED'];
-const YES_NO_OPTIONS = [{ value: 'Yes', label: 'Yes' }, { value: 'No', label: 'No' }];
+const CHARGE_STATUS_OPTIONS = [
+  'No change',
+  'balance due patient',
+  'deleted',
+  'incomplete',
+  'on hold',
+  'paid',
+  'pending patient',
+  'Rejected clearing house',
+  'waiting for review',
+];
+const SET_ALL_CHARGES_OPTIONS = [...CHARGE_STATUS_OPTIONS];
 const ACCEPT_ASSIGNMENT_OPTIONS = [{ value: 'Default', label: 'Default' }, { value: 'Yes', label: 'Yes' }, { value: 'No', label: 'No' }];
 const POLICY_TYPE_OPTIONS = [
-  { value: 'Medicare', label: 'Medicare' },
-  { value: 'Medicaid', label: 'Medicaid' },
-  { value: 'Commercial', label: 'Commercial' },
-  { value: 'Other', label: 'Other' },
+  'auto insurance policy',
+  'group policy',
+  'individual policy',
+  'long term policy',
+  'ligitation',
+  'medicare primary',
+  'self payment',
+  'supplimental policy',
+  'Others',
 ];
 const REFERRAL_TYPE_OPTIONS = [
   { value: 'Prior Auth Number', label: 'Prior Auth Number' },
   { value: 'Referral Number', label: 'Referral Number' },
   { value: 'None', label: 'None' },
 ];
-const DOCUMENTATION_OPTIONS = [{ value: 'No Documentation', label: 'No Documentation' }, { value: 'Attachment', label: 'Attachment' }, { value: 'Other', label: 'Other' }];
+const TRANSPORT_REASON_OPTIONS = ['none'];
+const DELAY_REASON_CODE_OPTIONS = [
+  'none',
+  'administration delay in the prior approval process',
+  'authorization delays',
+  'delay in certifying providers',
+  'delay in delivery of custom-made-appliances',
+  'delay in eligibility determination',
+  'delay in supplying billing form',
+  'litigation',
+  'original claim rejected or denied due to a reason unrealated to the billing limitation rules',
+  'other',
+  'proof of eligibility unknown or unavailable',
+  'third party processing delays',
+];
+
+const SPECIAL_PROGRAM_CODE_OPTIONS = [
+  'disability',
+  "family planning",
+  'physically handicapped children\'s program',
+  'second opinion / surgery',
+  'special federal funding',
+];
+
+const PATIENT_SIGNATURE_ON_FILE_OPTIONS = [
+  'Yes',
+  'informed consent',
+];
+
+const INSURED_SIGNATURE_ON_FILE_OPTIONS = [
+  'no',
+  'patient refuses',
+  'yes',
+];
+
+const DOCUMENTATION_METHOD_OPTIONS = [
+  'No documentation',
+  'Available on the request at provider site',
+  'By mail',
+  'electronically',
+  'Email',
+  'Fax',
+];
+
+const DOCUMENTATION_TYPE_OPTIONS = [
+  'admission summary',
+  'allergy / sensitivities document',
+  'ambulance certification',
+  'autopsy report',
+  'baseline',
+  'benchmark testing result',
+  'blanket test results',
+  'certification',
+  'certified test report',
+  'chemical analysis',
+  'chiropractic justification',
+  'consent form(s)',
+  'death notification',
+  'dental models',
+  'Diagnostic report',
+  'discharge monitoring report',
+  'discharge summary',
+  'drug profile',
+  'functional goal',
+  'health certificate',
+  'health clinic record',
+  'justification for admission',
+  'Lab results',
+  'models',
+  'nursing notes',
+  'operative notes',
+  'orders and treatment document',
+  'oxygen content averaging report',
+  'oxygen therapy certification',
+  'paramedical results',
+  'patient medical history',
+  'photographs',
+  'physical therapy certification',
+  'physician order',
+  'physician report',
+  'progress report',
+  'prosthetic or orthotic certification',
+  'prescription',
+  'radiology films',
+  'radiology report',
+  'recovery plan',
+  'referral form',
+  'state school immunization records',
+  'support data for claim',
+  'symptoms document',
+  'treatment diagnosis',
+  'Others',
+];
+
+const SERVICE_AUTH_EXCEPTION_OPTIONS = [
+  'client as temporary medicaid',
+  'emergency care',
+  'Immidiate/Urgent care',
+  'request for override pending',
+  'request from county for second opinion to recipient can work',
+  'service rendered in a ratroactive period',
+  'special handling',
+];
 
 const ADDITIONAL_INFO_OPTIONS = [
   { value: 'none', label: 'None' },
@@ -76,12 +292,11 @@ function InsuranceDetailsBlock({ title, details, onUpdate }) {
         </div>
         <div className="space-y-2">
           <Label className="text-sm">Policy Type</Label>
-          <Select value={details.policyType} onValueChange={(v) => onUpdate('policyType', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {POLICY_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={details.policyType}
+            onValueChange={(v) => onUpdate('policyType', v)}
+            options={POLICY_TYPE_OPTIONS}
+          />
         </div>
         <div className="space-y-2">
           <Label className="text-sm">Copay Due</Label>
@@ -104,12 +319,11 @@ function InsuranceDetailsBlock({ title, details, onUpdate }) {
         </div>
         <div className="space-y-2">
           <Label className="text-sm">Referral Type</Label>
-          <Select value={details.referralType} onValueChange={(v) => onUpdate('referralType', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {REFERRAL_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={details.referralType}
+            onValueChange={(v) => onUpdate('referralType', v)}
+            options={REFERRAL_TYPE_OPTIONS}
+          />
         </div>
       </div>
     </div>
@@ -166,7 +380,7 @@ function CMS1500PageContent() {
 
   const defaultInsuranceDetails = () => ({
     memberId: '',
-    policyType: 'Other',
+    policyType: 'auto insurance policy',
     copayDue: '0.00',
     groupNumber: '',
     claimControlRef: '',
@@ -181,9 +395,9 @@ function CMS1500PageContent() {
 
   const [icdCodes, setIcdCodes] = useState(ICD_LABELS.map(() => ''));
   const [updatePatientDefaults, setUpdatePatientDefaults] = useState(false);
-  const [setAllChargesTo, setSetAllChargesTo] = useState('NO CHANGE');
+  const [setAllChargesTo, setSetAllChargesTo] = useState('No change');
   const [charges, setCharges] = useState([
-    { from: '', to: '', procedure: '', pos: '', tos: '', mod1: '', mod2: '', mod3: '', mod4: '', unitPrice: '0.00', dxPointers: '', units: '1.00', amount: '0.00', status: 'BALANCE DUE PATIENT', delete: false },
+    { from: '', to: '', procedure: '', inventory: '', chiro: false, pos: '', tos: '', mod1: '', mod2: '', mod3: '', mod4: '', unitPrice: '0.00', dxPointers: '', units: '1.00', amount: '0.00', status: 'balance due patient', delete: false },
   ]);
 
   const [employmentRelated, setEmploymentRelated] = useState('No');
@@ -203,17 +417,18 @@ function CMS1500PageContent() {
   const [additionalClaimInfo, setAdditionalClaimInfo] = useState('');
   const [claimNote, setClaimNote] = useState('');
   const [resubmitReasonCode, setResubmitReasonCode] = useState('');
-  const [delayReasonCode, setDelayReasonCode] = useState('None');
+  const [delayReasonCode, setDelayReasonCode] = useState('none');
   const [hospitalizedFrom, setHospitalizedFrom] = useState('');
   const [hospitalizedTo, setHospitalizedTo] = useState('');
   const [labCharges, setLabCharges] = useState('0.00');
   const [specialProgramCode, setSpecialProgramCode] = useState('');
 
   const [patientSignatureOnFile, setPatientSignatureOnFile] = useState('Yes');
-  const [insuredSignatureOnFile, setInsuredSignatureOnFile] = useState('Yes');
+  const [insuredSignatureOnFile, setInsuredSignatureOnFile] = useState('yes');
   const [providerAcceptAssignment, setProviderAcceptAssignment] = useState('Default');
-  const [documentationMethod, setDocumentationMethod] = useState('No Documentation');
+  const [documentationMethod, setDocumentationMethod] = useState('No documentation');
   const [documentationType, setDocumentationType] = useState('');
+  const [documentationTypeOther, setDocumentationTypeOther] = useState('');
   const [patientHeight, setPatientHeight] = useState('0');
   const [patientWeight, setPatientWeight] = useState('0');
   const [serviceAuthException, setServiceAuthException] = useState('');
@@ -233,10 +448,11 @@ function CMS1500PageContent() {
   const [certificationFields, setCertificationFields] = useState({});
 
   const updateIcd = (i, value) => setIcdCodes((prev) => prev.map((c, idx) => (idx === i ? value : c)));
-  const addCharge = () => setCharges((c) => [...c, { from: '', to: '', procedure: '', pos: '', tos: '', mod1: '', mod2: '', mod3: '', mod4: '', unitPrice: '0.00', dxPointers: '', units: '1.00', amount: '0.00', status: 'BALANCE DUE PATIENT', delete: false }]);
+  const addCharge = () => setCharges((c) => [...c, { from: '', to: '', procedure: '', inventory: '', chiro: false, pos: '', tos: '', mod1: '', mod2: '', mod3: '', mod4: '', unitPrice: '0.00', dxPointers: '', units: '1.00', amount: '0.00', status: 'balance due patient', delete: false }]);
   const updateCharge = (i, field, value) => setCharges((c) => c.map((row, idx) => (idx === i ? { ...row, [field]: value } : row)));
   const toggleCertification = (key) => setCertificationFields((p) => ({ ...p, [key]: !p[key] }));
   const certificationCount = Object.values(certificationFields).filter(Boolean).length;
+  const ambulanceAddressDisabled = ambulanceClaim === 'No';
 
   return (
     <div className="space-y-4 w-full py-2">
@@ -283,12 +499,12 @@ function CMS1500PageContent() {
                 </div>
                 <div className="space-y-2">
                   <Label>Frequency</Label>
-                  <Select value={frequency} onValueChange={setFrequency}>
-                    <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {FREQUENCY_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={frequency}
+                    onValueChange={setFrequency}
+                    options={FREQUENCY_OPTIONS}
+                    className="w-[200px]"
+                  />
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -301,19 +517,27 @@ function CMS1500PageContent() {
                   <div className="flex-1"><FieldWithSearch label="Referring/PCP Provider" value={referringProvider} onChange={setReferringProvider} icon={Building2} /></div>
                   <div className="space-y-2">
                     <Label className="text-sm">Ref</Label>
-                    <Select defaultValue="1"><SelectTrigger className="w-16"><SelectValue placeholder="Ref" /></SelectTrigger><SelectContent><SelectItem value="1">1</SelectItem></SelectContent></Select>
+                    <SearchableSelect
+                      value="1"
+                      onValueChange={() => {}}
+                      options={[{ value: '1', label: '1' }]}
+                      className="w-16"
+                      placeholder="Ref"
+                    />
                   </div>
                 </div>
                 <div><FieldWithSearch label="Facility" value={facility} onChange={setFacility} icon={Building2} /></div>
                 <div className="space-y-2">
                   <Label>Office Location</Label>
-                  <Select value={officeLocation || 'none'} onValueChange={(v) => setOfficeLocation(v === 'none' ? '' : v)}>
-                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Select</SelectItem>
-                      <SelectItem value="main">Main Office</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={officeLocation || 'none'}
+                    onValueChange={(v) => setOfficeLocation(v === 'none' ? '' : v)}
+                    options={[
+                      { value: 'none', label: 'Select' },
+                      { value: 'main', label: 'Main Office' },
+                    ]}
+                    placeholder="Select"
+                  />
                 </div>
               </div>
               <div className="space-y-4 pt-4 border-t">
@@ -379,10 +603,11 @@ function CMS1500PageContent() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm">Set all charges to</Label>
-                  <Select value={setAllChargesTo} onValueChange={setSetAllChargesTo}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{SET_ALL_CHARGES_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={setAllChargesTo}
+                    onValueChange={setSetAllChargesTo}
+                    options={SET_ALL_CHARGES_OPTIONS}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -398,6 +623,12 @@ function CMS1500PageContent() {
                     <TableHead>From</TableHead>
                     <TableHead>To</TableHead>
                     <TableHead>Procedure</TableHead>
+                    <TableHead>
+                      <span className="inline-flex items-center gap-1">
+                        Inventory <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                      </span>
+                    </TableHead>
+                    <TableHead>Chiro</TableHead>
                     <TableHead>POS</TableHead>
                     <TableHead>TOS</TableHead>
                     <TableHead>Mod 1</TableHead>
@@ -419,6 +650,17 @@ function CMS1500PageContent() {
                       <TableCell><Input type="date" value={row.from} onChange={(e) => updateCharge(i, 'from', e.target.value)} className="h-8 w-28" /></TableCell>
                       <TableCell><Input type="date" value={row.to} onChange={(e) => updateCharge(i, 'to', e.target.value)} className="h-8 w-28" /></TableCell>
                       <TableCell><div className="flex gap-1"><Input value={row.procedure} onChange={(e) => updateCharge(i, 'procedure', e.target.value)} className="h-8 w-24" /><Button type="button" variant="ghost" size="icon" className="h-8 w-8"><Search className="h-3 w-3" /></Button></div></TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Input value={row.inventory} onChange={(e) => updateCharge(i, 'inventory', e.target.value)} className="h-8 w-28" />
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Search inventory">
+                            <Search className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox checked={!!row.chiro} onCheckedChange={(c) => updateCharge(i, 'chiro', !!c)} />
+                      </TableCell>
                       <TableCell><div className="flex gap-1"><Input value={row.pos} onChange={(e) => updateCharge(i, 'pos', e.target.value)} className="h-8 w-16" /><Button type="button" variant="ghost" size="icon" className="h-8 w-8"><Search className="h-3 w-3" /></Button></div></TableCell>
                       <TableCell><div className="flex gap-1"><Input value={row.tos} onChange={(e) => updateCharge(i, 'tos', e.target.value)} className="h-8 w-16" /><Button type="button" variant="ghost" size="icon" className="h-8 w-8"><Search className="h-3 w-3" /></Button></div></TableCell>
                       <TableCell><Input value={row.mod1} onChange={(e) => updateCharge(i, 'mod1', e.target.value)} className="h-8 w-14" /></TableCell>
@@ -430,10 +672,12 @@ function CMS1500PageContent() {
                       <TableCell><Input value={row.units} onChange={(e) => updateCharge(i, 'units', e.target.value)} className="h-8 w-16" /></TableCell>
                       <TableCell><Input value={row.amount} onChange={(e) => updateCharge(i, 'amount', e.target.value)} className="h-8 w-20" /></TableCell>
                       <TableCell>
-                        <Select value={row.status} onValueChange={(v) => updateCharge(i, 'status', v)}>
-                          <SelectTrigger className="h-8 min-w-[140px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>{CHARGE_STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <SearchableSelect
+                          value={row.status}
+                          onValueChange={(v) => updateCharge(i, 'status', v)}
+                          options={CHARGE_STATUS_OPTIONS}
+                          triggerClassName="h-8 min-w-[160px]"
+                        />
                       </TableCell>
                       <TableCell><Button type="button" variant="ghost" size="sm">Other</Button></TableCell>
                       <TableCell><Checkbox checked={row.delete} onCheckedChange={(c) => updateCharge(i, 'delete', !!c)} /></TableCell>
@@ -453,16 +697,13 @@ function CMS1500PageContent() {
               <CardTitle className="text-base">Show Additional Information about each field</CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={showBoxNumbers} onValueChange={setShowBoxNumbers}>
-                <SelectTrigger className="w-full max-w-md">
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ADDITIONAL_INFO_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={showBoxNumbers}
+                onValueChange={setShowBoxNumbers}
+                options={ADDITIONAL_INFO_OPTIONS}
+                className="w-full max-w-md"
+                placeholder="None"
+              />
             </CardContent>
           </Card>
           <Card>
@@ -554,7 +795,12 @@ function CMS1500PageContent() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Delay Reason Code {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 24C (Shaded)*</span>}</Label>
-                  <Select value={delayReasonCode} onValueChange={setDelayReasonCode}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="None">None</SelectItem></SelectContent></Select>
+                  <SearchableSelect
+                    value={delayReasonCode}
+                    onValueChange={setDelayReasonCode}
+                    options={DELAY_REASON_CODE_OPTIONS}
+                    placeholder="Select"
+                  />
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -574,7 +820,12 @@ function CMS1500PageContent() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Special Program Code</Label>
-                  <Select value={specialProgramCode || 'none'} onValueChange={(v) => setSpecialProgramCode(v === 'none' ? '' : v)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="none">N/A</SelectItem></SelectContent></Select>
+                  <SearchableSelect
+                    value={specialProgramCode || 'none'}
+                    onValueChange={(v) => setSpecialProgramCode(v === 'none' ? '' : v)}
+                    options={[{ value: 'none', label: 'none' }, ...SPECIAL_PROGRAM_CODE_OPTIONS]}
+                    placeholder="Select"
+                  />
                 </div>
               </div>
             </CardContent>
@@ -587,15 +838,27 @@ function CMS1500PageContent() {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Patient's Signature on File {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 12</span>}</Label>
-                  <Select value={patientSignatureOnFile} onValueChange={setPatientSignatureOnFile}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{YES_NO_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select>
+                  <SearchableSelect
+                    value={patientSignatureOnFile}
+                    onValueChange={setPatientSignatureOnFile}
+                    options={PATIENT_SIGNATURE_ON_FILE_OPTIONS}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Insured's Signature on File {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 13</span>}</Label>
-                  <Select value={insuredSignatureOnFile} onValueChange={setInsuredSignatureOnFile}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{YES_NO_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select>
+                  <SearchableSelect
+                    value={insuredSignatureOnFile}
+                    onValueChange={setInsuredSignatureOnFile}
+                    options={INSURED_SIGNATURE_ON_FILE_OPTIONS}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Provider Accept Assignment {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">Box 27</span>}</Label>
-                  <Select value={providerAcceptAssignment} onValueChange={setProviderAcceptAssignment}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ACCEPT_ASSIGNMENT_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select>
+                  <SearchableSelect
+                    value={providerAcceptAssignment}
+                    onValueChange={setProviderAcceptAssignment}
+                    options={ACCEPT_ASSIGNMENT_OPTIONS}
+                  />
                 </div>
               </div>
             </CardContent>
@@ -608,11 +871,29 @@ function CMS1500PageContent() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Documentation Method {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
-                  <Select value={documentationMethod} onValueChange={setDocumentationMethod}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{DOCUMENTATION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent></Select>
+                  <SearchableSelect
+                    value={documentationMethod}
+                    onValueChange={setDocumentationMethod}
+                    options={DOCUMENTATION_METHOD_OPTIONS}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Documentation Type {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
-                  <Input value={documentationType} onChange={(e) => setDocumentationType(e.target.value)} />
+                  <div className="space-y-2">
+                    <SearchableSelect
+                      value={documentationType || 'none'}
+                      onValueChange={(v) => setDocumentationType(v === 'none' ? '' : v)}
+                      options={[{ value: 'none', label: 'none' }, ...DOCUMENTATION_TYPE_OPTIONS]}
+                      placeholder="Select"
+                    />
+                    {documentationType === 'Others' && (
+                      <Input
+                        value={documentationTypeOther}
+                        onChange={(e) => setDocumentationTypeOther(e.target.value)}
+                        placeholder="Enter other documentation type"
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Patient Height (in.) {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
@@ -626,7 +907,12 @@ function CMS1500PageContent() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Service Authorization Exception {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
-                  <Input value={serviceAuthException} onChange={(e) => setServiceAuthException(e.target.value)} />
+                  <SearchableSelect
+                    value={serviceAuthException || 'none'}
+                    onValueChange={(v) => setServiceAuthException(v === 'none' ? '' : v)}
+                    options={[{ value: 'none', label: 'none' }, ...SERVICE_AUTH_EXCEPTION_OPTIONS]}
+                    placeholder="Select"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">Demonstration Project {showBoxNumbers === 'cms1500' && <span className="text-muted-foreground font-normal text-xs">N/A</span>}</Label>
@@ -658,7 +944,15 @@ function CMS1500PageContent() {
                 <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="amb" checked={ambulanceClaim === 'No'} onChange={() => setAmbulanceClaim('No')} /> No</label>
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-2"><Label className="text-sm">Transport Reason</Label><Select value={transportReason || 'none'} onValueChange={(v) => setTransportReason(v === 'none' ? '' : v)}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="none">—</SelectItem></SelectContent></Select></div>
+                <div className="space-y-2">
+                  <Label className="text-sm">Transport Reason</Label>
+                  <SearchableSelect
+                    value={transportReason || 'none'}
+                    onValueChange={(v) => setTransportReason(v === 'none' ? '' : v)}
+                    options={TRANSPORT_REASON_OPTIONS}
+                    placeholder="Select"
+                  />
+                </div>
                 <div className="space-y-2"><Label className="text-sm">Transport Miles</Label><Input type="number" step="0.01" value={transportMiles} onChange={(e) => setTransportMiles(e.target.value)} /></div>
                 <div className="space-y-2"><Label className="text-sm">Patient Weight</Label><Input type="number" value={ambulancePatientWeight} onChange={(e) => setAmbulancePatientWeight(e.target.value)} /></div>
                 <div className="space-y-2 sm:col-span-2"><Label className="text-sm">Round Trip Reason</Label><Input value={roundTripReason} onChange={(e) => setRoundTripReason(e.target.value)} /></div>
@@ -666,25 +960,31 @@ function CMS1500PageContent() {
               </div>
               <div className="rounded-lg border">
                 <div className="bg-muted/50 px-4 py-2 font-medium text-sm">Pickup Address</div>
-                <div className="p-4 space-y-4">
-                  <div className="space-y-2"><Label className="text-sm">Address</Label><Textarea value={pickupAddress.line1} onChange={(e) => setPickupAddress((p) => ({ ...p, line1: e.target.value }))} rows={2} /></div>
+                <div className={cn("p-4 space-y-4", ambulanceAddressDisabled && "opacity-60 pointer-events-none")}>
+                  <div className="space-y-2"><Label className="text-sm">Address</Label><Textarea value={pickupAddress.line1} onChange={(e) => setPickupAddress((p) => ({ ...p, line1: e.target.value }))} rows={2} disabled={ambulanceAddressDisabled} /></div>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="space-y-2 sm:col-span-2"><Label className="text-sm">City</Label><Input value={pickupAddress.city} onChange={(e) => setPickupAddress((p) => ({ ...p, city: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label className="text-sm">State</Label><Input value={pickupAddress.state} onChange={(e) => setPickupAddress((p) => ({ ...p, state: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label className="text-sm">ZIP Code</Label><Input value={pickupAddress.zip} onChange={(e) => setPickupAddress((p) => ({ ...p, zip: e.target.value }))} /></div>
+                    <div className="space-y-2 sm:col-span-2"><Label className="text-sm">City</Label><Input value={pickupAddress.city} onChange={(e) => setPickupAddress((p) => ({ ...p, city: e.target.value }))} disabled={ambulanceAddressDisabled} /></div>
+                    <div className="space-y-2"><Label className="text-sm">State</Label><Input value={pickupAddress.state} onChange={(e) => setPickupAddress((p) => ({ ...p, state: e.target.value }))} disabled={ambulanceAddressDisabled} /></div>
+                    <div className="space-y-2"><Label className="text-sm">ZIP Code</Label><Input value={pickupAddress.zip} onChange={(e) => setPickupAddress((p) => ({ ...p, zip: e.target.value }))} disabled={ambulanceAddressDisabled} /></div>
                   </div>
-                  <div className="flex items-center space-x-2"><Checkbox id="pickupIntl" checked={pickupAddress.international} onCheckedChange={(c) => setPickupAddress((p) => ({ ...p, international: !!c }))} /><Label htmlFor="pickupIntl" className="font-normal text-sm">International Address</Label></div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="pickupIntl" checked={pickupAddress.international} onCheckedChange={(c) => setPickupAddress((p) => ({ ...p, international: !!c }))} disabled={ambulanceAddressDisabled} />
+                    <Label htmlFor="pickupIntl" className="font-normal text-sm">International Address</Label>
+                  </div>
                 </div>
               </div>
               <div className="rounded-lg border">
-                <div className="flex items-center justify-between bg-muted/50 px-4 py-2"><span className="font-medium text-sm">Dropoff Address</span><Button type="button" variant="outline" size="sm">Copy from Facility</Button></div>
-                <div className="p-4 space-y-4">
-                  <div className="space-y-2"><Label className="text-sm">Name</Label><Input value={dropoffAddress.name} onChange={(e) => setDropoffAddress((p) => ({ ...p, name: e.target.value }))} /></div>
-                  <div className="space-y-2"><Label className="text-sm">Address</Label><Textarea value={dropoffAddress.line1} onChange={(e) => setDropoffAddress((p) => ({ ...p, line1: e.target.value }))} rows={2} /></div>
+                <div className="flex items-center justify-between bg-muted/50 px-4 py-2">
+                  <span className="font-medium text-sm">Dropoff Address</span>
+                  <Button type="button" variant="outline" size="sm" disabled={ambulanceAddressDisabled}>Copy from Facility</Button>
+                </div>
+                <div className={cn("p-4 space-y-4", ambulanceAddressDisabled && "opacity-60 pointer-events-none")}>
+                  <div className="space-y-2"><Label className="text-sm">Name</Label><Input value={dropoffAddress.name} onChange={(e) => setDropoffAddress((p) => ({ ...p, name: e.target.value }))} disabled={ambulanceAddressDisabled} /></div>
+                  <div className="space-y-2"><Label className="text-sm">Address</Label><Textarea value={dropoffAddress.line1} onChange={(e) => setDropoffAddress((p) => ({ ...p, line1: e.target.value }))} rows={2} disabled={ambulanceAddressDisabled} /></div>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="space-y-2 sm:col-span-2"><Label className="text-sm">City</Label><Input value={dropoffAddress.city} onChange={(e) => setDropoffAddress((p) => ({ ...p, city: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label className="text-sm">State</Label><Input value={dropoffAddress.state} onChange={(e) => setDropoffAddress((p) => ({ ...p, state: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label className="text-sm">ZIP Code</Label><Input value={dropoffAddress.zip} onChange={(e) => setDropoffAddress((p) => ({ ...p, zip: e.target.value }))} /></div>
+                    <div className="space-y-2 sm:col-span-2"><Label className="text-sm">City</Label><Input value={dropoffAddress.city} onChange={(e) => setDropoffAddress((p) => ({ ...p, city: e.target.value }))} disabled={ambulanceAddressDisabled} /></div>
+                    <div className="space-y-2"><Label className="text-sm">State</Label><Input value={dropoffAddress.state} onChange={(e) => setDropoffAddress((p) => ({ ...p, state: e.target.value }))} disabled={ambulanceAddressDisabled} /></div>
+                    <div className="space-y-2"><Label className="text-sm">ZIP Code</Label><Input value={dropoffAddress.zip} onChange={(e) => setDropoffAddress((p) => ({ ...p, zip: e.target.value }))} disabled={ambulanceAddressDisabled} /></div>
                   </div>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-// Mock data aligned with NurseAssessment page (replace with API later)
+// Interim mock until vitals/allergy APIs are wired per patient
 const mockVitals = [
   {
     id: 1,
@@ -38,7 +38,7 @@ function formatDateTime(iso) {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
 }
 
-export function NurseAssessmentSummaryContent() {
+export function NurseAssessmentSummaryContent({ patient: _patient }) {
   const assessments = [
     {
       id: 'vitals',

@@ -127,6 +127,29 @@ const locationService = {
   },
 
   /**
+   * Active locations for dropdowns (compact; includes tenant for labels)
+   * @param {{ tenantId?: string }} filters
+   */
+  async findAllActive({ tenantId } = {}) {
+    const where = { isActive: true };
+    if (tenantId) {
+      where.tenantId = tenantId;
+    }
+    return prisma.location.findMany({
+      where,
+      orderBy: [{ tenant: { name: 'asc' } }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        state: true,
+        tenantId: true,
+        tenant: { select: { id: true, name: true } },
+      },
+    });
+  },
+
+  /**
    * Get a location by ID
    */
   async findById(id) {

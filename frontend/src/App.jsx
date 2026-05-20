@@ -22,9 +22,10 @@ import { PermissionHeadersPage } from '@/pages/administration/permission-headers
 import { BillingProvidersPage } from '@/pages/administration/billing-providers/BillingProvidersPage';
 import { FacilitiesPage } from '@/pages/administration/facility/FacilitiesPage';
 import { CPTCodesPage } from '@/pages/administration/cpt-codes/CPTCodesPage';
+import { AppointmentTypesPage } from '@/pages/administration/appointment-types/AppointmentTypesPage';
+import { ConsentFormsPage } from '@/pages/administration/consent-forms/ConsentFormsPage';
 import { TriageTrackingBoard } from '@/pages/triage-tracking-board/TriageTrackingBoard';
 import { NurseTrackingBoardPage } from '@/pages/nurse-tracking-board/NurseTrackingBoardPage';
-import { ProviderTrackingBoardPage } from '@/pages/provider-tracking-board/ProviderTrackingBoardPage';
 import { PatientDashboard } from '@/pages/patient-dashboard/PatientDashboard';
 import { CustomOrderSetPage } from '@/pages/custom-order-set/CustomOrderSetPage';
 import { ManageInventoryPage } from '@/pages/medication-management/manage-inventory/ManageInventoryPage';
@@ -60,6 +61,10 @@ import { PatientMedicationViewPage } from '@/pages/pharmacy/PatientMedicationVie
 import { PharmacyBarcodeLabelsPage } from '@/pages/pharmacy/PharmacyBarcodeLabelsPage';
 import { PharmacyInventoryPage } from '@/pages/pharmacy/PharmacyInventoryPage';
 import { ProviderSchedulesPage } from '@/pages/providers/schedule/ProviderSchedulesPage';
+import { SpecialitiesPage } from '@/pages/providers/specialities/SpecialitiesPage';
+import { SubSpecialitiesPage } from '@/pages/providers/sub-specialities/SubSpecialitiesPage';
+import { LocationsPage } from '@/pages/providers/locations/LocationsPage';
+import { BlockHoursPage } from '@/pages/appointments/block-hours/BlockHoursPage';
 import { OutsideLabOrdersPage } from '@/pages/outpatient/outside-labs/OutsideLabOrdersPage';
 import { ExternalLabMasterPage } from '@/pages/outpatient/outside-labs/ExternalLabMasterPage';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -68,11 +73,15 @@ import { ClaimTrackerPage } from '@/pages/rcm/ClaimTrackerPage';
 import { FollowUpManagementPage } from '@/pages/rcm/FollowUpManagementPage';
 import { CMS1500Page } from '@/pages/rcm/CMS1500Page';
 import { ClaimUB04Page } from '@/pages/rcm/ClaimUB04Page';
+import { RcmReportPage } from '@/pages/rcm/reports/RcmReportPage';
+import { ReportingDashboardPage } from '@/pages/rcm/reports/ReportingDashboardPage';
 import { PhysiologicalOrderManagementPage } from '@/pages/physiological-tests/PhysiologicalOrderManagementPage';
 import { PatientPhysiologicalOrderDetailPage } from '@/pages/physiological-tests/PatientPhysiologicalOrderDetailPage';
 import { OutsidePhysiologicalTestsPage } from '@/pages/physiological-tests/outside/OutsidePhysiologicalTestsPage';
 import { PatientOutsidePhysiologicalDetailPage } from '@/pages/physiological-tests/outside/PatientOutsidePhysiologicalDetailPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { RoomsPage } from '@/pages/patient-management/rooms/RoomsPage';
+import { BedsPage } from '@/pages/patient-management/beds/BedsPage';
 
 function PharmacyPage() {
   const [searchParams] = useSearchParams();
@@ -94,19 +103,25 @@ function App() {
           <Route path="patients/new" element={<PatientFormPage />} />
           <Route path="patients/edit/:id" element={<PatientFormPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />
+          <Route path="appointments/block-hours" element={<BlockHoursPage />} />
           <Route path="insurance-providers" element={<InsuranceProvidersPage />} />
           <Route path="nurse-assessment" element={<NurseDashboard />} />
           <Route path="providers" element={<ProvidersPage />} />
           <Route path="providers/schedule" element={<ProviderSchedulesPage />} />
+          <Route path="providers/specialities" element={<SpecialitiesPage />} />
+          <Route path="providers/sub-specialities" element={<SubSpecialitiesPage />} />
+          <Route path="providers/locations" element={<LocationsPage />} />
           <Route path="departments" element={<DepartmentsPage />} />
           <Route path="reports" element={<PlaceholderPage title="Reports" />} />
           <Route path="settings" element={<PlaceholderPage title="Settings" />} />
           <Route path="administration/chief-complaint" element={<ChiefComplaint />} />
+          <Route path="administration/consent-forms" element={<ConsentFormsPage />} />
           <Route path="administration/procedure-codes" element={<ProceduresPage />} />
           <Route path="administration/procedure-categories" element={<ProcedureCategoriesPage />} />
           <Route path="administration/procedures" element={<ProceduresPage />} />
           <Route path="administration/charge-master" element={<ChargeMasterPage />} />
           <Route path="administration/billing-providers" element={<BillingProvidersPage />} />
+          <Route path="administration/appointment-types" element={<AppointmentTypesPage />} />
           <Route path="administration/facility" element={<FacilitiesPage />} />
           <Route path="administration/cpt-codes" element={<CPTCodesPage />} />
           <Route path="administration/users" element={<UsersPage />} />
@@ -115,9 +130,10 @@ function App() {
           <Route path="administration/permission-headers" element={<PermissionHeadersPage />} />
           <Route path="triage-tracking-board" element={<TriageTrackingBoard />} />
           <Route path="nurse-tracking-board" element={<NurseTrackingBoardPage />} />
-          <Route path="provider-tracking-board" element={<ProviderTrackingBoardPage />} />
           <Route path="patient-dashboard/:patientId?" element={<PatientDashboard />} />
           <Route path="custom-order-set" element={<CustomOrderSetPage />} />
+          <Route path="patient-management/rooms" element={<RoomsPage />} />
+          <Route path="patient-management/beds" element={<BedsPage />} />
           {/* Physiological tests */}
           <Route path="physiological-tests/order-management" element={<PhysiologicalOrderManagementPage />} />
           <Route path="physiological-tests/order-management/patient/:patientId" element={<PatientPhysiologicalOrderDetailPage />} />
@@ -181,6 +197,8 @@ function App() {
           <Route path="rcm/follow-up-management" element={<FollowUpManagementPage />} />
           <Route path="rcm/cms-1500" element={<CMS1500Page />} />
           <Route path="rcm/claim-ub04" element={<ClaimUB04Page />} />
+          <Route path="rcm/reports/dashboard" element={<ReportingDashboardPage />} />
+          <Route path="rcm/reports/:reportSlug" element={<RcmReportPage />} />
           <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

@@ -1,26 +1,141 @@
 const prisma = require('../lib/prisma');
 
+const PATIENT_WRITABLE_FIELDS = [
+  'firstName',
+  'middleName',
+  'lastName',
+  'suffix',
+  'preferredName',
+  'previousName',
+  'dateOfBirth',
+  'gender',
+  'genderIdentity',
+  'pronouns',
+  'contactNumber',
+  'preferredContactMethod',
+  'email',
+  'address',
+  'addressLine2',
+  'city',
+  'state',
+  'zip',
+  'country',
+  'homePhone',
+  'workPhone',
+  'cellPhone',
+  'governmentIdType',
+  'governmentIdNumber',
+  'birthPlace',
+  'veteranStatus',
+  'disabilityStatus',
+  'tribalAffiliation',
+  'generalNotes',
+  'ethnicity',
+  'sexualOrientation',
+  'race',
+  'language',
+  'interpreterRequired',
+  'interpreterLanguageRequired',
+  'maritalStatus',
+  'employmentStatus',
+  'employerName',
+  'occupation',
+  'employerPhoneNumber',
+  'employerStreetAddress',
+  'employerCity',
+  'employerState',
+  'employerZip',
+  'otherInfo',
+  'insuranceProviderId',
+  'policyNumber',
+  'copay',
+  'deductible',
+  'primaryCarePhysician',
+  'referringPhysicianFirstName',
+  'referringPhysicianLastName',
+  'referringPhysicianNpi',
+  'referringPhysicianPhone',
+  'referringPhysicianFax',
+  'referringPhysicianAddress',
+  'referringPhysicianCity',
+  'referringPhysicianState',
+  'referringPhysicianZip',
+  'profilePhoto',
+  'emergencyContactName',
+  'emergencyContactNumber',
+  'emergencyContactRelationship',
+  'emergencyContactEmail',
+  'emergencyContactAddress',
+  'emergencyContactCity',
+  'emergencyContactState',
+  'emergencyContactZip',
+  'secondaryEmergencyContactName',
+  'secondaryEmergencyContactRelationship',
+  'secondaryEmergencyContactNumber',
+  'secondaryEmergencyContactEmail',
+  'guarantorName',
+  'guarantorPhone',
+  'guarantorRelationship',
+  'guarantorEmail',
+  'guarantorAddress',
+  'guarantorCity',
+  'guarantorState',
+  'guarantorZip',
+  'guarantorDateOfBirth',
+  'authorizedRepresentativeName',
+  'authorizedRepresentativeRelationship',
+  'authorizedRepresentativePhone',
+  'authorizedRepresentativeEmail',
+  'legalGuardianName',
+  'legalGuardianRelationship',
+  'legalGuardianPhone',
+  'legalGuardianEmail',
+  'patientIsMinor',
+  'primaryNextOfKinName',
+  'primaryNextOfKinRelationship',
+  'primaryNextOfKinPhone',
+  'secondaryNextOfKinName',
+  'secondaryNextOfKinRelationship',
+  'secondaryNextOfKinPhone',
+  'subscriberPhone',
+  'subscriberSsnLast4',
+  'subscriberEmployer',
+  'subscriberAddress',
+  'subscriberCity',
+  'subscriberState',
+  'subscriberZip',
+  'subscriberEmail',
+];
+
+function pickPatientData(data) {
+  const payload = {};
+  for (const key of PATIENT_WRITABLE_FIELDS) {
+    if (data[key] !== undefined) {
+      payload[key] = data[key];
+    }
+  }
+  if (payload.dateOfBirth) {
+    payload.dateOfBirth = new Date(payload.dateOfBirth);
+  }
+  if (payload.guarantorDateOfBirth) {
+    payload.guarantorDateOfBirth = new Date(payload.guarantorDateOfBirth);
+  }
+  if (payload.profilePhoto === '') {
+    payload.profilePhoto = null;
+  }
+  if (payload.country === '' || payload.country == null) {
+    payload.country = 'US';
+  }
+  return payload;
+}
+
 const patientService = {
   /**
    * Create a new patient
    */
   async create(data) {
     return prisma.patient.create({
-      data: {
-        firstName: data.firstName,
-        middleName: data.middleName,
-        lastName: data.lastName,
-        dateOfBirth: new Date(data.dateOfBirth),
-        gender: data.gender,
-        contactNumber: data.contactNumber,
-        email: data.email,
-        address: data.address,
-        insuranceProviderId: data.insuranceProviderId,
-        policyNumber: data.policyNumber,
-        copay: data.copay,
-        deductible: data.deductible,
-        primaryCarePhysician: data.primaryCarePhysician,
-      },
+      data: pickPatientData(data),
       include: {
         insuranceProvider: true,
       },
@@ -33,11 +148,9 @@ const patientService = {
   async findAll({ page = 1, limit = 10, search = '', gender, insuranceProviderId }) {
     const skip = (page - 1) * parseInt(limit);
 
-    // Build where clause
     const where = {};
     const conditions = [];
 
-    // Search filter
     if (search) {
       conditions.push({
         OR: [
@@ -49,17 +162,14 @@ const patientService = {
       });
     }
 
-    // Gender filter
     if (gender) {
       conditions.push({ gender });
     }
 
-    // Insurance provider filter
     if (insuranceProviderId) {
       conditions.push({ insuranceProviderId });
     }
 
-    // Combine conditions with AND
     if (conditions.length > 0) {
       where.AND = conditions;
     }
@@ -122,15 +232,9 @@ const patientService = {
    * Update a patient
    */
   async update(id, data) {
-    const updateData = { ...data };
-
-    if (data.dateOfBirth) {
-      updateData.dateOfBirth = new Date(data.dateOfBirth);
-    }
-
     return prisma.patient.update({
       where: { id },
-      data: updateData,
+      data: pickPatientData(data),
       include: {
         insuranceProvider: true,
       },

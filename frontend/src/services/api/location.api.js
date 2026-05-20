@@ -19,6 +19,21 @@ export const locationApi = {
     return handleResponse(response);
   },
 
+  /** Active locations (for multi-select / dropdowns) */
+  async getActive(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.tenantId) searchParams.set('tenantId', params.tenantId);
+
+    const q = searchParams.toString();
+    const url =
+      q.length > 0 ? `${API_BASE_URL}/locations/active?${q}` : `${API_BASE_URL}/locations/active`;
+
+    const response = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
   // Get location by ID
   async getById(id) {
     const response = await fetch(`${API_BASE_URL}/locations/${id}`, {

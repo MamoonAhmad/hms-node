@@ -93,6 +93,7 @@ const appointmentController = {
         'status',
         'appointmentType',
         'department',
+        'provider',
         'date',
         'patientId',
       ]);

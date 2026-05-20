@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ChevronDown } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -22,7 +23,6 @@ import { providerSchedulesStore } from './providerSchedulesMock';
 
 const emptyForm = () => ({
   providerId: '',
-  clinicName: '',
   specialty: '',
   subSpecialty: '',
   days: [],
@@ -32,7 +32,8 @@ const emptyForm = () => ({
   slotDuration: 30,
   appointmentType: 'Both',
   maxAppointmentsPerSlot: 1,
-  locationRoom: '',
+  overBooking: 0,
+  locations: [],
   teleconsultationAllowed: false,
   effectiveStartDate: new Date().toISOString().split('T')[0],
   effectiveEndDate: '',
@@ -41,6 +42,7 @@ const emptyForm = () => ({
 
 export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSubmit, isLoading }) {
   const [providers, setProviders] = useState([]);
+  const [locationsOptions, setLocationsOptions] = useState([]);
   const [daysOptions, setDaysOptions] = useState([]);
   const [slotDurations, setSlotDurations] = useState([]);
   const [appointmentTypes, setAppointmentTypes] = useState([]);
@@ -56,18 +58,14 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
 
   useEffect(() => {
     if (open) {
-      if (!schedule) {
-        providerSchedulesStore.getDefaultClinicName().then((name) =>
-          setFormData((prev) => ({ ...prev, clinicName: name }))
-        );
-      }
+      setProviderOpen(false);
       providerSchedulesStore.getDaysOptions().then(setDaysOptions);
       providerSchedulesStore.getSlotDurations().then(setSlotDurations);
       providerSchedulesStore.getAppointmentTypes().then(setAppointmentTypes);
+      providerSchedulesStore.getLocations().then(setLocationsOptions);
       if (schedule) {
         setFormData({
           providerId: String(schedule.providerId),
-          clinicName: schedule.clinicName || '',
           specialty: schedule.specialty || '',
           subSpecialty: schedule.subSpecialty || '',
           days: schedule.days || [],
@@ -77,7 +75,8 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
           slotDuration: schedule.slotDuration || 30,
           appointmentType: schedule.appointmentType || 'Both',
           maxAppointmentsPerSlot: schedule.maxAppointmentsPerSlot ?? 1,
-          locationRoom: schedule.locationRoom || '',
+          overBooking: schedule.overBooking ?? 0,
+          locations: schedule.locations || [],
           teleconsultationAllowed: !!schedule.teleconsultationAllowed,
           effectiveStartDate: schedule.effectiveStartDate || new Date().toISOString().split('T')[0],
           effectiveEndDate: schedule.effectiveEndDate || '',
@@ -136,7 +135,6 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
       providerId: String(p.id),
       specialty: p.specialty || '',
       subSpecialty: p.subSpecialty || '',
-      clinicName: prev.clinicName || '',
     }));
     setProviderSearch(p.name || '');
     setProviderOpen(false);
@@ -146,7 +144,6 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
   const validate = async () => {
     const newErrors = {};
     if (!formData.providerId) newErrors.providerId = 'Provider is required';
-    if (!formData.clinicName?.trim()) newErrors.clinicName = 'Clinic name is required';
     if (!formData.days?.length) newErrors.days = 'At least one day is required';
     if (!formData.startTime) newErrors.startTime = 'Start time is required';
     if (!formData.endTime) newErrors.endTime = 'End time is required';
@@ -160,6 +157,10 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
     const max = formData.maxAppointmentsPerSlot;
     if (max == null || max < 1 || !Number.isInteger(Number(max))) {
       newErrors.maxAppointmentsPerSlot = 'Must be a positive integer';
+    }
+    const ob = formData.overBooking;
+    if (ob == null || ob < 0 || !Number.isInteger(Number(ob))) {
+      newErrors.overBooking = 'Must be a non-negative integer';
     }
     if (!formData.effectiveStartDate) newErrors.effectiveStartDate = 'Effective start date is required';
     if (formData.effectiveEndDate && formData.effectiveStartDate && formData.effectiveEndDate < formData.effectiveStartDate) {
@@ -191,12 +192,14 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
       ...formData,
       days: formData.days,
       effectiveEndDate: formData.effectiveEndDate || null,
-      locationRoom: formData.locationRoom?.trim() || null,
+      overBooking: Number(formData.overBooking) || 0,
+      locations: formData.locations || [],
     };
     onSubmit(payload);
   };
 
   const daysMultiSelectOptions = daysOptions.map((d) => ({ value: d.value, label: d.label }));
+  const locationMultiSelectOptions = locationsOptions.map((l) => ({ value: l.value, label: l.label }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -205,26 +208,37 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
           <DialogTitle>{isEditing ? 'Edit Schedule' : 'Add Schedule'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Provider & Clinic */}
+          {/* Provider */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Provider & Clinic</h3>
+            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Provider</h3>
             <div className="space-y-2">
               <Label>Provider *</Label>
               <div className="relative" ref={providerRef}>
-                <Input
-                  value={providerSearch}
-                  onChange={(e) => {
-                    setProviderSearch(e.target.value);
-                    setProviderOpen(true);
-                    if (!e.target.value) {
-                      setSelectedProvider(null);
-                      setFormData((prev) => ({ ...prev, providerId: '', specialty: '', subSpecialty: '' }));
-                    }
-                  }}
-                  onFocus={() => setProviderOpen(true)}
-                  placeholder="Search provider..."
-                  className={errors.providerId ? 'border-destructive' : ''}
-                />
+                <div className="relative">
+                  <Input
+                    value={providerSearch}
+                    onChange={(e) => {
+                      setProviderSearch(e.target.value);
+                      setProviderOpen(true);
+                      if (!e.target.value) {
+                        setSelectedProvider(null);
+                        setFormData((prev) => ({ ...prev, providerId: '', specialty: '', subSpecialty: '' }));
+                      }
+                    }}
+                    onClick={() => setProviderOpen(true)}
+                    placeholder="Select provider..."
+                    className={errors.providerId ? 'border-destructive pr-9' : 'pr-9'}
+                    readOnly={false}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setProviderOpen((v) => !v)}
+                    aria-label="Toggle provider list"
+                  >
+                    <ChevronDown className={`h-4 w-4 transition-transform ${providerOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
                 {providerOpen && (
                   <ul className="absolute z-10 mt-1 w-full rounded-md border bg-popover py-1 shadow-md max-h-48 overflow-auto">
                     {providers.length === 0 ? (
@@ -246,9 +260,27 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
               </div>
               {errors.providerId && <p className="text-xs text-destructive">{errors.providerId}</p>}
             </div>
-            <div className="space-y-2">
-              <Label>Clinic Name *</Label>
-              <Input value={formData.clinicName} readOnly disabled className="bg-muted" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Effective Start Date *</Label>
+                <Input
+                  type="date"
+                  value={formData.effectiveStartDate}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, effectiveStartDate: e.target.value }))}
+                  className={errors.effectiveStartDate ? 'border-destructive' : ''}
+                />
+                {errors.effectiveStartDate && <p className="text-xs text-destructive">{errors.effectiveStartDate}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Effective End Date</Label>
+                <Input
+                  type="date"
+                  value={formData.effectiveEndDate}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, effectiveEndDate: e.target.value }))}
+                  className={errors.effectiveEndDate ? 'border-destructive' : ''}
+                />
+                {errors.effectiveEndDate && <p className="text-xs text-destructive">{errors.effectiveEndDate}</p>}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -275,6 +307,8 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                   if (errors.days) setErrors((prev) => ({ ...prev, days: null }));
                 }}
                 placeholder="Select days"
+                showSelectAll
+                selectAllLabel="Select all days"
                 className={errors.days ? 'border-destructive' : ''}
               />
               {errors.days && <p className="text-xs text-destructive">{errors.days}</p>}
@@ -352,13 +386,32 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                 {errors.maxAppointmentsPerSlot && <p className="text-xs text-destructive">{errors.maxAppointmentsPerSlot}</p>}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Location / Room</Label>
-              <Input
-                value={formData.locationRoom}
-                onChange={(e) => setFormData((prev) => ({ ...prev, locationRoom: e.target.value }))}
-                placeholder="Optional"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Over booking</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={formData.overBooking}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, overBooking: parseInt(e.target.value, 10) || 0 }))
+                  }
+                  className={errors.overBooking ? 'border-destructive' : ''}
+                />
+                {errors.overBooking && <p className="text-xs text-destructive">{errors.overBooking}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Location</Label>
+                <MultiSelect
+                  options={locationMultiSelectOptions}
+                  value={formData.locations}
+                  onChange={(v) => setFormData((prev) => ({ ...prev, locations: v }))}
+                  placeholder="Select location(s)"
+                  searchable
+                  showSelectAll
+                  selectAllLabel="Select all locations"
+                />
+              </div>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
@@ -370,31 +423,9 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
             </div>
           </div>
 
-          {/* Schedule Validity */}
+          {/* Schedule Status */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Schedule Validity</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Effective Start Date *</Label>
-                <Input
-                  type="date"
-                  value={formData.effectiveStartDate}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, effectiveStartDate: e.target.value }))}
-                  className={errors.effectiveStartDate ? 'border-destructive' : ''}
-                />
-                {errors.effectiveStartDate && <p className="text-xs text-destructive">{errors.effectiveStartDate}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Effective End Date</Label>
-                <Input
-                  type="date"
-                  value={formData.effectiveEndDate}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, effectiveEndDate: e.target.value }))}
-                  className={errors.effectiveEndDate ? 'border-destructive' : ''}
-                />
-                {errors.effectiveEndDate && <p className="text-xs text-destructive">{errors.effectiveEndDate}</p>}
-              </div>
-            </div>
+            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Schedule Status</h3>
             <div className="space-y-2">
               <Label>Status *</Label>
               <Select

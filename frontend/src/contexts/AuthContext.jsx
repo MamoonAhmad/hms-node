@@ -44,8 +44,17 @@ export function AuthProvider({ children }) {
     const storedUser = localStorage.getItem(USER_KEY);
 
     if (storedToken && storedUser) {
+      let parsedUser;
+      try {
+        parsedUser = JSON.parse(storedUser);
+      } catch {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        setIsLoading(false);
+        return;
+      }
       setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      setUser(parsedUser);
 
       // Validate token by fetching current user (with timeout so we don't hang on blank screen)
       const timeoutMs = 10000;

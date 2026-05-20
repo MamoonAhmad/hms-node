@@ -19,20 +19,112 @@ model Patient {
   firstName             String
   middleName            String?
   lastName              String
+  suffix                String?
+  preferredName         String?
+  previousName          String?
   dateOfBirth           DateTime
   gender                String
+  genderIdentity        String?
+  pronouns              String?
   contactNumber         String
+  preferredContactMethod String            @default("cell")
   email                 String?
   address               String?
+  addressLine2          String?
+  city                  String?
+  state                 String?
+  zip                   String?
+  country               String?            @default("US")
+  homePhone             String?
+  workPhone             String?
+  cellPhone             String?
+  governmentIdType      String?
+  governmentIdNumber    String?
+  birthPlace            String?
+  veteranStatus         String?
+  disabilityStatus      String?
+  tribalAffiliation     String?
+  generalNotes          String?            @db.Text
+  ethnicity             String?
+  sexualOrientation     String?
+  race                  String?
+  language              String?
+  interpreterRequired   Boolean            @default(false)
+  interpreterLanguageRequired String?
+  maritalStatus         String?
+  employmentStatus      String?
+  employerName          String?
+  occupation            String?
+  employerPhoneNumber   String?
+  employerStreetAddress String?
+  employerCity          String?
+  employerState         String?
+  employerZip           String?
+  otherInfo             String?            @db.Text
   insuranceProviderId   String?
   insuranceProvider     InsuranceProvider? @relation(fields: [insuranceProviderId], references: [id])
   policyNumber          String?
   copay                 Decimal?           @db.Decimal(10, 2)
   deductible            Decimal?           @db.Decimal(10, 2)
-  primaryCarePhysician  String?
+  primaryCarePhysician           String?
+  referringPhysicianFirstName    String?
+  referringPhysicianLastName     String?
+  referringPhysicianNpi          String?
+  referringPhysicianPhone        String?
+  referringPhysicianFax          String?
+  referringPhysicianAddress      String?
+  referringPhysicianCity         String?
+  referringPhysicianState        String?
+  referringPhysicianZip          String?
+  profilePhoto          String?            @db.Text
+  emergencyContactName              String?
+  emergencyContactNumber            String?
+  emergencyContactRelationship      String?
+  emergencyContactEmail             String?
+  emergencyContactAddress           String?
+  emergencyContactCity              String?
+  emergencyContactState             String?
+  emergencyContactZip               String?
+  secondaryEmergencyContactName     String?
+  secondaryEmergencyContactRelationship String?
+  secondaryEmergencyContactNumber   String?
+  secondaryEmergencyContactEmail    String?
+  guarantorName                     String?
+  guarantorPhone                    String?
+  guarantorRelationship             String?
+  guarantorEmail                    String?
+  guarantorAddress                  String?
+  guarantorCity                     String?
+  guarantorState                    String?
+  guarantorZip                      String?
+  guarantorDateOfBirth              DateTime?
+  authorizedRepresentativeName      String?
+  authorizedRepresentativeRelationship String?
+  authorizedRepresentativePhone     String?
+  authorizedRepresentativeEmail     String?
+  legalGuardianName                 String?
+  legalGuardianRelationship         String?
+  legalGuardianPhone                String?
+  legalGuardianEmail                String?
+  patientIsMinor                    Boolean            @default(false)
+  primaryNextOfKinName              String?
+  primaryNextOfKinRelationship      String?
+  primaryNextOfKinPhone             String?
+  secondaryNextOfKinName            String?
+  secondaryNextOfKinRelationship    String?
+  secondaryNextOfKinPhone           String?
+  subscriberPhone                   String?
+  subscriberSsnLast4                String?
+  subscriberEmployer                String?
+  subscriberAddress                 String?
+  subscriberCity                    String?
+  subscriberState                   String?
+  subscriberZip                     String?
+  subscriberEmail                   String?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   appointments          Appointment[]
+  orders                Order[]
 
   @@map("patients")
 }
@@ -44,6 +136,9 @@ model InsuranceProvider {
   phone        String?
   email        String?
   address      String?
+  city         String?
+  state        String?
+  zip          String?
   website      String?
   isActive     Boolean   @default(true)
   patients     Patient[]
@@ -51,6 +146,78 @@ model InsuranceProvider {
   updatedAt    DateTime  @updatedAt
 
   @@map("insurance_providers")
+}
+
+model Provider {
+  id                       String   @id @default(uuid())
+  npi                      String   @unique
+  initials                 String?
+  firstName                String
+  middleName               String?
+  lastName                 String
+  gender                   String?
+  dateOfBirth              DateTime?
+  specialtyId              String?
+  specialty                Specialty?   @relation(fields: [specialtyId], references: [id], onDelete: SetNull)
+  subSpecialtyId           String?
+  subSpecialty             SubSpecialty? @relation(fields: [subSpecialtyId], references: [id], onDelete: SetNull)
+  departmentId             String?
+  department               Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  taxonomy                 String?
+  email                    String?
+  taxId                    String?
+  group                    String?
+  deaNumber                String?
+  deaEffectiveDate         DateTime?
+  deaExpiryDate            DateTime?
+  stateLicenseNumber       String?
+  stateLicenseEffectiveDate DateTime?
+  stateLicenseExpiryDate   DateTime?
+  csrLicenseNumber         String?
+  csrExpiryDate            DateTime?
+  mobileNumber             String?
+  degree                   String?
+  experience               String?
+  address                  String?
+  city                     String?
+  state                    String?
+  zip                      String?
+  treatment                String?
+  cprsTabEffectiveDate     DateTime?
+  isActive                 Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("providers")
+}
+
+model Specialty {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  code         String?       @unique
+  isActive     Boolean       @default(true)
+  subSpecialties SubSpecialty[]
+  providers    Provider[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("specialties")
+}
+
+model SubSpecialty {
+  id          String    @id @default(uuid())
+  specialtyId String
+  specialty   Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  name        String
+  code        String?
+  isActive    Boolean   @default(true)
+  providers   Provider[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([specialtyId, name])
+  @@unique([specialtyId, code])
+  @@map("sub_specialties")
 }
 
 model Appointment {
@@ -66,10 +233,34 @@ model Appointment {
   notes           String?
   patientId       String
   patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  orders          Order[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@map("appointments")
+}
+
+model Order {
+  id            String       @id @default(uuid())
+  patientId     String
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  category      String
+  procedureCode String
+  procedureName String
+  status        String       @default("Scheduled")
+  destination   String       @default("onsite")
+  site          String?
+  orderedBy     String?
+  orderDateTime DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([patientId])
+  @@index([appointmentId])
+  @@index([category, destination])
+  @@map("orders")
 }
 
 model User {
@@ -107,14 +298,17 @@ model Tenant {
 }
 
 model Location {
-  id        String   @id @default(uuid())
-  name      String
-  address   String?
-  city      String?
-  state     String?
-  country   String?
-  phone     String?
-  isActive  Boolean  @default(true)
+  id                 String   @id @default(uuid())
+  name               String
+  address            String?
+  city               String?
+  state              String?
+  country            String?
+  phone              String?
+  hasOnsiteLab       Boolean  @default(true)
+  hasOnsitePharmacy  Boolean  @default(true)
+  hasOnsiteRadiology Boolean  @default(true)
+  isActive           Boolean  @default(true)
   tenantId  String
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdBy String
@@ -123,8 +317,46 @@ model Location {
   updatedAt DateTime @updatedAt
   creator   User     @relation("CreatedLocations", fields: [createdBy], references: [id])
   updater   User     @relation("UpdatedLocations", fields: [updatedBy], references: [id])
+  departments Department[]
 
   @@map("locations")
+}
+
+model Department {
+  id                         String    @id @default(uuid())
+  departmentName             String
+  departmentCode             String    @unique
+  departmentType             String?
+  status                     String    @default("active")
+  description                String?
+  facilityName               String?
+  building                   String?
+  floor                      String?
+  roomNumber                 String?
+  address                    String?
+  city                       String?
+  state                      String?
+  zip                        String?
+  supportsAppointments       Boolean   @default(false)
+  supportsWalkIns            Boolean   @default(false)
+  defaultAppointmentDuration Int?
+  operatingDays              Json?
+  startTime                  String?
+  endTime                    String?
+  departmentHead             String?
+  assignedProviders          Json?
+  assignedNurses             Json?
+  defaultBillingProvider     String?
+  costCenter                 String?
+  revenueCode                String?
+  acceptsInsurance           Boolean   @default(false)
+  locationId                 String?
+  location                   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  providers                  Provider[]
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  @@map("departments")
 }
 
 model Permission {

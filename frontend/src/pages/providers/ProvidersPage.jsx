@@ -1,39 +1,24 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { ProviderFormDialog } from '@/components/providers/ProviderFormDialog';
-
-const mockProviders = [
-  {
-    id: 1,
-    serialNum: 1,
-    npi: '1234567890',
-    firstName: 'John',
-    middleName: 'Michael',
-    lastName: 'Smith',
-    email: 'john.smith@hospital.com',
-    phone: '(555) 123-4567',
-    specialty: 'Cardiology',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    serialNum: 2,
-    npi: '0987654321',
-    firstName: 'Sarah',
-    middleName: '',
-    lastName: 'Johnson',
-    email: 'sarah.johnson@hospital.com',
-    phone: '(555) 234-5678',
-    specialty: 'Pediatrics',
-    status: 'Active',
-  },
-];
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { providerApi } from '@/services/api';
 
 const COLUMNS = [
-  { key: 'serialNum', label: 'Serial Num' },
-  { key: 'npi', label: 'Provider NPI', cellClassName: 'font-mono text-xs' },
+  {
+    key: 'npi',
+    label: 'Provider NPI',
+    cellClassName: 'font-mono text-xs',
+  },
   {
     key: 'name',
     label: 'Provider Name',
@@ -41,64 +26,152 @@ const COLUMNS = [
     render: (row) =>
       `${row.firstName || ''} ${row.middleName ? `${row.middleName} ` : ''}${row.lastName || ''}`.trim() || '-',
   },
-  { key: 'email', label: 'Provider Email' },
-  { key: 'phone', label: 'Provider Phone' },
-  { key: 'specialty', label: 'Specialty' },
+  { key: 'email', label: 'Provider Email', render: (row) => row.email || '-' },
+  { key: 'mobileNumber', label: 'Provider Phone', render: (row) => row.mobileNumber || '-' },
+  {
+    key: 'specialtyLabel',
+    label: 'Specialty',
+    render: (row) => row.specialty?.name ?? <span className="text-muted-foreground">—</span>,
+  },
+  {
+    key: 'subSpecialtyLabel',
+    label: 'Sub-specialty',
+    render: (row) => row.subSpecialty?.name ?? <span className="text-muted-foreground">—</span>,
+  },
+  {
+    key: 'departmentLabel',
+    label: 'Department',
+    render: (row) =>
+      row.department?.departmentName ?? <span className="text-muted-foreground">—</span>,
+  },
 ];
 
 export function ProvidersPage() {
   const [providers, setProviders] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [formMode, setFormMode] = useState('create');
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+
+  const fetchProviders = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+      };
+      if (search.trim()) params.search = search.trim();
+
+      const response = await providerApi.getAll(params);
+      setProviders(response.data || []);
+      setPagination((prev) => ({
+        ...prev,
+        ...(response.pagination || {}),
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.page, pagination.limit, search]);
 
   useEffect(() => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setProviders(mockProviders);
-      setIsLoading(false);
-    }, 500);
-  }, []);
+    fetchProviders();
+  }, [fetchProviders]);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return providers;
-    return providers.filter(
-      (p) =>
-        (p.npi && p.npi.toLowerCase().includes(q)) ||
-        `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase().includes(q) ||
-        (p.email && p.email.toLowerCase().includes(q)) ||
-        (p.specialty && p.specialty.toLowerCase().includes(q)) ||
-        (p.phone && p.phone.toLowerCase().includes(q))
-    );
-  }, [providers, search]);
-
-  const total = filtered.length;
-  const currentPage = Math.min(Math.max(1, pagination.page), Math.max(1, Math.ceil(total / pagination.limit)));
-  const rows = useMemo(
+  const tableRows = useMemo(
     () =>
-      filtered
-        .slice((currentPage - 1) * pagination.limit, currentPage * pagination.limit)
-        .map((row, i) => ({ ...row, _srNo: (currentPage - 1) * pagination.limit + i + 1 })),
-    [filtered, currentPage, pagination.limit]
+      providers.map((row, i) => ({
+        ...row,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [providers, pagination.page, pagination.limit],
   );
 
   const handleSearch = useCallback((keyword) => {
     setSearch(keyword);
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
-  const handlePageChange = useCallback((page) => setPagination((p) => ({ ...p, page })), []);
-  const handlePageSizeChange = useCallback((limit) => setPagination((p) => ({ ...p, limit, page: 1 })), []);
 
-  const handleFormSubmit = async (data) => {
+  const handlePageChange = useCallback((page) => {
+    setPagination((p) => ({ ...p, page }));
+  }, []);
+
+  const handlePageSizeChange = useCallback((limit) => {
+    setPagination((p) => ({ ...p, limit, page: 1 }));
+  }, []);
+
+  const handleCreate = () => {
+    setSelectedProvider(null);
+    setFormMode('create');
+    setIsFormOpen(true);
+  };
+
+  const handleView = async (provider) => {
+    try {
+      const detail = await providerApi.getById(provider.id);
+      setSelectedProvider(detail.data ?? detail);
+      setFormMode('view');
+      setIsFormOpen(true);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleEdit = async (provider) => {
+    try {
+      const detail = await providerApi.getById(provider.id);
+      setSelectedProvider(detail.data ?? detail);
+      setFormMode('edit');
+      setIsFormOpen(true);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDelete = (provider) => {
+    setSelectedProvider(provider);
+    setIsDeleteOpen(true);
+  };
+
+  const handleFormSubmit = async (payload) => {
     setIsSubmitting(true);
     try {
-      // TODO: Replace with actual API call
-      console.log('Provider data:', data);
+      if (formMode === 'edit' && selectedProvider?.id) {
+        await providerApi.update(selectedProvider.id, payload);
+      } else {
+        await providerApi.create(payload);
+      }
       setIsFormOpen(false);
+      setSelectedProvider(null);
+      await fetchProviders();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedProvider?.id) return;
+    setIsSubmitting(true);
+    try {
+      await providerApi.delete(selectedProvider.id);
+      setIsDeleteOpen(false);
+      setSelectedProvider(null);
+      await fetchProviders();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -107,8 +180,12 @@ export function ProvidersPage() {
   };
 
   const columnsWithSrNo = [
-    { key: '_srNo', label: 'Serial Num', render: (row) => row._srNo },
-    ...COLUMNS.filter((c) => c.key !== 'serialNum'),
+    {
+      key: '_srNo',
+      label: 'Serial Num',
+      render: (row) => row._srNo,
+    },
+    ...COLUMNS,
   ];
 
   return (
@@ -118,7 +195,7 @@ export function ProvidersPage() {
           <h1 className="text-2xl font-bold text-foreground">Providers Management</h1>
           <p className="text-muted-foreground">Manage healthcare providers</p>
         </div>
-        <Button onClick={() => setIsFormOpen(true)}>
+        <Button onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-2" />
           Add Provider
         </Button>
@@ -132,9 +209,9 @@ export function ProvidersPage() {
 
       <DataTable
         columns={columnsWithSrNo}
-        data={rows}
-        total={total}
-        page={currentPage}
+        data={tableRows}
+        total={pagination.total || 0}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
@@ -142,8 +219,27 @@ export function ProvidersPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-        searchPlaceholder="Search by NPI, name, email, or specialty..."
+        searchPlaceholder="Search by NPI, name, email, specialty, department..."
         emptyMessage="No providers found"
+        actions={(provider) => (
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon-sm" onClick={() => handleView(provider)} aria-label="View">
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(provider)} aria-label="Edit">
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => handleDelete(provider)}
+              className="text-destructive hover:text-destructive"
+              aria-label="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       />
 
       <ProviderFormDialog
@@ -151,7 +247,35 @@ export function ProvidersPage() {
         onOpenChange={setIsFormOpen}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
+        provider={selectedProvider}
+        mode={formMode}
       />
+
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Delete Provider</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <span className="font-semibold">
+                {selectedProvider
+                  ? `${selectedProvider.firstName || ''} ${selectedProvider.lastName || ''}`.trim() ||
+                    selectedProvider.npi
+                  : 'this provider'}
+              </span>
+              ? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting || !selectedProvider}>
+              {isSubmitting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

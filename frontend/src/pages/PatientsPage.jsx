@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export function PatientsPage() {
   const navigate = useNavigate();
@@ -55,19 +56,23 @@ export function PatientsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Patient Management</h1>
-          <p className="text-muted-foreground">View and manage patient records.</p>
-        </div>
-        <Button onClick={handleAddNewPatient}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add new Patient
-        </Button>
-      </div>
+    <div className="ehr-page">
+      <PageHeader
+        title="Patient Management"
+        description="Search, register, and maintain demographic and contact records for your patient population."
+        breadcrumbs="Patient Management"
+        actions={
+          <Button onClick={handleAddNewPatient}>
+            <Plus className="h-4 w-4" />
+            Add patient
+          </Button>
+        }
+      />
 
-      <form onSubmit={handleSearch} className="flex flex-wrap items-center gap-2">
+      <form
+        onSubmit={handleSearch}
+        className="content-panel ehr-table-toolbar flex flex-wrap items-center gap-2 rounded-lg"
+      >
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -80,7 +85,7 @@ export function PatientsPage() {
         <Button type="submit" variant="secondary">Search</Button>
       </form>
 
-      <div className="rounded-lg border bg-card">
+      <div className="content-panel overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>

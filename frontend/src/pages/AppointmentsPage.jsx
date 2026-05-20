@@ -33,8 +33,26 @@ import { AppointmentFormDialog } from '@/components/appointments/AppointmentForm
 import { DeleteAppointmentDialog } from '@/components/appointments/DeleteAppointmentDialog';
 import { AppointmentTimeline } from '@/components/appointments/AppointmentTimeline';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
+import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
+import {
+  DEPARTMENT_OPTIONS,
+  OUTPATIENT_PROVIDERS,
+} from '@/components/patients/patientRegistrationAppointmentConstants';
 import { appointmentApi, patientApi } from '@/services/api';
+
 import { cn } from '@/lib/utils';
+
+function toDateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseLocalDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
 
 const appointmentStatuses = [
   'Scheduled',
@@ -44,6 +62,23 @@ const appointmentStatuses = [
   'Cancelled',
   'No-Show',
   'Rescheduled',
+];
+
+const FILTER_CONTROL_CLASS = 'h-10 w-full';
+
+const SEGMENTED_GROUP_CLASS =
+  'flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted p-1 shadow-sm';
+
+const SEGMENTED_ITEM_ACTIVE =
+  'bg-background text-foreground shadow-sm hover:bg-background';
+
+const SEGMENTED_ITEM_IDLE =
+  'text-muted-foreground hover:bg-background/70 hover:text-foreground';
+
+const timelineRangeOptions = [
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
 ];
 
 const appointmentTypes = ['New', 'Follow-up', 'Televisit'];
@@ -72,11 +107,15 @@ export function AppointmentsPage() {
 
   // View mode: 'list' or 'timeline'
   const [viewMode, setViewMode] = useState('timeline');
+  const [timelineRange, setTimelineRange] = useState('day');
 
   // Filters
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [providerFilter, setProviderFilter] = useState('');
+  const [patientFilter, setPatientFilter] = useState('');
   const [dateFilter, setDateFilter] = useState(() => {
     // Default to today's date
     return new Date().toISOString().split('T')[0];
@@ -86,6 +125,8 @@ export function AppointmentsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
+  const [patientFormFromAppointment, setPatientFormFromAppointment] = useState(false);
+  const [pendingPatientId, setPendingPatientId] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -109,12 +150,22 @@ export function AppointmentsPage() {
     try {
       const params = {
         page: pagination.page,
-        limit: viewMode === 'timeline' ? 100 : pagination.limit, // Fetch more for timeline
+        limit:
+          viewMode === 'timeline' && timelineRange !== 'day'
+            ? 500
+            : viewMode === 'timeline'
+              ? 100
+              : pagination.limit,
       };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
       if (typeFilter) params.appointmentType = typeFilter;
-      if (dateFilter && viewMode === 'timeline') params.date = dateFilter;
+      if (departmentFilter) params.department = departmentFilter;
+      if (providerFilter) params.provider = providerFilter;
+      if (patientFilter) params.patientId = patientFilter;
+      if (dateFilter && (viewMode === 'list' || (viewMode === 'timeline' && timelineRange === 'day'))) {
+        params.date = dateFilter;
+      }
 
       const response = await appointmentApi.getAll(params);
       setAppointments(response.data);
@@ -124,7 +175,7 @@ export function AppointmentsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search, statusFilter, typeFilter, dateFilter, viewMode]);
+  }, [pagination.page, pagination.limit, search, statusFilter, typeFilter, departmentFilter, providerFilter, patientFilter, dateFilter, viewMode, timelineRange]);
 
   useEffect(() => {
     fetchPatients();
@@ -139,14 +190,35 @@ export function AppointmentsPage() {
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
+  const handleStatusTabChange = (value) => {
+    setStatusFilter(value === 'all' ? '' : value);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const handleTimelineRangeChange = (value) => {
+    setTimelineRange(value);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const handleTimelineDayClick = (dateKey) => {
+    setDateFilter(dateKey);
+    setTimelineRange('day');
+  };
+
   const handleFilterChange = (filterType, value) => {
     const actualValue = value === 'all' ? '' : value;
     switch (filterType) {
-      case 'status':
-        setStatusFilter(actualValue);
-        break;
       case 'type':
         setTypeFilter(actualValue);
+        break;
+      case 'department':
+        setDepartmentFilter(actualValue);
+        break;
+      case 'provider':
+        setProviderFilter(actualValue);
+        break;
+      case 'patient':
+        setPatientFilter(actualValue);
         break;
       case 'date':
         setDateFilter(actualValue);
@@ -166,22 +238,59 @@ export function AppointmentsPage() {
     setIsFormOpen(true);
   };
 
-  const handleCreatePatient = () => {
+  const handleCreatePatient = (fromAppointment = false) => {
+    setPatientFormFromAppointment(fromAppointment);
     setIsPatientFormOpen(true);
   };
 
   const handlePatientSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      await patientApi.create(data);
+      const response = await patientApi.create(data);
       setIsPatientFormOpen(false);
-      fetchPatients(); // Refresh patient list for appointment form
+      await fetchPatients();
+      if (patientFormFromAppointment && response?.data?.id) {
+        setPendingPatientId(response.data.id);
+        if (!isFormOpen) {
+          setIsFormOpen(true);
+        }
+      }
+      setPatientFormFromAppointment(false);
     } catch (err) {
       alert(err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setTypeFilter('');
+    setDepartmentFilter('');
+    setProviderFilter('');
+    setPatientFilter('');
+    setDateFilter(toDateKey(new Date()));
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const patientFilterOptions = patients.map((patient) => ({
+    value: patient.id,
+    label: `${patient.firstName} ${patient.lastName} (${patient.mrn})`,
+  }));
+
+  const providerFilterOptions = OUTPATIENT_PROVIDERS.map((p) => ({
+    value: p.name,
+    label: p.name,
+  }));
+
+  const hasActiveFilters =
+    search ||
+    statusFilter ||
+    typeFilter ||
+    departmentFilter ||
+    providerFilter ||
+    patientFilter;
 
   const handleTimeSlotClick = (date, time) => {
     setSelectedAppointment(null);
@@ -242,9 +351,15 @@ export function AppointmentsPage() {
   };
 
   const navigateDate = (direction) => {
-    const current = new Date(dateFilter);
-    current.setDate(current.getDate() + direction);
-    setDateFilter(current.toISOString().split('T')[0]);
+    const current = parseLocalDate(dateFilter);
+    if (viewMode === 'timeline' && timelineRange === 'week') {
+      current.setDate(current.getDate() + direction * 7);
+    } else if (viewMode === 'timeline' && timelineRange === 'month') {
+      current.setMonth(current.getMonth() + direction);
+    } else {
+      current.setDate(current.getDate() + direction);
+    }
+    setDateFilter(toDateKey(current));
   };
 
   const formatDate = (dateString) => {
@@ -273,33 +388,38 @@ export function AppointmentsPage() {
           <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
           <p className="text-muted-foreground">Manage patient appointments</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          {/* View Toggle */}
-          <div className="flex items-center rounded-lg border bg-muted p-1">
+        <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center">
+          <div className={SEGMENTED_GROUP_CLASS}>
             <Button
-              variant={viewMode === 'timeline' ? 'default' : 'ghost'}
+              variant="ghost"
               size="sm"
               onClick={() => setViewMode('timeline')}
-              className="gap-1.5"
+              className={cn(
+                'gap-1.5',
+                viewMode === 'timeline' ? SEGMENTED_ITEM_ACTIVE : SEGMENTED_ITEM_IDLE,
+              )}
             >
               <LayoutGrid className="h-4 w-4" />
               Timeline
             </Button>
             <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              variant="ghost"
               size="sm"
               onClick={() => setViewMode('list')}
-              className="gap-1.5"
+              className={cn(
+                'gap-1.5',
+                viewMode === 'list' ? SEGMENTED_ITEM_ACTIVE : SEGMENTED_ITEM_IDLE,
+              )}
             >
               <List className="h-4 w-4" />
               List
             </Button>
           </div>
-          <Button variant="outline" onClick={handleCreatePatient}>
-            <Users className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={() => handleCreatePatient(false)}>
+            <Users className="h-4 w-4" />
             New Patient
           </Button>
-          <Button onClick={handleCreate}>
+          <Button size="sm" onClick={handleCreate}>
             <Plus className="h-4 w-4" />
             New Appointment
           </Button>
@@ -307,93 +427,180 @@ export function AppointmentsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        {viewMode === 'list' && (
-          <form onSubmit={handleSearch} className="flex-1 min-w-[200px] max-w-sm">
+      <div className="rounded-lg border bg-card p-4 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <form onSubmit={handleSearch} className="min-w-0">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by patient, provider..."
+                placeholder="Search patient, provider, MRN..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
+                className={cn('pl-9', FILTER_CONTROL_CLASS)}
               />
             </div>
           </form>
-        )}
 
-        {viewMode === 'timeline' && (
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => navigateDate(-1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => handleFilterChange('date', e.target.value)}
-              className="w-40"
-            />
-            <Button variant="outline" size="icon" onClick={() => navigateDate(1)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDateFilter(new Date().toISOString().split('T')[0])}
-            >
-              Today
-            </Button>
-          </div>
-        )}
+          <Input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => handleFilterChange('date', e.target.value)}
+            className={FILTER_CONTROL_CLASS}
+            aria-label="Appointment date"
+          />
 
-        <Select value={statusFilter || 'all'} onValueChange={(v) => handleFilterChange('status', v)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="All Statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {appointmentStatuses.map((status) => (
-              <SelectItem key={status} value={status}>
-                {status}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select
+            value={typeFilter || 'all'}
+            onValueChange={(v) => handleFilterChange('type', v)}
+          >
+            <SelectTrigger className={FILTER_CONTROL_CLASS}>
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {appointmentTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={typeFilter || 'all'} onValueChange={(v) => handleFilterChange('type', v)}>
-          <SelectTrigger className="w-36">
-            <SelectValue placeholder="All Types" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            {appointmentTypes.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <SearchableSelect
+            value={departmentFilter || 'all'}
+            onValueChange={(v) => handleFilterChange('department', v)}
+            options={[{ value: 'all', label: 'All departments' }, ...DEPARTMENT_OPTIONS]}
+            placeholder="All departments"
+            triggerClassName={FILTER_CONTROL_CLASS}
+          />
 
-        {viewMode === 'list' && (
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-            <Input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => handleFilterChange('date', e.target.value)}
-              className="w-40"
-            />
-            {dateFilter && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleFilterChange('date', '')}
-              >
-                Clear
+          <SearchableSelect
+            value={providerFilter || 'all'}
+            onValueChange={(v) => handleFilterChange('provider', v)}
+            options={[{ value: 'all', label: 'All providers' }, ...providerFilterOptions]}
+            placeholder="All providers"
+            triggerClassName={FILTER_CONTROL_CLASS}
+          />
+
+          <SearchableSelect
+            value={patientFilter || 'all'}
+            onValueChange={(v) => handleFilterChange('patient', v)}
+            options={[{ value: 'all', label: 'All patients' }, ...patientFilterOptions]}
+            placeholder="All patients"
+            triggerClassName={FILTER_CONTROL_CLASS}
+          />
+        </div>
+
+        <div className="space-y-4 border-t pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {viewMode === 'timeline' ? (
+              <div className={SEGMENTED_GROUP_CLASS}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => navigateDate(-1)}
+                  className={SEGMENTED_ITEM_IDLE}
+                  aria-label="Previous period"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDateFilter(toDateKey(new Date()))}
+                  className={cn('px-3', SEGMENTED_ITEM_IDLE)}
+                >
+                  Today
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => navigateDate(1)}
+                  className={SEGMENTED_ITEM_IDLE}
+                  aria-label="Next period"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div />
+            )}
+            {hasActiveFilters && (
+              <Button variant="outline" size="sm" onClick={handleClearFilters}>
+                Clear filters
               </Button>
             )}
           </div>
-        )}
+
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Status
+            </p>
+            <div className="overflow-x-auto pb-1">
+              <div className={cn(SEGMENTED_GROUP_CLASS, 'min-w-max')}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleStatusTabChange('all')}
+                  className={cn(
+                    'h-8 shrink-0',
+                    !statusFilter ? SEGMENTED_ITEM_ACTIVE : SEGMENTED_ITEM_IDLE,
+                  )}
+                >
+                  All
+                </Button>
+                {appointmentStatuses.map((status) => (
+                  <Button
+                    key={status}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleStatusTabChange(status)}
+                    className={cn(
+                      'h-8 shrink-0',
+                      statusFilter === status
+                        ? cn('shadow-sm ring-1 ring-border/60', statusColors[status])
+                        : SEGMENTED_ITEM_IDLE,
+                    )}
+                  >
+                    {status}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {viewMode === 'timeline' && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Calendar view
+              </p>
+              <div className={cn(SEGMENTED_GROUP_CLASS, 'w-fit')}>
+                {timelineRangeOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleTimelineRangeChange(option.value)}
+                    className={cn(
+                      'flex-1',
+                      timelineRange === option.value
+                        ? SEGMENTED_ITEM_ACTIVE
+                        : SEGMENTED_ITEM_IDLE,
+                    )}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Error State */}
@@ -408,8 +615,10 @@ export function AppointmentsPage() {
         <AppointmentTimeline
           appointments={appointments}
           selectedDate={dateFilter}
+          rangeMode={timelineRange}
           onTimeSlotClick={handleTimeSlotClick}
           onAppointmentClick={handleEdit}
+          onDayClick={handleTimelineDayClick}
         />
       )}
 
@@ -579,10 +788,15 @@ export function AppointmentsPage() {
       {/* Dialogs */}
       <AppointmentFormDialog
         open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) setPendingPatientId('');
+        }}
         appointment={selectedAppointment}
         patients={patients}
         onSubmit={handleFormSubmit}
+        onAddPatient={() => handleCreatePatient(true)}
+        prefillPatientId={pendingPatientId}
         isLoading={isSubmitting}
         initialDate={initialDate}
         initialTime={initialTime}

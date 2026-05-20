@@ -17,6 +17,9 @@ const initialFormData = {
   phone: '',
   email: '',
   address: '',
+  city: '',
+  state: '',
+  zip: '',
   website: '',
   isActive: true,
 };
@@ -41,6 +44,9 @@ export function InsuranceProviderFormDialog({
         phone: provider.phone || '',
         email: provider.email || '',
         address: provider.address || '',
+        city: provider.city || '',
+        state: provider.state || '',
+        zip: provider.zip || '',
         website: provider.website || '',
         isActive: provider.isActive !== undefined ? provider.isActive : true,
       });
@@ -85,6 +91,9 @@ export function InsuranceProviderFormDialog({
       phone: formData.phone.trim() || null,
       email: formData.email.trim() || null,
       address: formData.address.trim() || null,
+      city: formData.city.trim() || null,
+      state: formData.state.trim() || null,
+      zip: formData.zip.trim() || null,
       website: formData.website.trim() || null,
       isActive: formData.isActive,
     };
@@ -177,8 +186,40 @@ export function InsuranceProviderFormDialog({
               id="address"
               value={formData.address}
               onChange={(e) => handleChange('address', e.target.value)}
-              placeholder="123 Insurance Ave, City, State 12345"
+              placeholder="123 Insurance Ave, Suite 100"
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="city">City</Label>
+              <Input
+                id="city"
+                value={formData.city}
+                onChange={(e) => handleChange('city', e.target.value)}
+                placeholder="City"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="state">State</Label>
+              <Input
+                id="state"
+                value={formData.state}
+                onChange={(e) => handleChange('state', e.target.value)}
+                placeholder="ST"
+                maxLength={50}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="zip">Zip</Label>
+              <Input
+                id="zip"
+                value={formData.zip}
+                onChange={(e) => handleChange('zip', e.target.value)}
+                placeholder="12345"
+                maxLength={20}
+              />
+            </div>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -192,7 +233,7 @@ export function InsuranceProviderFormDialog({
             </Label>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-3">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
               Cancel
             </Button>

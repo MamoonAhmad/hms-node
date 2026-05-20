@@ -34,6 +34,8 @@ import {
   Pill,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePatientChart } from './PatientChartContext';
+import { formatPatientName } from './patientChartUtils';
 
 const PAGE_SIZE = 10;
 
@@ -45,9 +47,9 @@ const STATUS_CONFIG = {
   'Pending Pharmacy': 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border-orange-200',
 };
 
-const mockPatientHeader = {
-  patientName: 'Ahmed Khan',
-  mrn: 'MRN-102344',
+const mockPatientHeaderFallback = {
+  patientName: '—',
+  mrn: '—',
   dob: '12-Mar-1985',
   age: 40,
   gender: 'Male',
@@ -183,6 +185,25 @@ function StatusBadge({ status }) {
 }
 
 export function PrescriptionsTab() {
+  const { patient, appointment, encounter } = usePatientChart();
+  const mockPatientHeader = patient
+    ? {
+        patientName: formatPatientName(patient),
+        mrn: patient.mrn,
+        dob: patient.dateOfBirth
+          ? new Date(patient.dateOfBirth).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+          : '—',
+        age: patient.dateOfBirth
+          ? Math.floor((Date.now() - new Date(patient.dateOfBirth)) / (365.25 * 24 * 60 * 60 * 1000))
+          : '—',
+        gender: patient.genderIdentity || patient.gender,
+        encounterId: appointment?.id?.slice(0, 8).toUpperCase() || '—',
+        visitDate: encounter?.appointmentDate || new Date().toLocaleDateString(),
+        allergies: [],
+        primaryProvider: encounter?.visitProvider || appointment?.provider || '—',
+      }
+    : mockPatientHeaderFallback;
+
   const [statusFilter, setStatusFilter] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDropdown, setFilterDropdown] = useState('All');

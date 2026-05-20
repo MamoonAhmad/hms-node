@@ -1,330 +1,193 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useCallback, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { User, Phone, AlertTriangle, Pill, Calendar, DollarSign, Shield, Bell, LayoutDashboard, ClipboardList, FileCheck, Stethoscope, FileText, Code, CreditCard } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { PatientChartProvider, usePatientChart } from './PatientChartContext';
+import { PatientChartHeader } from './components/PatientChartHeader';
+import { PatientChartEncounterBar } from './components/PatientChartEncounterBar';
+import { PatientChartStoryboard } from './components/PatientChartStoryboard';
+import { PatientSummaryTab } from './PatientSummaryTab';
+import { PatientIntakeTab } from './PatientIntakeTab';
 import { SOAPNotesTab } from './SOAPNotesTab';
+import { PatientCheckoutTab } from './PatientCheckoutTab';
+import { PatientProfileTab } from './PatientProfileTab';
 import { PatientOrderEntryTab } from './PatientOrderEntryTab';
 import { PrescriptionsTab } from './PrescriptionsTab';
-import { NurseAssessmentSummaryContent } from './NurseAssessmentSummaryContent';
-import { DocumentsSummaryContent } from './DocumentsSummaryContent';
-import { ClaimForm } from './ClaimForm';
-import { cn } from '@/lib/utils';
+import { PatientResultsTab } from './PatientResultsTab';
 
-// Placeholder data for clinical snapshot (replace with API/context later)
-const mockSummary = {
-  name: 'John Doe',
-  age: 45,
-  gender: 'Male',
-  mrn: 'MRN-001234',
-  contact: '(555) 123-4567',
-  allergies: [
-    { name: 'Penicillin', severity: 'Critical' },
-    { name: 'Peanuts', severity: 'High' },
-  ],
-  chronicConditions: ['Type 2 Diabetes', 'Hypertension', 'COPD'],
-  currentMedications: ['Metformin 500mg BID', 'Lisinopril 10mg daily', 'Albuterol inhaler PRN'],
-  lastVisitDate: '2025-02-15',
-  upcomingAppointment: '2025-03-01 at 10:00 AM — Dr. Smith, Follow-up',
-  outstandingBills: '$240.00',
-  insurance: {
-    primary: 'Blue Cross Blue Shield',
-    id: 'XYZ-123456',
-    group: 'GRP-789',
-  },
-  alerts: [
-    { type: 'High-risk', message: 'Diabetes – monitor A1C' },
-    { type: 'Pending', message: 'Lab results pending (CMP, HbA1c)' },
-  ],
-};
-
-const SUMMARY_SECTIONS = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'orders', label: 'Orders', icon: ClipboardList },
-  { id: 'results', label: 'Results', icon: FileCheck },
-  { id: 'nurse-assessment', label: 'Nurse assessment', icon: Stethoscope },
-  { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'diagnosis-codes', label: 'Diagnosis codes', icon: Code },
-  { id: 'billing', label: 'Billing', icon: CreditCard },
+const TAB_DEFS = [
+  { id: 'patient-summary', label: 'Summary' },
+  { id: 'intake', label: 'Intake' },
+  { id: 'notes', label: 'SOAP Notes', dirtyKey: true },
+  { id: 'orders', label: 'Orders', countKey: 'pendingOrders' },
+  { id: 'prescriptions', label: 'Rx' },
+  { id: 'results', label: 'Results', countKey: 'pendingResults' },
+  { id: 'patient-checkout', label: 'Checkout' },
+  { id: 'patient-profile', label: 'Profile' },
 ];
 
-function PatientSummarySectionContent({ sectionId }) {
-  if (sectionId === 'billing') {
-    return <ClaimForm />;
-  }
-  const titles = {
-    orders: 'Orders',
-    results: 'Results',
-    'nurse-assessment': 'Nurse assessment',
-    documents: 'Documents',
-    'diagnosis-codes': 'Diagnosis codes',
-  };
-  const title = titles[sectionId] || sectionId;
-  const descriptions = {
-    orders: 'Lab orders, imaging orders, and other clinical orders for this encounter. Content for this section will be shown here.',
-    results: 'Lab results, imaging reports, and other result documents. Content for this section will be shown here.',
-    'nurse-assessment': 'Nurse assessment findings and vital signs documentation. Content for this section will be shown here.',
-    documents: 'Uploaded documents, consent forms, and patient-provided materials. Content for this section will be shown here.',
-    'diagnosis-codes': 'ICD-10 diagnosis codes associated with this patient and encounter. Content for this section will be shown here.',
-  };
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground text-sm">{descriptions[sectionId]}</p>
-      </CardContent>
-    </Card>
+const STORYBOARD_TABS = new Set(['notes', 'orders', 'prescriptions', 'results', 'patient-checkout']);
+
+function PatientDashboardContent() {
+  const {
+    patientId,
+    tabCounts,
+    notesDirty,
+    setNotesDirty,
+    appointmentId,
+  } = usePatientChart();
+
+  const [activeTab, setActiveTab] = useState('patient-summary');
+  const [pendingTab, setPendingTab] = useState(null);
+  const [storyboardOpen, setStoryboardOpen] = useState(true);
+
+  const showStoryboard = STORYBOARD_TABS.has(activeTab);
+
+  useEffect(() => {
+    if (!notesDirty) return undefined;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [notesDirty]);
+
+  const requestTabChange = useCallback(
+    (tabId) => {
+      if (tabId === activeTab) return;
+      if (notesDirty && activeTab === 'notes') {
+        setPendingTab(tabId);
+        return;
+      }
+      setActiveTab(tabId);
+    },
+    [activeTab, notesDirty],
   );
-}
 
-function PatientSummaryTab() {
-  const [selectedSection, setSelectedSection] = useState('overview');
+  const confirmTabChange = () => {
+    if (pendingTab) {
+      setNotesDirty(false);
+      setActiveTab(pendingTab);
+      setPendingTab(null);
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Patient Dashboard</h1>
+    <div className="patient-chart flex min-h-[calc(100vh-3.5rem)] flex-col">
+      <Tabs
+        value={activeTab}
+        onValueChange={requestTabChange}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <div className="patient-chart-chrome shrink-0 border-b border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
+          <PatientChartHeader />
+          <PatientChartEncounterBar />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[7fr_3fr]">
-        {/* Left column – 70% – overview cards OR section-specific content */}
-        <div className="min-w-0">
-          {selectedSection === 'overview' ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
-        {/* Patient photo + demographics */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Demographics</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col sm:flex-row gap-6">
-            <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-              <User className="h-12 w-12" />
-            </div>
-            <div className="grid gap-1 text-sm min-w-0">
-              <p className="font-semibold text-foreground text-base">{mockSummary.name}</p>
-              <p><span className="text-muted-foreground">Age:</span> {mockSummary.age}</p>
-              <p><span className="text-muted-foreground">Gender:</span> {mockSummary.gender}</p>
-              <p><span className="text-muted-foreground">MRN:</span> <span className="font-mono">{mockSummary.mrn}</span></p>
-              <p className="flex items-center gap-1.5">
-                <Phone className="h-3.5 w-3.5" />
-                <span className="text-muted-foreground">Contact:</span> {mockSummary.contact}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Last visit + Upcoming appointment */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Visits
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Last visit</p>
-              <p className="font-medium">{mockSummary.lastVisitDate}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Upcoming appointment</p>
-              <p className="font-medium">{mockSummary.upcomingAppointment}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Allergies - highlighted in red */}
-        <Card className="border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-red-700 dark:text-red-400">
-              <AlertTriangle className="h-4 w-4" />
-              Allergies
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-1.5 text-sm">
-              {mockSummary.allergies.map((a, i) => (
-                <li key={i} className="font-medium text-red-800 dark:text-red-300">
-                  {a.name}
-                  {a.severity === 'Critical' && (
-                    <Badge variant="destructive" className="ml-2 text-xs">Critical</Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
-        {/* Chronic conditions */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Chronic conditions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-              {mockSummary.chronicConditions.map((c, i) => (
-                <li key={i}>{c}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
-        {/* Current medications */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Pill className="h-4 w-4" />
-              Current medications
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-              {mockSummary.currentMedications.map((m, i) => (
-                <li key={i}>{m}</li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
-        {/* Outstanding bills */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Outstanding bills
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold text-foreground">{mockSummary.outstandingBills}</p>
-          </CardContent>
-        </Card>
-
-        {/* Insurance summary */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              Insurance summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p><span className="text-muted-foreground">Primary:</span> {mockSummary.insurance.primary}</p>
-            <p><span className="text-muted-foreground">Member ID:</span> {mockSummary.insurance.id}</p>
-            <p><span className="text-muted-foreground">Group:</span> {mockSummary.insurance.group}</p>
-          </CardContent>
-        </Card>
-
-        {/* Alerts */}
-        <Card className="lg:col-span-2 md:col-span-2 border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-amber-800 dark:text-amber-400">
-              <Bell className="h-4 w-4" />
-              Alerts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm">
-              {mockSummary.alerts.map((a, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <Badge variant="outline" className="shrink-0 text-amber-700 dark:text-amber-400 border-amber-400">
-                    {a.type}
-                  </Badge>
-                  <span className="text-muted-foreground">{a.message}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-          </div>
-          ) : selectedSection === 'nurse-assessment' ? (
-            <NurseAssessmentSummaryContent />
-          ) : selectedSection === 'documents' ? (
-            <DocumentsSummaryContent />
-          ) : (
-            <PatientSummarySectionContent sectionId={selectedSection} />
-          )}
-        </div>
-
-        {/* Right column – 30% – section nav */}
-        <div className="min-w-0">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Sections</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <nav className="flex flex-col">
-                {SUMMARY_SECTIONS.map(({ id, label, icon: Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setSelectedSection(id)}
+          <div className="border-t border-border bg-muted/40 px-3 py-2 sm:px-4">
+            <TabsList className="h-auto w-full min-w-0 justify-start gap-1 overflow-x-auto rounded-lg border-0 bg-transparent p-0 shadow-none">
+              {TAB_DEFS.map((tab) => {
+                const count = tab.countKey ? tabCounts[tab.countKey] : 0;
+                return (
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
                     className={cn(
-                      'flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium transition-colors hover:bg-muted/50',
-                      selectedSection === id
-                        ? 'bg-muted text-foreground border-l-2 border-primary'
-                        : 'text-muted-foreground'
+                      'h-9 shrink-0 flex-none rounded-lg px-3.5 py-2 text-sm font-semibold normal-case tracking-normal',
+                      'data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm',
+                      tab.dirtyKey && notesDirty && 'ring-2 ring-amber-400/50',
                     )}
                   >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {label}
-                  </button>
-                ))}
-              </nav>
-            </CardContent>
-          </Card>
+                    {tab.label}
+                    {count > 0 && (
+                      <span className="ml-1.5 inline-flex min-w-[1.125rem] justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold leading-4 text-primary-foreground">
+                        {count}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
         </div>
-      </div>
+
+        <div className="flex min-h-0 flex-1 bg-background">
+          {showStoryboard && (
+            <PatientChartStoryboard
+              open={storyboardOpen}
+              onOpenChange={setStoryboardOpen}
+              onNavigateTab={requestTabChange}
+            />
+          )}
+
+          <div className="min-w-0 flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
+              <TabsContent value="patient-summary" className="mt-0 focus-visible:outline-none">
+                <PatientSummaryTab onNavigateTab={requestTabChange} />
+              </TabsContent>
+
+              <TabsContent value="intake" className="mt-0 focus-visible:outline-none">
+                <PatientIntakeTab />
+              </TabsContent>
+
+              <TabsContent value="notes" className="mt-0 focus-visible:outline-none">
+                <SOAPNotesTab onDirtyChange={setNotesDirty} />
+              </TabsContent>
+
+              <TabsContent value="orders" className="mt-0 focus-visible:outline-none">
+                <PatientOrderEntryTab patientId={patientId} appointmentId={appointmentId} />
+              </TabsContent>
+
+              <TabsContent value="prescriptions" className="mt-0 focus-visible:outline-none">
+                <PrescriptionsTab />
+              </TabsContent>
+
+              <TabsContent value="results" className="mt-0 focus-visible:outline-none">
+                <PatientResultsTab />
+              </TabsContent>
+
+              <TabsContent value="patient-checkout" className="mt-0 focus-visible:outline-none">
+                <PatientCheckoutTab />
+              </TabsContent>
+
+              <TabsContent value="patient-profile" className="mt-0 focus-visible:outline-none">
+                <PatientProfileTab />
+              </TabsContent>
+            </div>
+          </div>
+        </div>
+      </Tabs>
+
+      <Dialog open={!!pendingTab} onOpenChange={(o) => !o && setPendingTab(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Unsaved changes</DialogTitle>
+            <DialogDescription>
+              You have unsaved SOAP note changes. Leave without saving?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setPendingTab(null)}>Stay</Button>
+            <Button variant="destructive" onClick={confirmTabChange}>Leave</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 export function PatientDashboard() {
-  const [activeTab, setActiveTab] = useState('patient-summary');
-  const { patientId } = useParams();
-
   return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="flex w-full gap-1 overflow-x-auto pb-2">
-          <TabsTrigger value="patient-summary" className="text-sm whitespace-nowrap">
-            Patient Summary
-          </TabsTrigger>
-          <TabsTrigger value="notes" className="text-sm whitespace-nowrap">
-            SOAP Notes
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="text-sm whitespace-nowrap">
-            Orders
-          </TabsTrigger>
-          <TabsTrigger value="prescriptions" className="text-sm whitespace-nowrap">
-            Prescriptions
-          </TabsTrigger>
-          <TabsTrigger value="results" className="text-sm whitespace-nowrap">
-            Results
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="patient-summary" className="mt-6">
-          <PatientSummaryTab />
-        </TabsContent>
-
-        <TabsContent value="notes" className="mt-6">
-          <SOAPNotesTab />
-        </TabsContent>
-
-        <TabsContent value="orders" className="mt-6">
-          <PatientOrderEntryTab patientId={patientId} />
-        </TabsContent>
-
-        <TabsContent value="prescriptions" className="mt-6">
-          <PrescriptionsTab />
-        </TabsContent>
-
-        <TabsContent value="results" className="mt-6">
-          <h1 className="text-2xl font-bold text-foreground">Patient Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Results content goes here.</p>
-        </TabsContent>
-      </Tabs>
-    </div>
+    <PatientChartProvider>
+      <PatientDashboardContent />
+    </PatientChartProvider>
   );
 }

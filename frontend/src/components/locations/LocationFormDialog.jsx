@@ -68,6 +68,7 @@ export function LocationFormDialog({
 
   useEffect(() => {
     if (location) {
+      const tid = location.tenantId ?? location.tenant?.id;
       setFormData({
         name: location.name || '',
         address: location.address || '',
@@ -75,7 +76,7 @@ export function LocationFormDialog({
         state: location.state || '',
         country: location.country || '',
         phone: location.phone || '',
-        tenantId: location.tenantId || '',
+        tenantId: tid != null ? String(tid) : '',
         isActive: location.isActive !== undefined ? location.isActive : true,
         hasOnsiteLab: location.hasOnsiteLab !== undefined ? location.hasOnsiteLab : true,
         hasOnsitePharmacy: location.hasOnsitePharmacy !== undefined ? location.hasOnsitePharmacy : true,
@@ -161,7 +162,7 @@ export function LocationFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
+                    <SelectItem key={tenant.id} value={String(tenant.id)}>
                       {tenant.name}
                     </SelectItem>
                   ))}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { Users, Calendar, Clock, CheckCircle2, XCircle, UserX, CalendarClock } from 'lucide-react';
 import { appointmentApi } from '@/services/api';
 
@@ -19,11 +20,9 @@ export function DashboardPage() {
     const fetchStatusCounts = async () => {
       try {
         setIsLoading(true);
-        // Fetch all appointments to count by status
         const response = await appointmentApi.getAll({ limit: 1000 });
         const appointments = response.data || [];
-        
-        // Count appointments by status
+
         const counts = {
           Scheduled: 0,
           'Checked-In': 0,
@@ -33,13 +32,13 @@ export function DashboardPage() {
           'No-Show': 0,
           Rescheduled: 0,
         };
-        
+
         appointments.forEach((apt) => {
           if (counts.hasOwnProperty(apt.status)) {
             counts[apt.status]++;
           }
         });
-        
+
         setStatusCounts(counts);
       } catch (err) {
         console.error('Failed to fetch appointment counts:', err);
@@ -49,7 +48,6 @@ export function DashboardPage() {
     };
 
     fetchStatusCounts();
-    // Refresh every 30 seconds for real-time updates
     const interval = setInterval(fetchStatusCounts, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -75,62 +73,72 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground">Welcome to the Hospital Management System</p>
-      </div>
+    <div className="ehr-page">
+      <PageHeader
+        title="Operations Dashboard"
+        description="Real-time overview of patient volume, scheduling, and encounter status across your facility."
+        breadcrumbs="Overview"
+      />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Patients</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">--</div>
-            <p className="text-xs text-muted-foreground">Registered patients</p>
-          </CardContent>
-        </Card>
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Key metrics
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="gap-0 py-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/60 bg-muted/20 px-5 py-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Total Patients
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="px-5 py-4">
+              <div className="tabular-nums text-3xl font-semibold tracking-tight">--</div>
+              <p className="mt-1 text-xs text-muted-foreground">Registered patients</p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Appointments</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">--</div>
-            <p className="text-xs text-muted-foreground">Today's appointments</p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="gap-0 py-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/60 bg-muted/20 px-5 py-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Appointments
+              </CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="px-5 py-4">
+              <div className="tabular-nums text-3xl font-semibold tracking-tight">--</div>
+              <p className="mt-1 text-xs text-muted-foreground">Today&apos;s appointments</p>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
 
-      {/* Appointment Status Counters */}
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Appointment Status</h2>
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Appointment status
+        </h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Object.entries(statusCounts).map(([status, count]) => {
             const Icon = statusIcons[status];
             return (
-              <Card key={status}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">{status}</CardTitle>
+              <Card key={status} className="gap-0 py-0">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/60 bg-muted/20 px-5 py-3">
+                  <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {status}
+                  </CardTitle>
                   <Icon className={`h-4 w-4 ${statusColors[status]}`} />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
+                <CardContent className="px-5 py-4">
+                  <div className="tabular-nums text-3xl font-semibold tracking-tight">
                     {isLoading ? '--' : count}
                   </div>
-                  <p className="text-xs text-muted-foreground">Appointments</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Appointments</p>
                 </CardContent>
               </Card>
             );
           })}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
-
-
-

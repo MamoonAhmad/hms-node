@@ -36,6 +36,12 @@ const {
  *           type: string
  *         address:
  *           type: string
+ *         city:
+ *           type: string
+ *         state:
+ *           type: string
+ *         zip:
+ *           type: string
  *         website:
  *           type: string
  *         isActive:
@@ -66,6 +72,12 @@ const {
  *           example: contact@bcbs.com
  *         address:
  *           type: string
+ *         city:
+ *           type: string
+ *         state:
+ *           type: string
+ *         zip:
+ *           type: string
  *         website:
  *           type: string
  *           example: https://www.bcbs.com
@@ -85,6 +97,12 @@ const {
  *         email:
  *           type: string
  *         address:
+ *           type: string
+ *         city:
+ *           type: string
+ *         state:
+ *           type: string
+ *         zip:
  *           type: string
  *         website:
  *           type: string

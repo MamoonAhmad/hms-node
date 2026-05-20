@@ -52,6 +52,7 @@ const orderService = {
           procedureName: o.procedureName,
           status: o.status || 'Scheduled',
           destination,
+          site: o.site || null,
           orderedBy: orderedBy || null,
         },
       });

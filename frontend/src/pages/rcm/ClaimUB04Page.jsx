@@ -23,10 +23,11 @@ import {
 } from '@/components/ui/table';
 import { Search, User, Building2, DollarSign, Check, X, Printer, ChevronDown, MoreVertical, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { InsuranceDetailsBlock, defaultInsuranceDetails } from '@/pages/rcm/claimInsuranceShared';
 
 const CHARGE_STATUS_OPTIONS = ['BALANCE DUE PATIENT', 'PAID', 'PENDING', 'DENIED', 'ADJUSTED'];
 const SET_ALL_CHARGES_OPTIONS = ['NO CHANGE', 'PAID', 'PENDING', 'DENIED', 'ADJUSTED'];
-const USE_DESC_FROM_OPTIONS = ['HCPCS', 'CPT', 'Custom'];
+const USE_DESC_FROM_OPTIONS = ['REVCODE', 'HCPCS'];
 const YES_NO_OPTIONS = [{ value: 'Yes', label: 'Yes' }, { value: 'No', label: 'No' }];
 const ACCEPT_ASSIGNMENT_OPTIONS = [{ value: 'Default', label: 'Default' }, { value: 'Yes', label: 'Yes' }, { value: 'No', label: 'No' }];
 const DOCUMENTATION_OPTIONS = [{ value: 'No Documentation', label: 'No Documentation' }, { value: 'Attachment', label: 'Attachment' }, { value: 'Other', label: 'Other' }];
@@ -67,6 +68,12 @@ export function ClaimUB04Page() {
   const [primaryInsurance, setPrimaryInsurance] = useState('');
   const [secondaryInsurance, setSecondaryInsurance] = useState('');
   const [tertiaryInsurance, setTertiaryInsurance] = useState('');
+
+  const [primaryDetails, setPrimaryDetails] = useState(defaultInsuranceDetails);
+  const [secondaryDetails, setSecondaryDetails] = useState(defaultInsuranceDetails);
+  const [tertiaryDetails, setTertiaryDetails] = useState(defaultInsuranceDetails);
+  const updateInsuranceDetails = (setter, field, value) =>
+    setter((prev) => ({ ...prev, [field]: value }));
 
   const [updateProcedureDefaults, setUpdateProcedureDefaults] = useState(false);
   const [useDescriptionFrom, setUseDescriptionFrom] = useState('HCPCS');
@@ -122,7 +129,7 @@ export function ClaimUB04Page() {
   const toggleEpsdt = (key) => setEpsdtOptions((p) => (epsdtCount < 3 || p[key] ? { ...p, [key]: !p[key] } : p));
 
   return (
-    <div className="space-y-4 max-w-5xl w-full py-2">
+    <div className="space-y-4 w-full max-w-none py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">Claim</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -180,7 +187,7 @@ export function ClaimUB04Page() {
                   <div className="flex-1"><FieldWithSearch label="Other Provider" value={otherProvider} onChange={setOtherProvider} icon={User} /></div>
                   <div className="space-y-2">
                     <Label className="text-sm">Operating</Label>
-                    <Select value={otherProviderRole} onValueChange={setOtherProviderRole}><SelectTrigger className="w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Operating">Operating</SelectItem><SelectItem value="Ref">Ref</SelectItem></SelectContent></Select>
+                    <Select value={otherProviderRole} onValueChange={setOtherProviderRole}><SelectTrigger className="w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Operating">Operating</SelectItem><SelectItem value="Rendering">Rendering</SelectItem></SelectContent></Select>
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -195,17 +202,71 @@ export function ClaimUB04Page() {
                   <Label>Office Location</Label>
                   <Select value={officeLocation} onValueChange={setOfficeLocation}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="none">Select</SelectItem><SelectItem value="main">Main Office</SelectItem></SelectContent></Select>
                 </div>
+              </div>
+              <div className="space-y-4 pt-4 border-t">
                 <div><FieldWithSearch label="Primary Insurance" value={primaryInsurance} onChange={setPrimaryInsurance} icon={DollarSign} /></div>
+                {primaryInsurance.trim() !== '' && (
+                  <InsuranceDetailsBlock
+                    title="Primary – Insurance & Authorization"
+                    details={primaryDetails}
+                    onUpdate={(field, value) => updateInsuranceDetails(setPrimaryDetails, field, value)}
+                  />
+                )}
+              </div>
+              <div className="space-y-4 pt-4 border-t">
                 <div><FieldWithSearch label="Secondary Insurance" value={secondaryInsurance} onChange={setSecondaryInsurance} icon={DollarSign} /></div>
+                {secondaryInsurance.trim() !== '' && (
+                  <InsuranceDetailsBlock
+                    title="Secondary – Insurance & Authorization"
+                    details={secondaryDetails}
+                    onUpdate={(field, value) => updateInsuranceDetails(setSecondaryDetails, field, value)}
+                  />
+                )}
+              </div>
+              <div className="space-y-4 pt-4 border-t">
                 <div><FieldWithSearch label="Tertiary Insurance" value={tertiaryInsurance} onChange={setTertiaryInsurance} icon={DollarSign} /></div>
+                {tertiaryInsurance.trim() !== '' && (
+                  <InsuranceDetailsBlock
+                    title="Tertiary – Insurance & Authorization"
+                    details={tertiaryDetails}
+                    onUpdate={(field, value) => updateInsuranceDetails(setTertiaryDetails, field, value)}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="charges" className="mt-6 space-y-6">
-          <div className="flex gap-6">
-            <div className="flex-1 min-w-0">
+          <div className="flex flex-col gap-4">
+            <Card className="w-full max-w-lg shrink-0">
+              <CardHeader className="py-3 bg-sky-100 dark:bg-sky-950/50">
+                <CardTitle className="text-sm">Charge Options</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="updateProc" checked={updateProcedureDefaults} onCheckedChange={(c) => setUpdateProcedureDefaults(!!c)} />
+                  <Label htmlFor="updateProc" className="text-sm font-normal">Update patient Procedure Code defaults</Label>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 min-w-0">
+                    <Label className="text-sm">Use Description From</Label>
+                    <Select value={useDescriptionFrom} onValueChange={setUseDescriptionFrom}>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>{USE_DESC_FROM_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2 min-w-0">
+                    <Label className="text-sm">Set all charges to</Label>
+                    <Select value={setAllChargesTo} onValueChange={setSetAllChargesTo}>
+                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>{SET_ALL_CHARGES_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <div className="min-w-0 w-full">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base">Charges</CardTitle>
@@ -258,25 +319,6 @@ export function ClaimUB04Page() {
               </Card>
               <Button type="button" variant="outline" size="sm" className="mt-2" onClick={addCharge}>Add charge line</Button>
             </div>
-            <Card className="w-72 shrink-0 h-fit">
-              <CardHeader className="py-3 bg-sky-100 dark:bg-sky-950/50">
-                <CardTitle className="text-sm">Charge Options</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="updateProc" checked={updateProcedureDefaults} onCheckedChange={(c) => setUpdateProcedureDefaults(!!c)} />
-                  <Label htmlFor="updateProc" className="text-sm font-normal">Update patient Procedure Code defaults</Label>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Use Description From</Label>
-                  <Select value={useDescriptionFrom} onValueChange={setUseDescriptionFrom}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{USE_DESC_FROM_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm">Set all charges to</Label>
-                  <Select value={setAllChargesTo} onValueChange={setSetAllChargesTo}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SET_ALL_CHARGES_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </TabsContent>
 
