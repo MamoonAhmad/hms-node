@@ -40,6 +40,7 @@ export function AuthProvider({ children }) {
 
   // Initialize auth state from localStorage
   useEffect(() => {
+    let cancelled = false;
     const storedToken = localStorage.getItem(TOKEN_KEY);
     const storedUser = localStorage.getItem(USER_KEY);
 
@@ -59,26 +60,36 @@ export function AuthProvider({ children }) {
       // Validate token by fetching current user (with timeout so we don't hang on blank screen)
       const timeoutMs = 10000;
       const timeoutId = setTimeout(() => {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }, timeoutMs);
 
       authApi
         .me(storedToken)
         .then((response) => {
+          if (cancelled) return;
           const userData = response?.data ?? response;
           if (userData) setUser(userData);
         })
         .catch(() => {
-          // Token is invalid, clear auth state
-          logout();
+          if (cancelled) return;
+          // Ignore stale validation (e.g. user logged in again while /me was in flight)
+          if (localStorage.getItem(TOKEN_KEY) !== storedToken) return;
+          setUser(null);
+          setToken(null);
+          localStorage.removeItem(TOKEN_KEY);
+          localStorage.removeItem(USER_KEY);
         })
         .finally(() => {
           clearTimeout(timeoutId);
-          setIsLoading(false);
+          if (!cancelled) setIsLoading(false);
         });
     } else {
       setIsLoading(false);
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const value = {

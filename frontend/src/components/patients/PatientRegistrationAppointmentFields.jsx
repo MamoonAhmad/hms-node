@@ -9,10 +9,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  APPOINTMENT_VISIT_TYPE_OPTIONS,
+  GENERAL_APPOINTMENT_VISIT_TYPE,
+  isGeneralAppointmentVisitType,
   REFERRAL_SOURCES,
   OUTPATIENT_PROVIDERS,
   DEPARTMENT_OPTIONS,
 } from '@/components/patients/patientRegistrationAppointmentConstants';
+import { normalizeHexColor } from '@/lib/appointmentStatuses';
+import { cn } from '@/lib/utils';
 
 /**
  * Outpatient appointment + referral fields (same block as Patient registration → Appointment tab).
@@ -21,9 +26,41 @@ import {
  * @param {Record<string, string>} props.errors
  * @param {(field: string, value: unknown) => void} props.onChange
  * @param {string} [props.idPrefix] — prefix for HTML ids when multiple instances could exist
+ * @param {{ value: string, label: string }[]} [props.timeSlotOptions] — when set, appointment time is a slot dropdown
+ * @param {boolean} [props.showAppointmentStatus] — show appointment status dropdown (schedule form)
+ * @param {{ id: string, name: string, color?: string }[]} [props.statusOptions]
+ * @param {boolean} [props.hideReferralSection] — hide referral source dropdown
+ * @param {boolean} [props.showReferringPhysicianSection] — show referring physician block (defaults to !hideReferralSection)
  */
-export function PatientRegistrationAppointmentFields({ formData, errors = {}, onChange, idPrefix = '' }) {
+export function PatientRegistrationAppointmentFields({
+  formData,
+  errors = {},
+  onChange,
+  idPrefix = '',
+  timeSlotOptions = null,
+  showAppointmentStatus = false,
+  statusOptions = [],
+  hideReferralSection = false,
+  showReferringPhysicianSection,
+}) {
   const pid = (name) => (idPrefix ? `${idPrefix}-${name}` : name);
+  const showReferralSource = !hideReferralSection;
+  const showPhysician =
+    showReferringPhysicianSection !== undefined
+      ? showReferringPhysicianSection
+      : !hideReferralSection;
+
+  const isGeneralType = isGeneralAppointmentVisitType(formData.appointmentVisitType);
+
+  const handleVisitTypeChange = (value) => {
+    onChange('appointmentVisitType', value);
+    if (value === GENERAL_APPOINTMENT_VISIT_TYPE) {
+      onChange('appointmentTime', '');
+    } else {
+      onChange('appointmentStartTime', '');
+      onChange('appointmentEndTime', '');
+    }
+  };
 
   return (
     <>
@@ -78,7 +115,18 @@ export function PatientRegistrationAppointmentFields({ formData, errors = {}, on
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div
+          className={cn(
+            'grid gap-4',
+            isGeneralType
+              ? showAppointmentStatus
+                ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-5'
+                : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+              : showAppointmentStatus && timeSlotOptions
+                ? 'grid-cols-2 sm:grid-cols-4'
+                : 'grid-cols-1 sm:grid-cols-3',
+          )}
+        >
           <div className="space-y-2">
             <Label htmlFor={pid('appointmentDate')}>Appointment Date</Label>
             <Input
@@ -96,7 +144,7 @@ export function PatientRegistrationAppointmentFields({ formData, errors = {}, on
             <Label htmlFor={pid('appointmentVisitType')}>Appointment Type</Label>
             <Select
               value={formData.appointmentVisitType || ''}
-              onValueChange={(value) => onChange('appointmentVisitType', value)}
+              onValueChange={handleVisitTypeChange}
             >
               <SelectTrigger
                 id={pid('appointmentVisitType')}
@@ -105,30 +153,119 @@ export function PatientRegistrationAppointmentFields({ formData, errors = {}, on
                 <SelectValue placeholder="Select appointment type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="new-patient">New Patient</SelectItem>
-                <SelectItem value="follow-up">Follow-up</SelectItem>
-                <SelectItem value="urgent">Urgent</SelectItem>
-                <SelectItem value="telehealth">Telehealth</SelectItem>
-                <SelectItem value="procedure">Procedure</SelectItem>
+                {APPOINTMENT_VISIT_TYPE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {errors.appointmentVisitType && (
               <p className="text-xs text-destructive">{errors.appointmentVisitType}</p>
             )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor={pid('appointmentTime')}>Appointment Time</Label>
-            <Input
-              id={pid('appointmentTime')}
-              type="time"
-              value={formData.appointmentTime ?? ''}
-              onChange={(e) => onChange('appointmentTime', e.target.value)}
-              className={errors.appointmentTime ? 'border-destructive' : ''}
-            />
-            {errors.appointmentTime && (
-              <p className="text-xs text-destructive">{errors.appointmentTime}</p>
-            )}
-          </div>
+          {!isGeneralType && (
+            <div className="space-y-2">
+              <Label htmlFor={pid('appointmentTime')}>Appointment Time</Label>
+              {timeSlotOptions ? (
+                <Select
+                  value={formData.appointmentTime || ''}
+                  onValueChange={(value) => onChange('appointmentTime', value)}
+                >
+                  <SelectTrigger
+                    id={pid('appointmentTime')}
+                    className={cn('w-full', errors.appointmentTime ? 'border-destructive' : '')}
+                  >
+                    <SelectValue placeholder="Select time slot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {timeSlotOptions.map((slot) => (
+                      <SelectItem key={slot.value} value={slot.value}>
+                        {slot.label}
+                      </SelectItem>
+                    ))}
+                    {formData.appointmentTime &&
+                      !timeSlotOptions.some((s) => s.value === formData.appointmentTime) && (
+                        <SelectItem value={formData.appointmentTime}>
+                          {formData.appointmentTime}
+                        </SelectItem>
+                      )}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id={pid('appointmentTime')}
+                  type="time"
+                  value={formData.appointmentTime ?? ''}
+                  onChange={(e) => onChange('appointmentTime', e.target.value)}
+                  className={errors.appointmentTime ? 'border-destructive' : ''}
+                />
+              )}
+              {errors.appointmentTime && (
+                <p className="text-xs text-destructive">{errors.appointmentTime}</p>
+              )}
+            </div>
+          )}
+          {isGeneralType && (
+            <>
+              <div className="w-full max-w-[11rem] space-y-2">
+                <Label htmlFor={pid('appointmentStartTime')}>Appointment Start Time</Label>
+                <Input
+                  id={pid('appointmentStartTime')}
+                  type="time"
+                  value={formData.appointmentStartTime ?? ''}
+                  onChange={(e) => onChange('appointmentStartTime', e.target.value)}
+                  className={cn('w-full', errors.appointmentStartTime ? 'border-destructive' : '')}
+                />
+                {errors.appointmentStartTime && (
+                  <p className="text-xs text-destructive">{errors.appointmentStartTime}</p>
+                )}
+              </div>
+              <div className="w-full max-w-[11rem] space-y-2">
+                <Label htmlFor={pid('appointmentEndTime')}>Appointment End Time</Label>
+                <Input
+                  id={pid('appointmentEndTime')}
+                  type="time"
+                  value={formData.appointmentEndTime ?? ''}
+                  onChange={(e) => onChange('appointmentEndTime', e.target.value)}
+                  className={cn('w-full', errors.appointmentEndTime ? 'border-destructive' : '')}
+                />
+                {errors.appointmentEndTime && (
+                  <p className="text-xs text-destructive">{errors.appointmentEndTime}</p>
+                )}
+              </div>
+            </>
+          )}
+          {showAppointmentStatus && (
+            <div className="space-y-2">
+              <Label htmlFor={pid('appointmentStatus')}>Appointment Status</Label>
+              <Select
+                value={formData.status || ''}
+                onValueChange={(value) => onChange('status', value)}
+              >
+                <SelectTrigger id={pid('appointmentStatus')} className="w-full">
+                  <SelectValue placeholder="Select appointment status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map((status) => {
+                    const hex = normalizeHexColor(status.color) || '#6b7280';
+                    return (
+                      <SelectItem key={status.id} value={status.name}>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="h-3 w-3 shrink-0 rounded-full border border-border/60"
+                            style={{ backgroundColor: hex }}
+                            aria-hidden
+                          />
+                          {status.name}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -152,7 +289,9 @@ export function PatientRegistrationAppointmentFields({ formData, errors = {}, on
           />
         </div>
 
+        {(showReferralSource || showPhysician) && (
         <div className="space-y-4 border-t pt-6">
+          {showReferralSource && (
           <div className="space-y-2">
             <Label htmlFor={pid('referredBy')}>Referred By</Label>
             <p className="text-xs text-muted-foreground" id={pid('referredBy-hint')}>
@@ -190,7 +329,9 @@ export function PatientRegistrationAppointmentFields({ formData, errors = {}, on
               </p>
             )}
           </div>
+          )}
 
+          {showPhysician && (
           <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
             <h4 className="text-sm font-semibold text-foreground">Referring physician information</h4>
             <p className="text-xs text-muted-foreground">
@@ -294,8 +435,11 @@ export function PatientRegistrationAppointmentFields({ formData, errors = {}, on
               </div>
             </div>
           </div>
+          )}
         </div>
+        )}
       </div>
     </>
   );
 }
+

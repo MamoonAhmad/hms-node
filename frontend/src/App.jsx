@@ -21,9 +21,10 @@ import { PermissionsPage } from '@/pages/administration/permissions/PermissionsP
 import { PermissionHeadersPage } from '@/pages/administration/permission-headers/PermissionHeadersPage';
 import { BillingProvidersPage } from '@/pages/administration/billing-providers/BillingProvidersPage';
 import { FacilitiesPage } from '@/pages/administration/facility/FacilitiesPage';
-import { CPTCodesPage } from '@/pages/administration/cpt-codes/CPTCodesPage';
 import { AppointmentTypesPage } from '@/pages/administration/appointment-types/AppointmentTypesPage';
 import { ConsentFormsPage } from '@/pages/administration/consent-forms/ConsentFormsPage';
+import { HcpcsCodesPage } from '@/pages/administration/hcpcs-codes/HcpcsCodesPage';
+import { DiagnosisCodesPage } from '@/pages/administration/diagnosis-codes/DiagnosisCodesPage';
 import { TriageTrackingBoard } from '@/pages/triage-tracking-board/TriageTrackingBoard';
 import { NurseTrackingBoardPage } from '@/pages/nurse-tracking-board/NurseTrackingBoardPage';
 import { PatientDashboard } from '@/pages/patient-dashboard/PatientDashboard';
@@ -65,6 +66,7 @@ import { SpecialitiesPage } from '@/pages/providers/specialities/SpecialitiesPag
 import { SubSpecialitiesPage } from '@/pages/providers/sub-specialities/SubSpecialitiesPage';
 import { LocationsPage } from '@/pages/providers/locations/LocationsPage';
 import { BlockHoursPage } from '@/pages/appointments/block-hours/BlockHoursPage';
+import { AppointmentStatusPage } from '@/pages/appointments/appointment-status/AppointmentStatusPage';
 import { OutsideLabOrdersPage } from '@/pages/outpatient/outside-labs/OutsideLabOrdersPage';
 import { ExternalLabMasterPage } from '@/pages/outpatient/outside-labs/ExternalLabMasterPage';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -82,6 +84,7 @@ import { PatientOutsidePhysiologicalDetailPage } from '@/pages/physiological-tes
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { RoomsPage } from '@/pages/patient-management/rooms/RoomsPage';
 import { BedsPage } from '@/pages/patient-management/beds/BedsPage';
+import { RoomTypesPage } from '@/pages/patient-management/room-types/RoomTypesPage';
 
 function PharmacyPage() {
   const [searchParams] = useSearchParams();
@@ -104,6 +107,7 @@ function App() {
           <Route path="patients/edit/:id" element={<PatientFormPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />
           <Route path="appointments/block-hours" element={<BlockHoursPage />} />
+          <Route path="appointments/appointment-status" element={<AppointmentStatusPage />} />
           <Route path="insurance-providers" element={<InsuranceProvidersPage />} />
           <Route path="nurse-assessment" element={<NurseDashboard />} />
           <Route path="providers" element={<ProvidersPage />} />
@@ -117,13 +121,14 @@ function App() {
           <Route path="administration/chief-complaint" element={<ChiefComplaint />} />
           <Route path="administration/consent-forms" element={<ConsentFormsPage />} />
           <Route path="administration/procedure-codes" element={<ProceduresPage />} />
+          <Route path="administration/hcpcs-codes" element={<HcpcsCodesPage />} />
+          <Route path="administration/diagnosis-codes" element={<DiagnosisCodesPage />} />
           <Route path="administration/procedure-categories" element={<ProcedureCategoriesPage />} />
           <Route path="administration/procedures" element={<ProceduresPage />} />
           <Route path="administration/charge-master" element={<ChargeMasterPage />} />
           <Route path="administration/billing-providers" element={<BillingProvidersPage />} />
           <Route path="administration/appointment-types" element={<AppointmentTypesPage />} />
           <Route path="administration/facility" element={<FacilitiesPage />} />
-          <Route path="administration/cpt-codes" element={<CPTCodesPage />} />
           <Route path="administration/users" element={<UsersPage />} />
           <Route path="administration/roles" element={<RolesPage />} />
           <Route path="administration/permissions" element={<PermissionsPage />} />
@@ -134,6 +139,7 @@ function App() {
           <Route path="custom-order-set" element={<CustomOrderSetPage />} />
           <Route path="patient-management/rooms" element={<RoomsPage />} />
           <Route path="patient-management/beds" element={<BedsPage />} />
+          <Route path="patient-management/room-types" element={<RoomTypesPage />} />
           {/* Physiological tests */}
           <Route path="physiological-tests/order-management" element={<PhysiologicalOrderManagementPage />} />
           <Route path="physiological-tests/order-management/patient/:patientId" element={<PatientPhysiologicalOrderDetailPage />} />

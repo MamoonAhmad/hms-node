@@ -20,7 +20,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { loadRooms, saveRooms, loadBeds, saveBeds } from '@/pages/patient-management/roomsBedsStorage';
+
+const ROOM_LIST_TABS = {
+  ALL: 'all',
+  ACTIVE: 'active',
+  MAINTENANCE: 'maintenance',
+  OFFLINE: 'offline',
+};
 
 const ROOM_TYPES = [
   { value: 'med_surg', label: 'Medical / Surgical' },
@@ -36,6 +44,32 @@ const STATUSES = [
   { value: 'maintenance', label: 'Maintenance' },
   { value: 'offline', label: 'Offline' },
 ];
+
+function roomsForListTab(rooms, listTab) {
+  switch (listTab) {
+    case ROOM_LIST_TABS.ACTIVE:
+      return rooms.filter((r) => r.status === 'active');
+    case ROOM_LIST_TABS.MAINTENANCE:
+      return rooms.filter((r) => r.status === 'maintenance');
+    case ROOM_LIST_TABS.OFFLINE:
+      return rooms.filter((r) => r.status === 'offline');
+    default:
+      return rooms;
+  }
+}
+
+function emptyMessageForTab(listTab) {
+  switch (listTab) {
+    case ROOM_LIST_TABS.ACTIVE:
+      return 'No active rooms match your search.';
+    case ROOM_LIST_TABS.MAINTENANCE:
+      return 'No rooms in maintenance match your search.';
+    case ROOM_LIST_TABS.OFFLINE:
+      return 'No offline rooms match your search.';
+    default:
+      return 'No rooms yet — add your first room.';
+  }
+}
 
 const emptyForm = () => ({
   roomNumber: '',
@@ -53,6 +87,7 @@ export function RoomsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
   const [search, setSearch] = useState('');
+  const [listTab, setListTab] = useState(ROOM_LIST_TABS.ALL);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -81,9 +116,10 @@ export function RoomsPage() {
   }, [rooms]);
 
   const filtered = useMemo(() => {
+    const scoped = roomsForListTab(rooms, listTab);
     const q = search.toLowerCase().trim();
-    if (!q) return rooms;
-    return rooms.filter((r) => {
+    if (!q) return scoped;
+    return scoped.filter((r) => {
       const blob = [
         r.roomNumber,
         r.displayName,
@@ -98,7 +134,7 @@ export function RoomsPage() {
         .toLowerCase();
       return blob.includes(q);
     });
-  }, [rooms, search]);
+  }, [rooms, search, listTab]);
 
   const rows = useMemo(() => {
     const total = filtered.length;
@@ -284,6 +320,23 @@ export function RoomsPage() {
         </div>
       </div>
 
+      <section className="content-panel rounded-lg px-4 py-3 sm:px-6">
+        <Tabs
+          value={listTab}
+          onValueChange={(value) => {
+            setListTab(value);
+            setPagination((p) => ({ ...p, page: 1 }));
+          }}
+        >
+          <TabsList className="grid h-auto w-full max-w-3xl grid-cols-2 gap-0.5 sm:grid-cols-4">
+            <TabsTrigger value={ROOM_LIST_TABS.ALL}>All rooms</TabsTrigger>
+            <TabsTrigger value={ROOM_LIST_TABS.ACTIVE}>Active</TabsTrigger>
+            <TabsTrigger value={ROOM_LIST_TABS.MAINTENANCE}>Maintenance</TabsTrigger>
+            <TabsTrigger value={ROOM_LIST_TABS.OFFLINE}>Offline</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </section>
+
       <DataTable
         columns={columns}
         data={rows}
@@ -300,7 +353,7 @@ export function RoomsPage() {
         onPageSizeChange={(limit) => setPagination((p) => ({ ...p, limit, page: 1 }))}
         getRowId={(row) => row.id}
         searchPlaceholder="Search room, unit, floor, or type..."
-        emptyMessage="No rooms yet — add your first room."
+        emptyMessage={emptyMessageForTab(listTab)}
         actions={(row) => (
           <div className="flex justify-end gap-1">
             <Button type="button" variant="ghost" size="icon-sm" onClick={() => openView(row)} aria-label="View">

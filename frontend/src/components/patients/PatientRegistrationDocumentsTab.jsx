@@ -24,7 +24,6 @@ import {
   DOCUMENT_CATEGORIES,
   DOCUMENT_CHECKLIST_ITEMS,
   GOVERNMENT_ID_TYPE_OPTIONS,
-  INSURANCE_CARD_SIDE_OPTIONS,
   buildDocumentForList,
   emptyNewDocument,
   formatDocumentDetailColumn,
@@ -72,8 +71,7 @@ export function PatientRegistrationDocumentsTab({
     setDocumentFormErrors?.({});
   };
 
-  const isIdProof = newDocument.documentCategory === 'ID Proof';
-  const isInsurance = newDocument.documentCategory === 'Insurance';
+  const isIdProof = newDocument.documentCategory === 'Identity Proof';
 
   return (
     <div className="space-y-6">
@@ -151,10 +149,7 @@ export function PatientRegistrationDocumentsTab({
                   documentCategory: value,
                   documentName: newDocument.documentName,
                   requiredDocumentType: newDocument.requiredDocumentType,
-                  ...(value === 'Insurance'
-                    ? { insuranceCardSide: newDocument.insuranceCardSide }
-                    : {}),
-                  ...(value === 'ID Proof'
+                  ...(value === 'Identity Proof'
                     ? {
                         governmentIdType: newDocument.governmentIdType,
                         documentExpirationDate: newDocument.documentExpirationDate,
@@ -220,81 +215,47 @@ export function PatientRegistrationDocumentsTab({
           </div>
         </div>
 
-        {(isIdProof || isInsurance) && (
+        {isIdProof && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 rounded-lg border bg-muted/20 p-4">
-            {isIdProof && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="docGovernmentIdType">
-                    ID type <span className="text-destructive">*</span>
-                  </Label>
-                  <Select
-                    value={newDocument.governmentIdType}
-                    onValueChange={(value) =>
-                      setNewDocument({ ...newDocument, governmentIdType: value })
-                    }
-                  >
-                    <SelectTrigger
-                      id="docGovernmentIdType"
-                      className={`w-full ${documentFormErrors.governmentIdType ? 'border-destructive' : ''}`}
-                    >
-                      <SelectValue placeholder="Select ID type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GOVERNMENT_ID_TYPE_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {documentFormErrors.governmentIdType && (
-                    <p className="text-xs text-destructive">{documentFormErrors.governmentIdType}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="documentExpirationDate">Expiration date</Label>
-                  <Input
-                    id="documentExpirationDate"
-                    type="date"
-                    value={newDocument.documentExpirationDate}
-                    onChange={(e) =>
-                      setNewDocument({ ...newDocument, documentExpirationDate: e.target.value })
-                    }
-                  />
-                </div>
-              </>
-            )}
-            {isInsurance && (
-              <div className="space-y-2">
-                <Label htmlFor="insuranceCardSide">
-                  Card side <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={newDocument.insuranceCardSide}
-                  onValueChange={(value) =>
-                    setNewDocument({ ...newDocument, insuranceCardSide: value })
-                  }
+            <div className="space-y-2">
+              <Label htmlFor="docGovernmentIdType">
+                ID type <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={newDocument.governmentIdType}
+                onValueChange={(value) =>
+                  setNewDocument({ ...newDocument, governmentIdType: value })
+                }
+              >
+                <SelectTrigger
+                  id="docGovernmentIdType"
+                  className={`w-full ${documentFormErrors.governmentIdType ? 'border-destructive' : ''}`}
                 >
-                  <SelectTrigger
-                    id="insuranceCardSide"
-                    className={`w-full ${documentFormErrors.insuranceCardSide ? 'border-destructive' : ''}`}
-                  >
-                    <SelectValue placeholder="Select card side" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INSURANCE_CARD_SIDE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {documentFormErrors.insuranceCardSide && (
-                  <p className="text-xs text-destructive">{documentFormErrors.insuranceCardSide}</p>
-                )}
-              </div>
-            )}
+                  <SelectValue placeholder="Select ID type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GOVERNMENT_ID_TYPE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {documentFormErrors.governmentIdType && (
+                <p className="text-xs text-destructive">{documentFormErrors.governmentIdType}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="documentExpirationDate">Expiration date</Label>
+              <Input
+                id="documentExpirationDate"
+                type="date"
+                value={newDocument.documentExpirationDate}
+                onChange={(e) =>
+                  setNewDocument({ ...newDocument, documentExpirationDate: e.target.value })
+                }
+              />
+            </div>
           </div>
         )}
 
@@ -351,7 +312,7 @@ export function PatientRegistrationDocumentsTab({
                     </TableCell>
                     <TableCell className="text-sm">{formatDocumentDetailColumn(doc)}</TableCell>
                     <TableCell className="text-sm">
-                      {doc.documentCategory === 'ID Proof'
+                      {doc.documentCategory === 'Identity Proof'
                         ? formatDateDisplay(doc.documentExpirationDate)
                         : '—'}
                     </TableCell>

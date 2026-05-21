@@ -28,6 +28,7 @@ import {
   LogOut as LogoutIcon,
   BarChart2,
   Hospital,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./SidebarContext";
@@ -39,8 +40,6 @@ const providersItems = [
   { name: "Provider List", href: "/providers", icon: UserCheck },
   { name: "Specialities", href: "/providers/specialities", icon: Stethoscope },
   { name: "Sub Specialities", href: "/providers/sub-specialities", icon: Stethoscope },
-  { name: "Locations", href: "/providers/locations", icon: MapPin },
-  { name: "Departments", href: "/departments", icon: Building2 },
 ];
 
 const administrationItems = [
@@ -66,6 +65,16 @@ const administrationItems = [
     icon: Code,
   },
   {
+    name: "HCPCS Codes",
+    href: "/administration/hcpcs-codes",
+    icon: ClipboardList,
+  },
+  {
+    name: "Diagnosis Codes",
+    href: "/administration/diagnosis-codes",
+    icon: Stethoscope,
+  },
+  {
     name: "Billing Providers",
     href: "/administration/billing-providers",
     icon: UserCheck,
@@ -75,11 +84,8 @@ const administrationItems = [
     href: "/administration/facility",
     icon: Building2,
   },
-  {
-    name: "CPT Codes",
-    href: "/administration/cpt-codes",
-    icon: FileText,
-  },
+  { name: "Departments", href: "/departments", icon: Building2 },
+  { name: "Locations", href: "/providers/locations", icon: MapPin },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -87,7 +93,7 @@ const patientManagementItems = [
   { name: "Patients", href: "/patients", icon: Users },
   { name: "Nurse Assessment", href: "/nurse-assessment", icon: Stethoscope },
   {
-    name: "Nurse Tracking Board",
+    name: "Patient Tracking",
     href: "/nurse-tracking-board",
     icon: Activity,
   },
@@ -105,6 +111,7 @@ const patientManagementItems = [
     name: "Rooms Management",
     icon: Hospital,
     children: [
+      { name: "Rooms Type", href: "/patient-management/room-types" },
       { name: "Rooms", href: "/patient-management/rooms" },
       { name: "Beds", href: "/patient-management/beds" },
     ],
@@ -124,6 +131,11 @@ const appointmentsItems = [
   },
   { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Block Hours", href: "/appointments/block-hours", icon: CalendarClock },
+  {
+    name: "Appointment Status",
+    href: "/appointments/appointment-status",
+    icon: ListChecks,
+  },
 ];
 
 const physiologicalTestsItems = [

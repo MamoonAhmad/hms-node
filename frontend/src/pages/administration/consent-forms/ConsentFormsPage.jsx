@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Eye, Edit, Trash2 } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -13,8 +14,20 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { ConsentFormDialog } from '@/pages/administration/consent-forms/ConsentFormDialog';
+import { ConsentFormViewDialog } from '@/pages/administration/consent-forms/ConsentFormViewDialog';
+import { ConsentFormHistoryPanel } from '@/pages/administration/consent-forms/ConsentFormHistoryPanel';
 import {
+  appendConsentFormHistory,
+  createHistoryEntry,
+  diffConsentFormRecords,
+} from '@/pages/administration/consent-forms/consentFormHistory';
+import {
+  CONSENT_LIST_TABS,
+  CONSENT_LIST_TAB_OPTIONS,
   emptyConsentForm,
+  ensureConsentFormSeedData,
+  filterConsentFormsByTab,
+  formatAuditDate,
   formatConsentStatus,
   formatConsentType,
   getStoredConsentForms,
@@ -30,25 +43,36 @@ export function ConsentFormsPage() {
   const { user } = useAuth();
   const auditName = auditUserLabel(user);
   const [items, setItems] = useState([]);
+  const [listTab, setListTab] = useState(CONSENT_LIST_TABS.ALL);
   const [search, setSearch] = useState('');
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState(null);
   const [editRecord, setEditRecord] = useState(null);
   const [deleteRecord, setDeleteRecord] = useState(null);
+  const [historyRecord, setHistoryRecord] = useState(null);
 
   const load = useCallback(() => {
-    setItems(getStoredConsentForms());
+    setItems(ensureConsentFormSeedData());
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const tabCounts = useMemo(() => {
+    const counts = {};
+    CONSENT_LIST_TAB_OPTIONS.forEach((tab) => {
+      counts[tab.value] = filterConsentFormsByTab(items, tab.value).length;
+    });
+    return counts;
+  }, [items]);
+
   const filtered = useMemo(() => {
+    const scoped = filterConsentFormsByTab(items, listTab);
     const q = search.toLowerCase().trim();
-    if (!q) return items;
-    return items.filter((row) => {
+    if (!q) return scoped;
+    return scoped.filter((row) => {
       const haystack = [
         row.consentTitle,
         row.description,
@@ -63,7 +87,19 @@ export function ConsentFormsPage() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [items, search]);
+  }, [items, listTab, search]);
+
+  const handleListTabChange = useCallback((tab) => {
+    setListTab(tab);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
+
+  const emptyMessageByTab = useMemo(() => {
+    const tabLabel = CONSENT_LIST_TAB_OPTIONS.find((t) => t.value === listTab)?.label ?? 'forms';
+    return search.trim()
+      ? 'No consent forms match your search'
+      : `No ${tabLabel.toLowerCase()} found`;
+  }, [listTab, search]);
 
   const total = filtered.length;
   const currentPage = Math.min(
@@ -93,6 +129,14 @@ export function ConsentFormsPage() {
     const list = getStoredConsentForms();
 
     if (editRecord?.id) {
+      const previous = list.find((row) => row.id === editRecord.id);
+      const changes = diffConsentFormRecords(previous, { ...previous, ...formValues });
+      const historyEntry = createHistoryEntry({
+        action: 'updated',
+        user: auditName,
+        at: now,
+        changes,
+      });
       const next = list.map((row) =>
         row.id === editRecord.id
           ? {
@@ -100,12 +144,19 @@ export function ConsentFormsPage() {
               ...formValues,
               updatedBy: auditName,
               updatedDate: now,
+              history: appendConsentFormHistory(row.history, historyEntry),
             }
           : row,
       );
       setStoredConsentForms(next);
       setItems(next);
     } else {
+      const createdEntry = createHistoryEntry({
+        action: 'created',
+        user: auditName,
+        at: now,
+        changes: [],
+      });
       const next = [
         {
           id: crypto.randomUUID(),
@@ -115,6 +166,7 @@ export function ConsentFormsPage() {
           createdDate: now,
           updatedBy: auditName,
           updatedDate: now,
+          history: [createdEntry],
         },
         ...list,
       ];
@@ -162,6 +214,21 @@ export function ConsentFormsPage() {
         </Button>
       </div>
 
+      <section className="rounded-lg border border-border bg-card px-4 py-3 shadow-sm sm:px-6">
+        <Tabs value={listTab} onValueChange={handleListTabChange}>
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:max-w-4xl lg:grid-cols-5">
+            {CONSENT_LIST_TAB_OPTIONS.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value} className="gap-1.5">
+                <span>{tab.label}</span>
+                <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold">
+                  {tabCounts[tab.value] ?? 0}
+                </Badge>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </section>
+
       <DataTable
         columns={[
           {
@@ -188,6 +255,18 @@ export function ConsentFormsPage() {
             ),
           },
           { key: 'versionNumber', label: 'Version', render: (row) => row.versionNumber || '—' },
+          {
+            key: 'updatedBy',
+            label: 'Last updated by',
+            render: (row) => (
+              <div className="min-w-[140px] space-y-0.5 text-sm">
+                <p className="font-medium text-foreground">{row.updatedBy || row.createdBy || '—'}</p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {formatAuditDate(row.updatedDate || row.createdDate)}
+                </p>
+              </div>
+            ),
+          },
         ]}
         data={rows}
         total={total}
@@ -199,9 +278,18 @@ export function ConsentFormsPage() {
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
         searchPlaceholder="Search consent forms…"
-        emptyMessage="No consent forms found"
+        emptyMessage={emptyMessageByTab}
         actions={(row) => (
           <div className="flex items-center justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setHistoryRecord(row)}
+              className="h-8 w-8 p-0"
+              title="History"
+            >
+              <History className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -247,43 +335,22 @@ export function ConsentFormsPage() {
         onSave={handleSave}
       />
 
-      <Dialog open={!!viewRecord} onOpenChange={(open) => !open && setViewRecord(null)}>
-        <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{viewRecord?.consentTitle}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 text-sm">
-            <div className="grid grid-cols-2 gap-3">
-              <p>
-                <span className="text-muted-foreground">Type:</span>{' '}
-                {formatConsentType(viewRecord?.consentType)}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Status:</span>{' '}
-                {formatConsentStatus(viewRecord?.status)}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Department:</span> {viewRecord?.department || '—'}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Language:</span> {viewRecord?.language || '—'}
-              </p>
-            </div>
-            {viewRecord?.description && (
-              <p className="text-muted-foreground">{viewRecord.description}</p>
-            )}
-            <div
-              className="rounded-lg border p-4 prose prose-sm max-w-none dark:prose-invert"
-              dangerouslySetInnerHTML={{ __html: viewRecord?.consentContent || '' }}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setViewRecord(null)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConsentFormViewDialog
+        open={!!viewRecord}
+        record={viewRecord}
+        onOpenChange={(open) => !open && setViewRecord(null)}
+        onEdit={(row) => {
+          setViewRecord(null);
+          setEditRecord(row);
+          setDialogOpen(true);
+        }}
+      />
+
+      <ConsentFormHistoryPanel
+        record={historyRecord}
+        open={!!historyRecord}
+        onClose={() => setHistoryRecord(null)}
+      />
 
       <Dialog open={!!deleteRecord} onOpenChange={(open) => !open && setDeleteRecord(null)}>
         <DialogContent className="max-w-md w-[calc(100%-2rem)] sm:w-full">

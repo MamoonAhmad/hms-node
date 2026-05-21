@@ -6,6 +6,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { formatAppointmentTypes } from './providerSchedulesMock';
 
 function formatTimeSlot(start, end) {
   if (!start || !end) return '-';
@@ -56,7 +57,7 @@ export function ViewScheduleDialog({ open, onOpenChange, schedule }) {
             </div>
             <div className="space-y-1">
               <Label className="text-muted-foreground">Appointment Type</Label>
-              <p className="font-medium">{schedule.appointmentType}</p>
+              <p className="font-medium">{formatAppointmentTypes(schedule.appointmentType)}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-muted-foreground">Max per Slot</Label>

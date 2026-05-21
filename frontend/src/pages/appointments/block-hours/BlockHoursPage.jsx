@@ -3,7 +3,6 @@ import { Eye, Pencil, Plus, Power, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -271,7 +270,7 @@ export function BlockHoursPage() {
               value={filters.providerId || 'all'}
               onValueChange={(v) => setFilters((prev) => ({ ...prev, providerId: v === 'all' ? '' : v }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="All providers" />
               </SelectTrigger>
               <SelectContent>
@@ -289,7 +288,7 @@ export function BlockHoursPage() {
               value={filters.day || 'all'}
               onValueChange={(v) => setFilters((prev) => ({ ...prev, day: v === 'all' ? '' : v }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="All days" />
               </SelectTrigger>
               <SelectContent>
@@ -307,7 +306,7 @@ export function BlockHoursPage() {
               value={filters.status || 'all'}
               onValueChange={(v) => setFilters((prev) => ({ ...prev, status: v === 'all' ? '' : v }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -318,14 +317,6 @@ export function BlockHoursPage() {
             </Select>
           </div>
 
-          <div className="space-y-2 lg:col-span-3">
-            <Label>Search</Label>
-            <Input
-              placeholder="Search by provider, dates, days, time, locations, reason, status..."
-              value={search}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
-          </div>
         </div>
       </div>
 

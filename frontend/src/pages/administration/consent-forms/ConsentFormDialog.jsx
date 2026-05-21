@@ -24,10 +24,28 @@ import {
   CONSENT_LANGUAGE_OPTIONS,
   CONSENT_STATUS_OPTIONS,
   CONSENT_TYPE_OPTIONS,
+  SIGNATURE_PLACEMENT_OPTIONS,
   emptyConsentForm,
   formatAuditDate,
   validateConsentForm,
 } from '@/pages/administration/consent-forms/consentFormsConstants';
+
+function SignaturePlacementSelect({ id, value, onChange, error }) {
+  return (
+    <Select value={value || undefined} onValueChange={onChange}>
+      <SelectTrigger id={id} className={`w-full ${error ? 'border-destructive' : ''}`}>
+        <SelectValue placeholder="Select placement on form" />
+      </SelectTrigger>
+      <SelectContent>
+        {SIGNATURE_PLACEMENT_OPTIONS.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, onSave }) {
   const [form, setForm] = useState(emptyConsentForm());
@@ -40,6 +58,7 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
       setForm({
         ...emptyConsentForm(),
         ...record,
+        isMandatory: !!record.isMandatory,
         isSignatureRequired: record.isSignatureRequired !== false,
         requiresWitnessSignature: !!record.requiresWitnessSignature,
         requiresProviderSignature: !!record.requiresProviderSignature,
@@ -54,6 +73,26 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
   };
+
+  const setSignatureRequirement = (checkboxField, placementField, checked) => {
+    setForm((prev) => ({
+      ...prev,
+      [checkboxField]: !!checked,
+      [placementField]: checked ? prev[placementField] : '',
+    }));
+    if (errors[checkboxField] || errors[placementField]) {
+      setErrors((prev) => ({
+        ...prev,
+        [checkboxField]: null,
+        [placementField]: null,
+      }));
+    }
+  };
+
+  const showSignaturePlacement =
+    form.isSignatureRequired ||
+    form.requiresWitnessSignature ||
+    form.requiresProviderSignature;
 
   const handleAttachment = (e) => {
     const file = e.target.files?.[0];
@@ -85,7 +124,7 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[850px] max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Consent Form' : 'Add Consent Form'}</DialogTitle>
         </DialogHeader>
@@ -141,12 +180,14 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
           </FormSection>
 
           <FormSection title="Configuration Fields">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="isSignatureRequired"
                   checked={form.isSignatureRequired}
-                  onCheckedChange={(checked) => setField('isSignatureRequired', !!checked)}
+                  onCheckedChange={(checked) =>
+                    setSignatureRequirement('isSignatureRequired', 'patientSignaturePlacement', checked)
+                  }
                 />
                 <Label htmlFor="isSignatureRequired" className="font-normal cursor-pointer">
                   Is Signature Required? <span className="text-destructive">*</span>
@@ -156,7 +197,13 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
                 <Checkbox
                   id="requiresWitnessSignature"
                   checked={form.requiresWitnessSignature}
-                  onCheckedChange={(checked) => setField('requiresWitnessSignature', !!checked)}
+                  onCheckedChange={(checked) =>
+                    setSignatureRequirement(
+                      'requiresWitnessSignature',
+                      'witnessSignaturePlacement',
+                      checked,
+                    )
+                  }
                 />
                 <Label htmlFor="requiresWitnessSignature" className="font-normal cursor-pointer">
                   Requires Witness Signature?
@@ -166,13 +213,91 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
                 <Checkbox
                   id="requiresProviderSignature"
                   checked={form.requiresProviderSignature}
-                  onCheckedChange={(checked) => setField('requiresProviderSignature', !!checked)}
+                  onCheckedChange={(checked) =>
+                    setSignatureRequirement(
+                      'requiresProviderSignature',
+                      'providerSignaturePlacement',
+                      checked,
+                    )
+                  }
                 />
                 <Label htmlFor="requiresProviderSignature" className="font-normal cursor-pointer">
                   Requires Provider Signature?
                 </Label>
               </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="isMandatory"
+                  checked={!!form.isMandatory}
+                  onCheckedChange={(checked) => setField('isMandatory', !!checked)}
+                />
+                <Label htmlFor="isMandatory" className="font-normal cursor-pointer">
+                  Is mandatory?
+                </Label>
+              </div>
             </div>
+
+            {showSignaturePlacement && (
+              <div className="space-y-4 rounded-lg border border-dashed border-border bg-muted/25 p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Signature field placement on consent form
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    For each checked signature type, choose where that signature block should appear when
+                    the form is displayed or signed.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {form.isSignatureRequired && (
+                    <FormField
+                      label="Patient signature placement"
+                      htmlFor="patientSignaturePlacement"
+                      required
+                      error={errors.patientSignaturePlacement}
+                    >
+                      <SignaturePlacementSelect
+                        id="patientSignaturePlacement"
+                        value={form.patientSignaturePlacement}
+                        onChange={(v) => setField('patientSignaturePlacement', v)}
+                        error={errors.patientSignaturePlacement}
+                      />
+                    </FormField>
+                  )}
+                  {form.requiresWitnessSignature && (
+                    <FormField
+                      label="Witness signature placement"
+                      htmlFor="witnessSignaturePlacement"
+                      required
+                      error={errors.witnessSignaturePlacement}
+                    >
+                      <SignaturePlacementSelect
+                        id="witnessSignaturePlacement"
+                        value={form.witnessSignaturePlacement}
+                        onChange={(v) => setField('witnessSignaturePlacement', v)}
+                        error={errors.witnessSignaturePlacement}
+                      />
+                    </FormField>
+                  )}
+                  {form.requiresProviderSignature && (
+                    <FormField
+                      label="Provider signature placement"
+                      htmlFor="providerSignaturePlacement"
+                      required
+                      error={errors.providerSignaturePlacement}
+                    >
+                      <SignaturePlacementSelect
+                        id="providerSignaturePlacement"
+                        value={form.providerSignaturePlacement}
+                        onChange={(v) => setField('providerSignaturePlacement', v)}
+                        error={errors.providerSignaturePlacement}
+                      />
+                    </FormField>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <FormField label="Effective Date" htmlFor="effectiveDate" hint="When the template becomes active.">
                 <Input

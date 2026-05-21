@@ -1,10 +1,17 @@
 import { GOVERNMENT_ID_TYPE_OPTIONS } from '@/components/patients/patientDemographicsConstants';
 
 export const DOCUMENT_CATEGORIES = [
-  { value: 'ID Proof', label: 'ID Proof' },
-  { value: 'Insurance', label: 'Insurance' },
+  { value: 'Identity Proof', label: 'Identity Proof' },
+  { value: 'Insurance Card Front', label: 'Insurance Card Front' },
+  { value: 'Insurance Card Back', label: 'Insurance Card Back' },
+  { value: 'Registration Form', label: 'Registration Form' },
+  { value: 'Consent Form', label: 'Consent Form' },
+  { value: 'Referral Letter', label: 'Referral Letter' },
+  { value: 'Medical Records', label: 'Medical Records' },
   { value: 'Lab Report', label: 'Lab Report' },
-  { value: 'Referral', label: 'Referral' },
+  { value: 'Prescription', label: 'Prescription' },
+  { value: 'Patient Photo', label: 'Patient Photo' },
+  { value: 'Financial Document', label: 'Financial Document' },
   { value: 'Other', label: 'Other' },
 ];
 
@@ -19,14 +26,14 @@ export const DOCUMENT_CHECKLIST_ITEMS = [
     key: 'photo-id',
     label: 'Photo ID',
     required: false,
-    category: 'ID Proof',
+    category: 'Identity Proof',
     defaultDocumentName: 'Photo ID',
   },
   {
     key: 'insurance-card-front',
     label: 'Insurance card (front)',
     required: false,
-    category: 'Insurance',
+    category: 'Insurance Card Front',
     insuranceCardSide: 'front',
     defaultDocumentName: 'Insurance card (front)',
   },
@@ -34,7 +41,7 @@ export const DOCUMENT_CHECKLIST_ITEMS = [
     key: 'insurance-card-back',
     label: 'Insurance card (back)',
     required: false,
-    category: 'Insurance',
+    category: 'Insurance Card Back',
     insuranceCardSide: 'back',
     defaultDocumentName: 'Insurance card (back)',
   },
@@ -42,7 +49,7 @@ export const DOCUMENT_CHECKLIST_ITEMS = [
     key: 'referral-letter',
     label: 'Referral letter',
     required: false,
-    category: 'Referral',
+    category: 'Referral Letter',
     defaultDocumentName: 'Referral letter',
   },
 ];
@@ -74,7 +81,7 @@ export function newDocumentFromChecklistItem(item) {
     documentName: item.defaultDocumentName,
     requiredDocumentType: item.key,
     insuranceCardSide: item.insuranceCardSide || '',
-    governmentIdType: item.category === 'ID Proof' ? '' : '',
+    governmentIdType: item.category === 'Identity Proof' ? '' : '',
   };
 }
 
@@ -83,25 +90,25 @@ export function isChecklistItemUploaded(item, documents) {
   if (documents.some((d) => d.requiredDocumentType === item.key)) return true;
 
   if (item.key === 'photo-id') {
-    return documents.some((d) => d.documentCategory === 'ID Proof');
+    return documents.some((d) => d.documentCategory === 'Identity Proof');
   }
   if (item.key === 'insurance-card-front') {
     return documents.some(
       (d) =>
-        d.documentCategory === 'Insurance' &&
-        (d.insuranceCardSide === 'front' || d.requiredDocumentType === 'insurance-card-front'),
+        d.documentCategory === 'Insurance Card Front' ||
+        d.requiredDocumentType === 'insurance-card-front',
     );
   }
   if (item.key === 'insurance-card-back') {
     return documents.some(
       (d) =>
-        d.documentCategory === 'Insurance' &&
-        (d.insuranceCardSide === 'back' || d.requiredDocumentType === 'insurance-card-back'),
+        d.documentCategory === 'Insurance Card Back' ||
+        d.requiredDocumentType === 'insurance-card-back',
     );
   }
   if (item.key === 'referral-letter') {
     return documents.some(
-      (d) => d.documentCategory === 'Referral' || d.requiredDocumentType === 'referral-letter',
+      (d) => d.documentCategory === 'Referral Letter' || d.requiredDocumentType === 'referral-letter',
     );
   }
   return false;
@@ -120,7 +127,7 @@ export function validatePatientDocuments(documents, { strictMode = true } = {}) 
   const list = Array.isArray(documents) ? documents : [];
 
   list.forEach((doc) => {
-    if (doc.documentCategory === 'ID Proof' && doc.documentExpirationDate) {
+    if (doc.documentCategory === 'Identity Proof' && doc.documentExpirationDate) {
       const exp = new Date(doc.documentExpirationDate);
       if (!Number.isNaN(exp.getTime()) && exp < new Date()) {
         const name = doc.documentName || 'ID document';
@@ -162,17 +169,24 @@ export function formatInsuranceCardSideLabel(value) {
 }
 
 export function formatDocumentDetailColumn(doc) {
-  if (doc.documentCategory === 'ID Proof' && doc.governmentIdType) {
+  if (doc.documentCategory === 'Identity Proof' && doc.governmentIdType) {
     return formatGovernmentIdTypeLabel(doc.governmentIdType);
   }
-  if (doc.documentCategory === 'Insurance' && doc.insuranceCardSide) {
-    return formatInsuranceCardSideLabel(doc.insuranceCardSide);
+  if (doc.documentCategory === 'Insurance Card Front') {
+    return formatInsuranceCardSideLabel('front');
+  }
+  if (doc.documentCategory === 'Insurance Card Back') {
+    return formatInsuranceCardSideLabel('back');
   }
   return '—';
 }
 
 export function buildDocumentForList(newDocument) {
   const category = newDocument.documentCategory;
+  let insuranceCardSide = '';
+  if (category === 'Insurance Card Front') insuranceCardSide = 'front';
+  else if (category === 'Insurance Card Back') insuranceCardSide = 'back';
+
   const doc = {
     id: `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     documentName: newDocument.documentName.trim(),
@@ -181,11 +195,10 @@ export function buildDocumentForList(newDocument) {
     file: newDocument.file || null,
     requiredDocumentType: newDocument.requiredDocumentType || '',
     governmentIdType:
-      category === 'ID Proof' ? newDocument.governmentIdType || '' : '',
+      category === 'Identity Proof' ? newDocument.governmentIdType || '' : '',
     documentExpirationDate:
-      category === 'ID Proof' ? newDocument.documentExpirationDate || '' : '',
-    insuranceCardSide:
-      category === 'Insurance' ? newDocument.insuranceCardSide || '' : '',
+      category === 'Identity Proof' ? newDocument.documentExpirationDate || '' : '',
+    insuranceCardSide,
     documentNotes: newDocument.documentNotes?.trim() || '',
   };
   return doc;
@@ -202,11 +215,8 @@ export function validateNewDocumentForm(newDocument) {
   if (!newDocument.file && !newDocument.fileName) {
     errors.file = 'Please select a file to upload';
   }
-  if (newDocument.documentCategory === 'ID Proof' && !newDocument.governmentIdType) {
-    errors.governmentIdType = 'ID type is required for ID Proof documents';
-  }
-  if (newDocument.documentCategory === 'Insurance' && !newDocument.insuranceCardSide) {
-    errors.insuranceCardSide = 'Card side is required for insurance documents';
+  if (newDocument.documentCategory === 'Identity Proof' && !newDocument.governmentIdType) {
+    errors.governmentIdType = 'ID type is required for Identity Proof documents';
   }
   return errors;
 }

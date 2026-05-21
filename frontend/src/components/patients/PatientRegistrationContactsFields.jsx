@@ -9,7 +9,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  GUARANTOR_RELATIONSHIP_OPTIONS,
   NEXT_OF_KIN_RELATIONSHIP_OPTIONS,
   shouldShowLegalGuardianSection,
 } from '@/components/patients/patientContactsConstants';
@@ -188,93 +187,6 @@ export function PatientRegistrationContactsFields({
       </div>
 
       <div className="space-y-4 border-t pt-4">
-        <h3 className="text-sm font-semibold text-foreground">Guarantor Information</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="guarantorName">Guarantor contact name</Label>
-            <Input
-              id="guarantorName"
-              value={formData.guarantorName}
-              onChange={(e) => onChange('guarantorName', e.target.value)}
-              placeholder="Enter full name"
-            />
-          </div>
-          <PhoneField
-            id="guarantorPhone"
-            label="Guarantor contact number"
-            value={formData.guarantorPhone}
-            onChange={(e) => onChange('guarantorPhone', e.target.value)}
-            error={errors.guarantorPhone}
-          />
-          <div className="space-y-2">
-            <Label htmlFor="guarantorRelationship">Relationship to patient</Label>
-            <RelationshipSelect
-              id="guarantorRelationship"
-              value={formData.guarantorRelationship}
-              onChange={(value) => onChange('guarantorRelationship', value)}
-              options={GUARANTOR_RELATIONSHIP_OPTIONS}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="guarantorEmail">Email</Label>
-            <Input
-              id="guarantorEmail"
-              type="email"
-              value={formData.guarantorEmail}
-              onChange={(e) => onChange('guarantorEmail', e.target.value)}
-              className={errors.guarantorEmail ? 'border-destructive' : ''}
-            />
-            {errors.guarantorEmail && (
-              <p className="text-xs text-destructive">{errors.guarantorEmail}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="guarantorDateOfBirth">Date of birth</Label>
-            <Input
-              id="guarantorDateOfBirth"
-              type="date"
-              value={formData.guarantorDateOfBirth}
-              onChange={(e) => onChange('guarantorDateOfBirth', e.target.value)}
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="guarantorAddress">Street address</Label>
-          <Input
-            id="guarantorAddress"
-            value={formData.guarantorAddress}
-            onChange={(e) => onChange('guarantorAddress', e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="guarantorCity">City</Label>
-            <Input
-              id="guarantorCity"
-              value={formData.guarantorCity}
-              onChange={(e) => onChange('guarantorCity', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="guarantorState">State</Label>
-            <Input
-              id="guarantorState"
-              value={formData.guarantorState}
-              onChange={(e) => onChange('guarantorState', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="guarantorZip">ZIP</Label>
-            <Input
-              id="guarantorZip"
-              value={formData.guarantorZip}
-              onChange={(e) => onChange('guarantorZip', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4 border-t pt-4">
         <h3 className="text-sm font-semibold text-foreground">Authorized Representative</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -382,36 +294,6 @@ export function PatientRegistrationContactsFields({
           )}
         </div>
       )}
-
-      <div className="space-y-4 border-t pt-4">
-        <h3 className="text-sm font-semibold text-foreground">Primary Next of Kin</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="primaryNextOfKinName">Name of Primary Next of Kin</Label>
-            <Input
-              id="primaryNextOfKinName"
-              value={formData.primaryNextOfKinName}
-              onChange={(e) => onChange('primaryNextOfKinName', e.target.value)}
-              placeholder="Enter full name"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="primaryNextOfKinRelationship">Relationship to Patient</Label>
-            <RelationshipSelect
-              id="primaryNextOfKinRelationship"
-              value={formData.primaryNextOfKinRelationship}
-              onChange={(value) => onChange('primaryNextOfKinRelationship', value)}
-            />
-          </div>
-          <PhoneField
-            id="primaryNextOfKinPhone"
-            label="Phone Number"
-            value={formData.primaryNextOfKinPhone}
-            onChange={(e) => onChange('primaryNextOfKinPhone', e.target.value)}
-            error={errors.primaryNextOfKinPhone}
-          />
-        </div>
-      </div>
 
       <div className="space-y-4 border-t pt-4 rounded-lg border p-4">
         <h3 className="text-sm font-semibold text-foreground">Secondary Next of Kin</h3>

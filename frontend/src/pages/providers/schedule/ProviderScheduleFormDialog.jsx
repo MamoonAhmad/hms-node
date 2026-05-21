@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
-import { providerSchedulesStore } from './providerSchedulesMock';
+import { providerSchedulesStore, normalizeAppointmentTypes } from './providerSchedulesMock';
 
 const emptyForm = () => ({
   providerId: '',
@@ -30,7 +30,7 @@ const emptyForm = () => ({
   startTime: '09:00',
   endTime: '17:00',
   slotDuration: 30,
-  appointmentType: 'Both',
+  appointmentType: [],
   maxAppointmentsPerSlot: 1,
   overBooking: 0,
   locations: [],
@@ -73,7 +73,7 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
           startTime: schedule.startTime || '09:00',
           endTime: schedule.endTime || '17:00',
           slotDuration: schedule.slotDuration || 30,
-          appointmentType: schedule.appointmentType || 'Both',
+          appointmentType: normalizeAppointmentTypes(schedule.appointmentType),
           maxAppointmentsPerSlot: schedule.maxAppointmentsPerSlot ?? 1,
           overBooking: schedule.overBooking ?? 0,
           locations: schedule.locations || [],
@@ -153,7 +153,9 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
       newErrors.endTime = 'End time must be after start time';
     }
     if (!formData.slotDuration) newErrors.slotDuration = 'Slot duration is required';
-    if (!formData.appointmentType) newErrors.appointmentType = 'Appointment type is required';
+    if (!formData.appointmentType?.length) {
+      newErrors.appointmentType = 'Select at least one appointment type';
+    }
     const max = formData.maxAppointmentsPerSlot;
     if (max == null || max < 1 || !Number.isInteger(Number(max))) {
       newErrors.maxAppointmentsPerSlot = 'Must be a positive integer';
@@ -200,6 +202,7 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
 
   const daysMultiSelectOptions = daysOptions.map((d) => ({ value: d.value, label: d.label }));
   const locationMultiSelectOptions = locationsOptions.map((l) => ({ value: l.value, label: l.label }));
+  const appointmentTypeOptions = appointmentTypes;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -359,19 +362,19 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Appointment Type *</Label>
-                <Select
+                <MultiSelect
+                  options={appointmentTypeOptions}
                   value={formData.appointmentType}
-                  onValueChange={(v) => setFormData((prev) => ({ ...prev, appointmentType: v }))}
-                >
-                  <SelectTrigger className={errors.appointmentType ? 'border-destructive' : ''}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {appointmentTypes.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(v) => {
+                    setFormData((prev) => ({ ...prev, appointmentType: v }));
+                    if (errors.appointmentType) setErrors((prev) => ({ ...prev, appointmentType: null }));
+                  }}
+                  placeholder="Select appointment type(s)"
+                  searchable
+                  showSelectAll
+                  selectAllLabel="Select all appointment types"
+                  className={errors.appointmentType ? 'border-destructive' : ''}
+                />
                 {errors.appointmentType && <p className="text-xs text-destructive">{errors.appointmentType}</p>}
               </div>
               <div className="space-y-2">
