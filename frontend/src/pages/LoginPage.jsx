@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -17,22 +17,19 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const pendingRedirect = useRef(null);
 
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || "/";
 
-  // Navigate only after auth state has updated (avoids blank page from race)
+  // Send authenticated users to the dashboard (or the page they tried to open)
   useEffect(() => {
-    if (isAuthenticated && pendingRedirect.current) {
-      const target = pendingRedirect.current;
-      pendingRedirect.current = null;
-      navigate(target, { replace: true });
+    if (!isAuthLoading && isAuthenticated) {
+      navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isAuthLoading, navigate, from]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,8 +38,6 @@ export function LoginPage() {
 
     try {
       await login(email, password);
-      pendingRedirect.current = from;
-      // Navigation happens in useEffect when isAuthenticated becomes true
     } catch (err) {
       setError(err.message || "Failed to login. Please try again.");
     } finally {

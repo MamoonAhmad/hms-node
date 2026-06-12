@@ -21,7 +21,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { loadRooms, loadBeds, saveBeds } from '@/pages/patient-management/roomsBedsStorage';
+
+const BED_LIST_TABS = {
+  ALL: 'all',
+  AVAILABLE: 'available',
+  OCCUPIED: 'occupied',
+  RESERVED: 'reserved',
+  UNAVAILABLE: 'unavailable',
+};
 
 const BED_STATUSES = [
   { value: 'available', label: 'Available' },
@@ -39,6 +48,36 @@ const emptyForm = () => ({
   service: '',
   notes: '',
 });
+
+function bedsForListTab(beds, listTab) {
+  switch (listTab) {
+    case BED_LIST_TABS.AVAILABLE:
+      return beds.filter((b) => b.status === 'available');
+    case BED_LIST_TABS.OCCUPIED:
+      return beds.filter((b) => b.status === 'occupied');
+    case BED_LIST_TABS.RESERVED:
+      return beds.filter((b) => b.status === 'reserved');
+    case BED_LIST_TABS.UNAVAILABLE:
+      return beds.filter((b) => b.status === 'cleaning' || b.status === 'blocked');
+    default:
+      return beds;
+  }
+}
+
+function emptyMessageForTab(listTab) {
+  switch (listTab) {
+    case BED_LIST_TABS.AVAILABLE:
+      return 'No available beds match your search.';
+    case BED_LIST_TABS.OCCUPIED:
+      return 'No occupied beds match your search.';
+    case BED_LIST_TABS.RESERVED:
+      return 'No reserved beds match your search.';
+    case BED_LIST_TABS.UNAVAILABLE:
+      return 'No beds in cleaning or blocked status match your search.';
+    default:
+      return 'No beds yet — add a bed or load sample data from Rooms.';
+  }
+}
 
 function statusVariant(status) {
   switch (status) {
@@ -63,6 +102,7 @@ export function BedsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
   const [search, setSearch] = useState('');
+  const [listTab, setListTab] = useState(BED_LIST_TABS.ALL);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -92,9 +132,10 @@ export function BedsPage() {
   };
 
   const filtered = useMemo(() => {
+    const scoped = bedsForListTab(beds, listTab);
     const q = search.toLowerCase().trim();
-    if (!q) return beds;
-    return beds.filter((b) => {
+    if (!q) return scoped;
+    return scoped.filter((b) => {
       const room = roomLabel(b.roomId).toLowerCase();
       const blob = [b.bedLabel, b.status, b.patientName, b.service, b.notes, room]
         .filter(Boolean)
@@ -102,7 +143,7 @@ export function BedsPage() {
         .toLowerCase();
       return blob.includes(q);
     });
-  }, [beds, search, rooms]);
+  }, [beds, search, rooms, listTab]);
 
   const rows = useMemo(() => {
     const total = filtered.length;
@@ -281,6 +322,24 @@ export function BedsPage() {
         </div>
       )}
 
+      <section className="content-panel rounded-lg px-4 py-3 sm:px-6">
+        <Tabs
+          value={listTab}
+          onValueChange={(value) => {
+            setListTab(value);
+            setPagination((p) => ({ ...p, page: 1 }));
+          }}
+        >
+          <TabsList className="grid h-auto w-full max-w-4xl grid-cols-2 gap-0.5 sm:grid-cols-3 lg:grid-cols-5">
+            <TabsTrigger value={BED_LIST_TABS.ALL}>All beds</TabsTrigger>
+            <TabsTrigger value={BED_LIST_TABS.AVAILABLE}>Available</TabsTrigger>
+            <TabsTrigger value={BED_LIST_TABS.OCCUPIED}>Occupied</TabsTrigger>
+            <TabsTrigger value={BED_LIST_TABS.RESERVED}>Reserved</TabsTrigger>
+            <TabsTrigger value={BED_LIST_TABS.UNAVAILABLE}>Cleaning / blocked</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </section>
+
       <div className="grid gap-3 sm:grid-cols-4">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="text-muted-foreground text-sm">Total beds</div>
@@ -322,7 +381,7 @@ export function BedsPage() {
         onPageSizeChange={(limit) => setPagination((p) => ({ ...p, limit, page: 1 }))}
         getRowId={(row) => row.id}
         searchPlaceholder="Search bed, room, patient, or status..."
-        emptyMessage="No beds yet — add a bed or load sample data from Rooms."
+        emptyMessage={emptyMessageForTab(listTab)}
         actions={(row) => (
           <div className="flex justify-end gap-1">
             <Button type="button" variant="ghost" size="icon-sm" onClick={() => openView(row)} aria-label="View">

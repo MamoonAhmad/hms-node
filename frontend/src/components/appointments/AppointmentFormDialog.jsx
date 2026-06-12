@@ -12,29 +12,33 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { PatientRegistrationAppointmentFields } from '@/components/patients/PatientRegistrationAppointmentFields';
 import {
-  VISIT_TYPE_TO_API_TYPE,
   API_TYPE_TO_VISIT_TYPE,
-  buildNotesWithReferral,
-  parseNotesWithReferral,
+  APPOINTMENT_TIME_SLOT_OPTIONS,
+  buildAppointmentSubmitPayloadFromRegistration,
   emptyReferralPayload,
-  REFERRAL_PAYLOAD_KEYS,
-  DEPARTMENT_OPTIONS,
+  parseNotesWithReferral,
+  validateRegistrationAppointmentFields,
 } from '@/components/patients/patientRegistrationAppointmentConstants';
 import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
+import {
+  getAppointmentStatuses,
+  getDefaultAppointmentStatusName,
+} from '@/lib/appointmentStatuses';
 import { cn } from '@/lib/utils';
 
 const emptyForm = () => ({
-  department: '',
   patientId: '',
   appointmentDate: '',
   appointmentTime: '',
+  appointmentStartTime: '',
+  appointmentEndTime: '',
   appointmentVisitType: '',
   appointmentProvider: '',
   appointmentReason: '',
   appointmentNotes: '',
   ...emptyReferralPayload(),
   duration: 30,
-  status: 'Scheduled',
+  status: getDefaultAppointmentStatusName(),
 });
 
 export function AppointmentFormDialog({
@@ -51,8 +55,18 @@ export function AppointmentFormDialog({
 }) {
   const [formData, setFormData] = useState(emptyForm);
   const [errors, setErrors] = useState({});
+  const [statusOptions, setStatusOptions] = useState(() => getAppointmentStatuses());
 
   const isEditing = !!appointment;
+
+  const statusSelectOptions = useMemo(() => {
+    const options = [...statusOptions];
+    const current = formData.status;
+    if (current && !options.some((s) => s.name === current)) {
+      options.unshift({ id: 'legacy-status', name: current, color: '#6b7280' });
+    }
+    return options;
+  }, [statusOptions, formData.status]);
 
   const patientOptions = useMemo(
     () =>
@@ -64,12 +78,17 @@ export function AppointmentFormDialog({
   );
 
   useEffect(() => {
+    if (!open) return;
+
+    const statuses = getAppointmentStatuses();
+    setStatusOptions(statuses);
+    const defaultStatus = statuses[0]?.name || 'Scheduled';
+
     if (appointment) {
       const { appointmentNotes, referral } = parseNotesWithReferral(appointment.notes);
       const visitType =
         API_TYPE_TO_VISIT_TYPE[appointment.appointmentType] || 'new-patient';
       setFormData({
-        department: appointment.department || '',
         patientId: appointment.patientId || '',
         appointmentDate: appointment.appointmentDate
           ? appointment.appointmentDate.split('T')[0]
@@ -81,13 +100,14 @@ export function AppointmentFormDialog({
         appointmentNotes,
         ...referral,
         duration: appointment.duration || 30,
-        status: appointment.status || 'Scheduled',
+        status: appointment.status || defaultStatus,
       });
     } else {
       setFormData({
         ...emptyForm(),
         appointmentDate: initialDate || '',
         appointmentTime: initialTime || '',
+        status: defaultStatus,
       });
     }
     setErrors({});
@@ -107,19 +127,10 @@ export function AppointmentFormDialog({
 
   const validate = () => {
     const newErrors = {};
-    const phoneRegex = /^[\d\s\-\(\)]+$/;
+    const phoneRegex = /^[\d\s\-()]+$/;
 
-    if (!formData.department) newErrors.department = 'Department is required';
     if (!formData.patientId) newErrors.patientId = 'Patient is required';
-    if (!formData.appointmentDate) newErrors.appointmentDate = 'Date is required';
-    if (!formData.appointmentTime) newErrors.appointmentTime = 'Time is required';
-    if (!formData.appointmentVisitType) {
-      newErrors.appointmentVisitType = 'Appointment type is required';
-    }
-
-    if (formData.appointmentTime && !/^([01]\d|2[0-3]):([0-5]\d)$/.test(formData.appointmentTime)) {
-      newErrors.appointmentTime = 'Invalid time format (use HH:MM)';
-    }
+    validateRegistrationAppointmentFields(formData, newErrors);
 
     if (formData.referringPhysicianPhone && !phoneRegex.test(formData.referringPhysicianPhone)) {
       newErrors.referringPhysicianPhone = 'Invalid phone number format';
@@ -136,26 +147,13 @@ export function AppointmentFormDialog({
     e.preventDefault();
     if (!validate()) return;
 
-    const referral = {};
-    REFERRAL_PAYLOAD_KEYS.forEach((k) => {
-      referral[k] = formData[k];
+    const submitData = buildAppointmentSubmitPayloadFromRegistration(formData, formData.patientId, {
+      defaultStatus: formData.status || getDefaultAppointmentStatusName(),
     });
 
-    const apiAppointmentType =
-      VISIT_TYPE_TO_API_TYPE[formData.appointmentVisitType] || 'New';
-
-    const submitData = {
-      patientId: formData.patientId,
-      appointmentDate: formData.appointmentDate,
-      appointmentTime: formData.appointmentTime,
-      duration: parseInt(formData.duration, 10) || 30,
-      appointmentType: apiAppointmentType,
-      visitReason: formData.appointmentReason?.trim() || null,
-      department: formData.department?.trim() || null,
-      provider: formData.appointmentProvider?.trim() || null,
-      status: formData.status || 'Scheduled',
-      notes: buildNotesWithReferral(formData.appointmentNotes, referral),
-    };
+    if (isEditing) {
+      submitData.department = appointment?.department?.trim() || null;
+    }
 
     onSubmit(submitData);
   };
@@ -181,32 +179,13 @@ export function AppointmentFormDialog({
             {isEditing ? 'Edit appointment' : 'Schedule new appointment'}
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">
-            Choose a department and patient, then enter visit details and optional referral information.
+            Choose a patient, then enter visit details.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overflow-x-hidden px-6 py-6">
             <div className="rounded-xl border border-border/80 bg-muted/30 p-4 shadow-sm space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="appt-form-department" className="text-sm font-medium">
-                  Select Department <span className="text-destructive">*</span>
-                </Label>
-                <SearchableSelect
-                  value={formData.department}
-                  onValueChange={(value) => handleChange('department', value)}
-                  options={DEPARTMENT_OPTIONS}
-                  placeholder="Select department"
-                  triggerClassName={cn(
-                    'h-11 bg-background',
-                    errors.department ? 'border-destructive' : '',
-                  )}
-                />
-                {errors.department && (
-                  <p className="text-xs text-destructive">{errors.department}</p>
-                )}
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="appt-form-patientId" className="text-sm font-medium">
                   Patient <span className="text-destructive">*</span>
@@ -243,12 +222,17 @@ export function AppointmentFormDialog({
               </div>
             </div>
 
-            <div className="rounded-xl border border-border/60 bg-background/80 p-5 shadow-sm">
+            <div className="rounded-xl border border-border/60 bg-background/80 p-5 shadow-sm space-y-6">
               <PatientRegistrationAppointmentFields
                 idPrefix="appt-schedule"
                 formData={formData}
                 errors={errors}
                 onChange={handleChange}
+                timeSlotOptions={APPOINTMENT_TIME_SLOT_OPTIONS}
+                showAppointmentStatus
+                statusOptions={statusSelectOptions}
+                hideReferralSection
+                showReferringPhysicianSection
               />
             </div>
           </div>

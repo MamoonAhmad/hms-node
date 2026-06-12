@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Eye, Search } from 'lucide-react';
-import { patientApi } from '@/services/api';
+import { Plus, Pencil, Eye, X } from 'lucide-react';
+import {
+  patientApi,
+  providerApi,
+  insuranceProviderApi,
+} from '@/services/api';
 import {
   Table,
   TableBody,
@@ -12,47 +16,251 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/layout/PageHeader';
+import {
+  getPatientQueueDrafts,
+  queueDraftToPatientRow,
+} from '@/components/patients/patientRegistrationQueue';
+
+const PATIENT_LIST_TABS = {
+  ALL: 'all',
+  DRAFT: 'draft',
+  MY_LIST: 'my_list',
+};
+
+const FILTER_DEFAULTS = {
+  providerIds: [],
+  mrn: '',
+  firstName: '',
+  lastName: '',
+  gender: '',
+  dateFrom: '',
+  dateTo: '',
+  registrationStatus: '',
+  consentForm: '',
+  insuranceType: '',
+  insurancePayerIds: [],
+};
+
+const FIELD_HEIGHT_CLASS = '[&_button]:h-10';
+
+function fullProviderName(provider) {
+  return [provider.firstName, provider.middleName, provider.lastName]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+}
+
+function getPatientCreatedDate(patient) {
+  const raw = patient.createdAt || patient.registrationDate || patient.registeredAt;
+  if (!raw) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function startOfDay(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDay(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+/** Placeholder list-tab scope until backend my-list / draft APIs are wired. */
+function patientsForListTab(patients, listTab) {
+  switch (listTab) {
+    case PATIENT_LIST_TABS.DRAFT:
+      return patients.filter((patient) => {
+        const status = (patient.registrationStatus || '').toLowerCase();
+        return status === 'draft' || status === 'pending';
+      });
+    case PATIENT_LIST_TABS.MY_LIST:
+      return [];
+    default:
+      return patients;
+  }
+}
 
 export function PatientsPage() {
   const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [insurancePayers, setInsurancePayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState('');
-
-  const fetchPatients = async () => {
-    setIsLoading(true);
-    try {
-      const res = await patientApi.getAll({ limit: 500, search: search || undefined });
-      setPatients(res?.data ?? []);
-    } catch {
-      setPatients([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [listTab, setListTab] = useState(PATIENT_LIST_TABS.ALL);
+  const [filters, setFilters] = useState(FILTER_DEFAULTS);
 
   useEffect(() => {
-    fetchPatients();
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const [patientsRes, providersRes, payersRes] = await Promise.all([
+          patientApi.getAll({ limit: 500 }),
+          providerApi.getAll({ limit: 500, isActive: true }).catch(() => ({ data: [] })),
+          insuranceProviderApi.getActive().catch(() => ({ data: [] })),
+        ]);
+        if (cancelled) return;
+        const apiPatients = (Array.isArray(patientsRes?.data) ? patientsRes.data : []).map((p) => ({
+          ...p,
+          registrationStatus: p.registrationStatus || 'completed',
+        }));
+        const queued = getPatientQueueDrafts().map(queueDraftToPatientRow);
+        setPatients([...queued, ...apiPatients]);
+        setProviders(Array.isArray(providersRes?.data) ? providersRes.data : []);
+        setInsurancePayers(Array.isArray(payersRes?.data) ? payersRes.data : []);
+      } catch {
+        if (!cancelled) {
+          setPatients([]);
+          setProviders([]);
+          setInsurancePayers([]);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchPatients();
-  };
+  const providerOptions = useMemo(
+    () =>
+      providers.map((p) => ({
+        value: p.id,
+        label: fullProviderName(p) || p.npi || p.id,
+      })),
+    [providers],
+  );
 
-  const handleAddNewPatient = () => {
-    navigate('/patients/new');
-  };
+  const providerNameById = useMemo(() => {
+    const map = new Map();
+    providers.forEach((p) => map.set(p.id, fullProviderName(p).toLowerCase()));
+    return map;
+  }, [providers]);
 
+  const insurancePayerOptions = useMemo(
+    () =>
+      insurancePayers.map((ip) => ({
+        value: ip.id,
+        label: ip.code ? `${ip.name} (${ip.code})` : ip.name,
+      })),
+    [insurancePayers],
+  );
+
+  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+
+  const handleClearFilters = () => setFilters(FILTER_DEFAULTS);
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.providerIds.length > 0 ||
+      filters.mrn.trim() !== '' ||
+      filters.firstName.trim() !== '' ||
+      filters.lastName.trim() !== '' ||
+      filters.gender !== '' ||
+      filters.dateFrom !== '' ||
+      filters.dateTo !== '' ||
+      filters.registrationStatus !== '' ||
+      filters.consentForm !== '' ||
+      filters.insuranceType !== '' ||
+      filters.insurancePayerIds.length > 0
+    );
+  }, [filters]);
+
+  const filteredPatients = useMemo(() => {
+    const fromDate = startOfDay(filters.dateFrom);
+    const toDate = endOfDay(filters.dateTo);
+    const mrnQ = filters.mrn.trim().toLowerCase();
+    const firstQ = filters.firstName.trim().toLowerCase();
+    const lastQ = filters.lastName.trim().toLowerCase();
+    const selectedProviderNames = filters.providerIds
+      .map((id) => providerNameById.get(id))
+      .filter(Boolean);
+    const selectedPayerIds = new Set(filters.insurancePayerIds);
+    const scopedPatients = patientsForListTab(patients, listTab);
+
+    return scopedPatients.filter((patient) => {
+      if (mrnQ && !(patient.mrn || '').toLowerCase().includes(mrnQ)) return false;
+      if (firstQ && !(patient.firstName || '').toLowerCase().includes(firstQ)) return false;
+      if (lastQ && !(patient.lastName || '').toLowerCase().includes(lastQ)) return false;
+
+      if (filters.gender) {
+        const gender = (patient.gender || '').toLowerCase();
+        if (gender !== filters.gender) return false;
+      }
+
+      if (fromDate || toDate) {
+        const created = getPatientCreatedDate(patient);
+        if (!created) return false;
+        if (fromDate && created < fromDate) return false;
+        if (toDate && created > toDate) return false;
+      }
+
+      if (filters.registrationStatus) {
+        const status = (patient.registrationStatus || 'completed').toLowerCase();
+        if (status !== filters.registrationStatus) return false;
+      }
+
+      if (filters.consentForm) {
+        const signed = patient.consentFormSigned === true || patient.consentSigned === true;
+        const want = filters.consentForm === 'signed';
+        if (signed !== want) return false;
+      }
+
+      if (filters.insuranceType) {
+        const hasInsurance = !!patient.insuranceProviderId;
+        const derived = patient.insuranceType || (hasInsurance ? 'billing' : 'self_pay');
+        if (derived !== filters.insuranceType) return false;
+      }
+
+      if (selectedPayerIds.size > 0) {
+        if (!patient.insuranceProviderId || !selectedPayerIds.has(patient.insuranceProviderId)) {
+          return false;
+        }
+      }
+
+      if (selectedProviderNames.length > 0) {
+        const pcp = (patient.primaryCarePhysician || '').toLowerCase();
+        const matched = selectedProviderNames.some((name) => name && pcp.includes(name));
+        if (!matched) return false;
+      }
+
+      return true;
+    });
+  }, [patients, filters, listTab, providerNameById]);
+
+  const handleAddNewPatient = () => navigate('/patients/new');
   const handleEditPatient = (patient) => {
+    if (patient._isQueueDraft) {
+      navigate('/patients/new', { state: { queueDraftId: patient.id } });
+      return;
+    }
     navigate(`/patients/edit/${patient.id}`);
   };
 
   const formatDate = (d) => {
     if (!d) return '—';
     const date = typeof d === 'string' ? new Date(d) : d;
-    return date.toLocaleDateString();
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
   };
 
   return (
@@ -69,21 +277,184 @@ export function PatientsPage() {
         }
       />
 
-      <form
-        onSubmit={handleSearch}
-        className="content-panel ehr-table-toolbar flex flex-wrap items-center gap-2 rounded-lg"
-      >
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by name, MRN, email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+      <section className="content-panel rounded-lg px-4 py-3 sm:px-6">
+        <Tabs value={listTab} onValueChange={setListTab}>
+          <TabsList className="grid h-auto w-full max-w-xl grid-cols-3">
+            <TabsTrigger value={PATIENT_LIST_TABS.ALL}>All Patients</TabsTrigger>
+            <TabsTrigger value={PATIENT_LIST_TABS.DRAFT}>Draft Patients</TabsTrigger>
+            <TabsTrigger value={PATIENT_LIST_TABS.MY_LIST}>My List</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </section>
+
+      <section className="content-panel space-y-4 rounded-lg p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-foreground">Filters</h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+          >
+            <X className="h-4 w-4" />
+            Clear filters
+          </Button>
         </div>
-        <Button type="submit" variant="secondary">Search</Button>
-      </form>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="space-y-2">
+            <Label htmlFor="filter-providers">Providers</Label>
+            <MultiSelect
+              id="filter-providers"
+              options={providerOptions}
+              value={filters.providerIds}
+              onChange={(value) => setFilter('providerIds', value)}
+              placeholder="Select providers"
+              searchable
+              showSelectAll
+              searchPlaceholder="Search providers..."
+              className={`w-full ${FIELD_HEIGHT_CLASS}`}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-mrn">Patient MRN</Label>
+            <Input
+              id="filter-mrn"
+              value={filters.mrn}
+              onChange={(e) => setFilter('mrn', e.target.value)}
+              placeholder="Enter MRN"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-first-name">First Name</Label>
+            <Input
+              id="filter-first-name"
+              value={filters.firstName}
+              onChange={(e) => setFilter('firstName', e.target.value)}
+              placeholder="Enter first name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-last-name">Last Name</Label>
+            <Input
+              id="filter-last-name"
+              value={filters.lastName}
+              onChange={(e) => setFilter('lastName', e.target.value)}
+              placeholder="Enter last name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-gender">Gender</Label>
+            <Select
+              value={filters.gender || 'all'}
+              onValueChange={(v) => setFilter('gender', v === 'all' ? '' : v)}
+            >
+              <SelectTrigger id="filter-gender" className="w-full">
+                <SelectValue placeholder="All genders" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All genders</SelectItem>
+                <SelectItem value="male">Male</SelectItem>
+                <SelectItem value="female">Female</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-date-from">Registration Date (From)</Label>
+            <Input
+              id="filter-date-from"
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => setFilter('dateFrom', e.target.value)}
+              max={filters.dateTo || undefined}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-date-to">Registration Date (To)</Label>
+            <Input
+              id="filter-date-to"
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => setFilter('dateTo', e.target.value)}
+              min={filters.dateFrom || undefined}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-registration-status">Registration Status</Label>
+            <Select
+              value={filters.registrationStatus || 'all'}
+              onValueChange={(v) => setFilter('registrationStatus', v === 'all' ? '' : v)}
+            >
+              <SelectTrigger id="filter-registration-status" className="w-full">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-consent-form">Consent Form</Label>
+            <Select
+              value={filters.consentForm || 'all'}
+              onValueChange={(v) => setFilter('consentForm', v === 'all' ? '' : v)}
+            >
+              <SelectTrigger id="filter-consent-form" className="w-full">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="signed">Signed</SelectItem>
+                <SelectItem value="not_signed">Not signed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-insurance-type">Insurance Type</Label>
+            <Select
+              value={filters.insuranceType || 'all'}
+              onValueChange={(v) => setFilter('insuranceType', v === 'all' ? '' : v)}
+            >
+              <SelectTrigger id="filter-insurance-type" className="w-full">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="billing">Billing</SelectItem>
+                <SelectItem value="self_pay">Self pay</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="filter-insurance-payers">Insurance Payers</Label>
+            <MultiSelect
+              id="filter-insurance-payers"
+              options={insurancePayerOptions}
+              value={filters.insurancePayerIds}
+              onChange={(value) => setFilter('insurancePayerIds', value)}
+              placeholder="Select payers"
+              searchable
+              showSelectAll
+              searchPlaceholder="Search payers..."
+              className={`w-full ${FIELD_HEIGHT_CLASS}`}
+            />
+          </div>
+        </div>
+      </section>
 
       <div className="content-panel overflow-hidden">
         <Table>
@@ -109,14 +480,14 @@ export function PatientsPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : patients.length === 0 ? (
+            ) : filteredPatients.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                   No patients found
                 </TableCell>
               </TableRow>
             ) : (
-              patients.map((patient) => (
+              filteredPatients.map((patient) => (
                 <TableRow key={patient.id}>
                   <TableCell className="font-mono text-sm">{patient.mrn ?? '—'}</TableCell>
                   <TableCell>{patient.firstName ?? '—'}</TableCell>

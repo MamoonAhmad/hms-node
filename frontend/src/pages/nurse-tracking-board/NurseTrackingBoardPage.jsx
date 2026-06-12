@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
@@ -21,6 +22,7 @@ import {
   MOCK_PATIENTS,
   NURSING_STATUS_STYLE,
 } from './nurseTrackingBoardConstants';
+import { TrackingBoardStatusSummary } from './TrackingBoardStatusSummary';
 
 function formatTime(iso) {
   if (!iso) return '—';
@@ -141,6 +143,22 @@ export function NurseTrackingBoardPage() {
     }),
     [patients],
   );
+
+  const tabCounts = useMemo(
+    () => ({
+      all: patients.length,
+      'my-patients': patients.filter((p) => p.nurseId === 'N001').length,
+      'vitals-pending': statusCounts.vitalsPending,
+      'ready-for-provider': statusCounts.readyForProvider,
+      completed: statusCounts.discharged,
+    }),
+    [patients, statusCounts],
+  );
+
+  const handleTabChange = useCallback((tabId) => {
+    setActiveTab(tabId);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
 
   const total = filteredPatients.length;
   const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
@@ -280,18 +298,11 @@ export function NurseTrackingBoardPage() {
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Nurse Tracking Board</h1>
+          <h1 className="text-2xl font-bold text-foreground">Patient Tracking</h1>
           <p className="text-muted-foreground">
             View and manage patient assignments and nursing workflow
             <span className="hidden sm:inline"> · Last refresh {lastRefresh}</span>
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Badge variant="secondary">Total {statusCounts.total}</Badge>
-            <Badge variant="outline">Vitals pending {statusCounts.vitalsPending}</Badge>
-            <Badge variant="outline">Ready {statusCounts.readyForProvider}</Badge>
-            <Badge variant="outline">With provider {statusCounts.withProvider}</Badge>
-            <Badge variant="outline">Discharged {statusCounts.discharged}</Badge>
-          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" onClick={handleRefresh}>
@@ -338,26 +349,28 @@ export function NurseTrackingBoardPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-panel)] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {BOARD_TABS.map((tab) => (
-            <Button
-              key={tab.id}
-              type="button"
-              size="sm"
-              variant={activeTab === tab.id ? 'default' : 'outline'}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setPagination((p) => ({ ...p, page: 1 }));
-              }}
-            >
-              {tab.label}
-              {tab.id === 'all' && (
-                <span className="ml-1.5 opacity-80">({filteredPatients.length})</span>
-              )}
-            </Button>
-          ))}
-        </div>
+      <TrackingBoardStatusSummary
+        statusCounts={statusCounts}
+        activeTab={activeTab}
+        onSelectTab={handleTabChange}
+      />
+
+      <section className="content-panel rounded-lg px-4 py-3 sm:px-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:max-w-4xl lg:grid-cols-5">
+            {BOARD_TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id} className="gap-1.5">
+                <span>{tab.label}</span>
+                <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px] font-semibold">
+                  {tabCounts[tab.id] ?? 0}
+                </Badge>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </section>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-panel)] sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={nurseFilter}

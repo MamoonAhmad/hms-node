@@ -17,6 +17,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { departmentApi, specialtyApi, subSpecialtyApi } from '@/services/api';
+import { PhoneNumberInput } from '@/components/ui/phone-number-input';
+import { validatePhoneNumber } from '@/lib/phoneNumberUtils';
 
 const FORM_NONE = '__none__';
 
@@ -145,7 +147,10 @@ function buildProviderSubmitPayload(formData) {
     deaNumber: formData.deaNumber?.trim() || null,
     stateLicenseNumber: formData.stateLicenseNumber?.trim() || null,
     csrLicenseNumber: formData.csrLicenseNumber?.trim() || null,
-    mobileNumber: formData.mobileNumber?.trim() || null,
+    mobileNumber: (() => {
+      const result = validatePhoneNumber(formData.mobileNumber);
+      return result.normalized ?? (formData.mobileNumber?.trim() || null);
+    })(),
     degree: formData.degree?.trim() || null,
     experience: formData.experience?.trim() || null,
     address: formData.address?.trim() || null,
@@ -255,6 +260,10 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading, pr
     });
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
+    }
+    const mobileResult = validatePhoneNumber(formData.mobileNumber);
+    if (!mobileResult.valid) {
+      newErrors.mobileNumber = mobileResult.message;
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -607,12 +616,14 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading, pr
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="mobileNumber">Mobile number</Label>
-                <Input
+                <PhoneNumberInput
                   id="mobileNumber"
                   value={formData.mobileNumber}
-                  onChange={(e) => handleChange('mobileNumber', e.target.value)}
+                  onChange={(v) => handleChange('mobileNumber', v)}
                   disabled={readOnly || isLoading}
-                  className={fieldClass}
+                  inputClassName={fieldClass}
+                  error={errors.mobileNumber}
+                  placeholder="(201) 555-0123"
                 />
               </div>
               <div className="space-y-2">

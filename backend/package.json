@@ -17,8 +17,8 @@
   "license": "ISC",
   "description": "HMS Backend API",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.1.0",
-    "@prisma/client": "^7.1.0",
+    "@prisma/adapter-pg": "7.4.1",
+    "@prisma/client": "7.4.1",
     "bcryptjs": "^2.4.3",
     "body-parser": "^2.2.1",
     "cors": "^2.8.5",
@@ -27,7 +27,7 @@
     "joi": "^18.0.2",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.16.3",
-    "prisma": "^7.1.0",
+    "prisma": "7.4.1",
     "swagger-jsdoc": "^1.2.1",
     "swagger-ui-express": "^5.0.1"
   }

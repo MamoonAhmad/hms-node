@@ -35,9 +35,11 @@ import { AppointmentTimeline } from '@/components/appointments/AppointmentTimeli
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 import {
+  buildAppointmentSubmitPayloadFromRegistration,
   DEPARTMENT_OPTIONS,
   OUTPATIENT_PROVIDERS,
 } from '@/components/patients/patientRegistrationAppointmentConstants';
+import { getDefaultAppointmentStatusName } from '@/lib/appointmentStatuses';
 import { appointmentApi, patientApi } from '@/services/api';
 
 import { cn } from '@/lib/utils';
@@ -246,11 +248,26 @@ export function AppointmentsPage() {
   const handlePatientSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      const response = await patientApi.create(data);
+      const { bookAppointment, ...patientData } = data;
+      const response = await patientApi.create(patientData);
+      const patientId = response?.data?.id;
+
+      if (bookAppointment && patientId) {
+        const appointmentPayload = buildAppointmentSubmitPayloadFromRegistration(data, patientId, {
+          defaultStatus: getDefaultAppointmentStatusName(),
+        });
+        await appointmentApi.create(appointmentPayload);
+        await fetchAppointments();
+        setIsPatientFormOpen(false);
+        setPatientFormFromAppointment(false);
+        await fetchPatients();
+        return;
+      }
+
       setIsPatientFormOpen(false);
       await fetchPatients();
-      if (patientFormFromAppointment && response?.data?.id) {
-        setPendingPatientId(response.data.id);
+      if (patientFormFromAppointment && patientId) {
+        setPendingPatientId(patientId);
         if (!isFormOpen) {
           setIsFormOpen(true);
         }
@@ -348,18 +365,6 @@ export function AppointmentsPage() {
     } catch (err) {
       alert(err.message);
     }
-  };
-
-  const navigateDate = (direction) => {
-    const current = parseLocalDate(dateFilter);
-    if (viewMode === 'timeline' && timelineRange === 'week') {
-      current.setDate(current.getDate() + direction * 7);
-    } else if (viewMode === 'timeline' && timelineRange === 'month') {
-      current.setMonth(current.getMonth() + direction);
-    } else {
-      current.setDate(current.getDate() + direction);
-    }
-    setDateFilter(toDateKey(current));
   };
 
   const formatDate = (dateString) => {
@@ -492,48 +497,13 @@ export function AppointmentsPage() {
         </div>
 
         <div className="space-y-4 border-t pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {viewMode === 'timeline' ? (
-              <div className={SEGMENTED_GROUP_CLASS}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => navigateDate(-1)}
-                  className={SEGMENTED_ITEM_IDLE}
-                  aria-label="Previous period"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDateFilter(toDateKey(new Date()))}
-                  className={cn('px-3', SEGMENTED_ITEM_IDLE)}
-                >
-                  Today
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => navigateDate(1)}
-                  className={SEGMENTED_ITEM_IDLE}
-                  aria-label="Next period"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div />
-            )}
-            {hasActiveFilters && (
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center justify-end gap-3 mb-4">
               <Button variant="outline" size="sm" onClick={handleClearFilters}>
                 Clear filters
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -816,6 +786,7 @@ export function AppointmentsPage() {
         patient={null}
         onSubmit={handlePatientSubmit}
         isLoading={isSubmitting}
+        registrationMode="quick"
       />
     </div>
   );

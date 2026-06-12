@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PatientFormContent } from '@/components/patients/PatientFormDialog';
 import { patientApi } from '@/services/api';
+import { removePatientQueueDraft } from '@/components/patients/patientRegistrationQueue';
 
 export function PatientFormPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const isEditing = !!id;
+  const queueDraftId = location.state?.queueDraftId ?? null;
   const [patient, setPatient] = useState(null);
   const [isLoadingPatient, setIsLoadingPatient] = useState(isEditing);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,6 +36,9 @@ export function PatientFormPage() {
         await patientApi.update(id, data);
       } else {
         await patientApi.create(data);
+        if (queueDraftId) {
+          removePatientQueueDraft(queueDraftId);
+        }
       }
       navigate('/patients');
     } catch (err) {
@@ -68,10 +74,14 @@ export function PatientFormPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            {isEditing ? 'Edit Patient' : 'Add New Patient'}
+            {isEditing ? 'Edit Patient' : queueDraftId ? 'Continue queued registration' : 'Add New Patient'}
           </h1>
           <p className="text-muted-foreground">
-            {isEditing ? 'Update patient information.' : 'Create a new patient record.'}
+            {isEditing
+              ? 'Update patient information.'
+              : queueDraftId
+                ? 'Finish registration started from the patient queue.'
+                : 'Create a new patient record.'}
           </p>
         </div>
       </div>
@@ -82,6 +92,7 @@ export function PatientFormPage() {
           onSubmit={handleSubmit}
           isLoading={isSubmitting}
           onCancel={handleCancel}
+          queueDraftId={queueDraftId}
           isOpen={true}
         />
       </div>

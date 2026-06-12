@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +21,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+const emptyForm = () => ({
+  name: '',
+  description: '',
+  isActive: true,
+  defaultTime: '',
+});
 
 const STORAGE_KEY = 'hms_appointment_types';
 
@@ -46,11 +53,36 @@ const defaultSeed = [
   { id: 'apt-proc', name: 'Procedure', description: '', isActive: true },
 ];
 
+function rowToForm(row) {
+  const defaultTime = row?.defaultTime;
+  return {
+    name: row?.name || '',
+    description: row?.description || '',
+    isActive: row?.isActive !== false,
+    defaultTime: defaultTime === 0 || defaultTime ? String(defaultTime) : '',
+  };
+}
+
+function formatDefaultTimeDisplay(value) {
+  if (value === '' || value == null) return '—';
+  return String(value);
+}
+
+function parseDefaultTime(value) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return '';
+  const num = Number(trimmed);
+  if (Number.isNaN(num)) return null;
+  return num;
+}
+
 export function AppointmentTypesPage() {
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState({ name: '', description: '', isActive: true });
+  const [form, setForm] = useState(emptyForm);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState('create');
+  const [selectedItem, setSelectedItem] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const load = () => {
@@ -77,34 +109,79 @@ export function AppointmentTypesPage() {
     );
   }, [items, search]);
 
-  const handleAdd = async (e) => {
+  const isReadOnly = formMode === 'view';
+
+  const openForm = (mode, row = null) => {
+    setFormMode(mode);
+    setSelectedItem(row);
+    setForm(row ? rowToForm(row) : emptyForm());
+    setIsFormOpen(true);
+  };
+
+  const closeForm = () => {
+    setIsFormOpen(false);
+    setFormMode('create');
+    setSelectedItem(null);
+    setForm(emptyForm());
+  };
+
+  const buildPayload = (name, defaultTime) => ({
+    name,
+    description: form.description?.trim() || '',
+    isActive: form.isActive !== false,
+    defaultTime,
+  });
+
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
+    if (isReadOnly) return;
+
     const name = form.name.trim();
     if (!name) return;
+
+    const defaultTime = parseDefaultTime(form.defaultTime);
+    if (defaultTime === null) {
+      alert('Time must be a valid number (integers or decimals allowed)');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const list = getStored();
-      const exists = list.some((x) => (x.name || '').toLowerCase() === name.toLowerCase());
-      if (exists) {
+      const nameTaken = list.some(
+        (x) =>
+          (x.name || '').toLowerCase() === name.toLowerCase() &&
+          x.id !== selectedItem?.id,
+      );
+      if (nameTaken) {
         alert('Appointment type already exists');
         return;
       }
-      const next = [
-        ...list,
-        {
-          id: crypto.randomUUID(),
-          name,
-          description: form.description?.trim() || '',
-          isActive: form.isActive !== false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ];
+
+      const payload = buildPayload(name, defaultTime);
+      let next;
+
+      if (formMode === 'edit' && selectedItem) {
+        next = list.map((x) =>
+          x.id === selectedItem.id
+            ? { ...x, ...payload, updatedAt: new Date().toISOString() }
+            : x,
+        );
+      } else {
+        next = [
+          ...list,
+          {
+            id: crypto.randomUUID(),
+            ...payload,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ];
+      }
+
       setStored(next);
-      setForm({ name: '', description: '', isActive: true });
       setItems(next);
-      setIsFormOpen(false);
+      closeForm();
     } finally {
       setIsSubmitting(false);
     }
@@ -123,26 +200,31 @@ export function AppointmentTypesPage() {
           <h1 className="text-2xl font-bold text-foreground">Appointment Types</h1>
           <p className="text-muted-foreground">Manage outpatient appointment types used in scheduling.</p>
         </div>
-        <Button
-          type="button"
-          onClick={() => {
-            setForm({ name: '', description: '', isActive: true });
-            setIsFormOpen(true);
-          }}
-          className="w-full sm:w-auto"
-        >
+        <Button type="button" onClick={() => openForm('create')} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Add Appointment Type
         </Button>
       </div>
 
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+      <Dialog
+        open={isFormOpen}
+        onOpenChange={(open) => {
+          if (!open) closeForm();
+          else setIsFormOpen(true);
+        }}
+      >
         <DialogContent className="max-w-2xl w-[95vw]">
           <DialogHeader>
-            <DialogTitle>Add Appointment Type</DialogTitle>
+            <DialogTitle>
+              {formMode === 'view'
+                ? 'View Appointment Type'
+                : formMode === 'edit'
+                  ? 'Edit Appointment Type'
+                  : 'Add Appointment Type'}
+            </DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleAdd} className="space-y-4">
+          <form onSubmit={handleFormSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="aptTypeName">Name</Label>
@@ -151,6 +233,8 @@ export function AppointmentTypesPage() {
                   value={form.name}
                   onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
                   placeholder="e.g., Annual Physical"
+                  disabled={isReadOnly}
+                  className={cn(isReadOnly && 'bg-muted cursor-default')}
                 />
               </div>
               <div className="space-y-2">
@@ -160,12 +244,30 @@ export function AppointmentTypesPage() {
                     id="aptTypeActive"
                     checked={form.isActive}
                     onCheckedChange={(checked) => setForm((p) => ({ ...p, isActive: !!checked }))}
+                    disabled={isReadOnly}
                   />
-                  <Label htmlFor="aptTypeActive" className="font-normal cursor-pointer">
+                  <Label
+                    htmlFor="aptTypeActive"
+                    className={cn('font-normal', !isReadOnly && 'cursor-pointer')}
+                  >
                     Active
                   </Label>
                 </div>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="aptTypeTime">Time (optional)</Label>
+              <Input
+                id="aptTypeTime"
+                type="number"
+                step="any"
+                min="0"
+                value={form.defaultTime}
+                onChange={(e) => setForm((p) => ({ ...p, defaultTime: e.target.value }))}
+                placeholder="e.g. 30 or 15.5"
+                disabled={isReadOnly}
+                className={cn(isReadOnly && 'bg-muted cursor-default')}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="aptTypeDesc">Description (optional)</Label>
@@ -175,16 +277,24 @@ export function AppointmentTypesPage() {
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                 rows={3}
                 placeholder="Short description for staff"
+                disabled={isReadOnly}
+                className={cn(isReadOnly && 'bg-muted cursor-default')}
               />
             </div>
 
             <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
-                Cancel
+              <Button type="button" variant="outline" onClick={closeForm}>
+                {isReadOnly ? 'Close' : 'Cancel'}
               </Button>
-              <Button type="submit" disabled={isSubmitting || !form.name.trim()}>
-                Add Appointment
-              </Button>
+              {!isReadOnly && (
+                <Button type="submit" disabled={isSubmitting || !form.name.trim()}>
+                  {isSubmitting
+                    ? 'Saving...'
+                    : formMode === 'edit'
+                      ? 'Save Changes'
+                      : 'Add Appointment Type'}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>
@@ -207,6 +317,7 @@ export function AppointmentTypesPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead>Time</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -214,7 +325,7 @@ export function AppointmentTypesPage() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center h-32 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center h-32 text-muted-foreground">
                     No appointment types found
                   </TableCell>
                 </TableRow>
@@ -223,6 +334,9 @@ export function AppointmentTypesPage() {
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.name}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{row.description || '—'}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDefaultTimeDisplay(row.defaultTime)}
+                    </TableCell>
                     <TableCell>
                       {row.isActive ? (
                         <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-primary/10 text-primary">
@@ -235,9 +349,41 @@ export function AppointmentTypesPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button type="button" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="View"
+                          aria-label="View"
+                          onClick={() => openForm('view', row)}
+                        >
+                          <Eye className="h-4 w-4 icon-action-view" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Edit"
+                          aria-label="Edit"
+                          onClick={() => openForm('edit', row)}
+                        >
+                          <Pencil className="h-4 w-4 icon-action-edit" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          title="Delete"
+                          aria-label="Delete"
+                          onClick={() => handleDelete(row)}
+                        >
+                          <Trash2 className="h-4 w-4 icon-action-delete" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

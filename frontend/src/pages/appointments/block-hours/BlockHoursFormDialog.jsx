@@ -27,7 +27,6 @@ const emptyForm = () => ({
   endTime: '10:00',
   effectiveStartDate: new Date().toISOString().split('T')[0],
   effectiveEndDate: '',
-  locations: [],
   reason: '',
   status: 'Active',
 });
@@ -35,7 +34,6 @@ const emptyForm = () => ({
 export function BlockHoursFormDialog({ open, onOpenChange, block, onSubmit, isLoading }) {
   const [providers, setProviders] = useState([]);
   const [daysOptions, setDaysOptions] = useState([]);
-  const [locationsOptions, setLocationsOptions] = useState([]);
 
   const [providerSearch, setProviderSearch] = useState('');
   const [providerOpen, setProviderOpen] = useState(false);
@@ -51,7 +49,6 @@ export function BlockHoursFormDialog({ open, onOpenChange, block, onSubmit, isLo
     setProviderOpen(false);
     providerBlockHoursStore.getProviders(false).then(setProviders);
     providerBlockHoursStore.getDaysOptions().then(setDaysOptions);
-    providerBlockHoursStore.getLocations().then(setLocationsOptions);
 
     if (block) {
       setFormData({
@@ -61,7 +58,6 @@ export function BlockHoursFormDialog({ open, onOpenChange, block, onSubmit, isLo
         endTime: block.endTime || '10:00',
         effectiveStartDate: block.effectiveStartDate || new Date().toISOString().split('T')[0],
         effectiveEndDate: block.effectiveEndDate || '',
-        locations: block.locations || [],
         reason: block.reason || '',
         status: block.status || 'Active',
       });
@@ -167,12 +163,10 @@ export function BlockHoursFormDialog({ open, onOpenChange, block, onSubmit, isLo
       ...formData,
       effectiveEndDate: formData.effectiveEndDate || null,
       reason: String(formData.reason || '').trim(),
-      locations: formData.locations || [],
     });
   };
 
   const daysMultiSelectOptions = daysOptions.map((d) => ({ value: d.value, label: d.label }));
-  const locationMultiSelectOptions = locationsOptions.map((l) => ({ value: l.value, label: l.label }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -296,19 +290,6 @@ export function BlockHoursFormDialog({ open, onOpenChange, block, onSubmit, isLo
                 />
                 {errors.endTime && <p className="text-xs text-destructive">{errors.endTime}</p>}
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Locations</Label>
-              <MultiSelect
-                options={locationMultiSelectOptions}
-                value={formData.locations}
-                onChange={(v) => setFormData((prev) => ({ ...prev, locations: v }))}
-                placeholder="Select location(s)"
-                searchable
-                showSelectAll
-                selectAllLabel="Select all locations"
-              />
             </div>
 
             <div className="space-y-2">

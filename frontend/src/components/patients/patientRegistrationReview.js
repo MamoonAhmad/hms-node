@@ -1,4 +1,9 @@
 import { DEFAULT_COUNTRY } from '@/components/patients/patientDemographicsConstants';
+import {
+  APPOINTMENT_VISIT_TYPE_LABELS,
+  isGeneralAppointmentVisitType,
+} from '@/components/patients/patientRegistrationAppointmentConstants';
+import { formatRegistrationChannel } from '@/components/patients/patientRegistrationQueue';
 
 const ETHNICITY_LABELS = {
   hispanic: 'Hispanic or Latino',
@@ -59,17 +64,16 @@ const EMPLOYMENT_STATUS_LABELS = {
   other: 'Other',
 };
 
-const APPOINTMENT_VISIT_TYPE_LABELS = {
-  'new-patient': 'New Patient',
-  'follow-up': 'Follow-up',
-  urgent: 'Urgent',
-  telehealth: 'Telehealth',
-  procedure: 'Procedure',
-};
-
 const BILLING_TYPE_LABELS = {
   insurance: 'Insurance',
   'self-pay': 'Self Pay',
+};
+
+const PAYMENT_METHOD_LABELS = {
+  cash: 'Cash',
+  card: 'Card',
+  check: 'Check',
+  other: 'Other',
 };
 
 const INSURANCE_TYPE_LABELS = {
@@ -130,6 +134,10 @@ export function formatInsuranceBillingType(value) {
   return mapLabel(BILLING_TYPE_LABELS, value);
 }
 
+export function formatSelfPayPaymentMethod(value) {
+  return mapLabel(PAYMENT_METHOD_LABELS, value);
+}
+
 export function formatInsuranceRankType(value) {
   return mapLabel(INSURANCE_TYPE_LABELS, value);
 }
@@ -146,6 +154,14 @@ function whenInsurance(formData, value) {
   return insuranceActive(formData) ? value : 'N/A';
 }
 
+function selfPayActive(formData) {
+  return formData.insuranceBillingType === 'self-pay';
+}
+
+function whenSelfPay(formData, value) {
+  return selfPayActive(formData) ? value : 'N/A';
+}
+
 /**
  * @param {Record<string, unknown>} formData
  * @param {object} helpers
@@ -159,7 +175,15 @@ export function buildDemographicsReviewItems(formData, helpers) {
     resolvedPronouns,
   } = helpers;
 
+  const items = [];
+  if (formData.registrationChannel) {
+    items.push({
+      label: 'Arrival Mode',
+      value: formatRegistrationChannel(formData.registrationChannel),
+    });
+  }
   return [
+    ...items,
     { label: 'First Name', value: formData.firstName },
     { label: 'Middle Name', value: formData.middleName },
     { label: 'Last Name', value: formData.lastName },
@@ -345,12 +369,22 @@ export function buildAppointmentReviewItems(formData, helpers) {
     formatAppointmentVisitType: fmtVisit,
   } = helpers;
 
+  const formatTime =
+    helpers.formatAppointmentTimeSlot ||
+    ((v) => v);
+
   return [
     { label: 'Appointment Date', value: formatDateValue(formData.appointmentDate) },
-    { label: 'Appointment Time', value: formData.appointmentTime },
+    ...(isGeneralAppointmentVisitType(formData.appointmentVisitType)
+      ? [
+          { label: 'Appointment Start Time', value: formatTime(formData.appointmentStartTime) },
+          { label: 'Appointment End Time', value: formatTime(formData.appointmentEndTime) },
+        ]
+      : [{ label: 'Appointment Time', value: formatTime(formData.appointmentTime) }]),
     { label: 'Appointment Type', value: fmtVisit(formData.appointmentVisitType) },
     { label: 'Department', value: fmtDept(formData.appointmentDepartment) },
     { label: 'Provider', value: formData.appointmentProvider },
+    { label: 'Appointment Status', value: formData.status },
     { label: 'Reason for Visit', value: formData.appointmentReason },
     { label: 'Appointment Notes', value: formData.appointmentNotes },
     { label: 'Referred By', value: fmtRef(formData.referredBy) },
@@ -372,6 +406,10 @@ export function buildInsuranceReviewItems(formData, helpers) {
 
   return [
     { label: 'Billing Type', value: formatInsuranceBillingType(formData.insuranceBillingType) },
+    {
+      label: 'Mode of Payment',
+      value: whenSelfPay(formData, formatSelfPayPaymentMethod(formData.paymentMethod)),
+    },
     {
       label: 'Insurance Type (current entry)',
       value: whenInsurance(formData, formatInsuranceRankType(formData.insuranceType)),

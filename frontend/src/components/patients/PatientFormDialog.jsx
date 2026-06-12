@@ -31,9 +31,23 @@ import { Eye, Edit, Trash2, Plus, Upload, FileText } from 'lucide-react';
 import { insuranceProviderApi, providerApi } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
+  APPOINTMENT_TIME_SLOT_OPTIONS,
+  buildAppointmentSubmitPayloadFromRegistration,
+  formatAppointmentTimeSlot,
   formatDepartmentForReview,
   formatReferredByForReview,
+  validateRegistrationAppointmentFields,
 } from '@/components/patients/patientRegistrationAppointmentConstants';
+import {
+  BILLING_TYPE_SELECT_VALUE,
+  INSURANCE_BILLING_TYPE_OPTIONS,
+  PAYMENT_METHOD_SELECT_VALUE,
+  SELF_PAY_PAYMENT_METHOD_OPTIONS,
+} from '@/components/patients/patientRegistrationInsuranceConstants';
+import {
+  getAppointmentStatuses,
+  getDefaultAppointmentStatusName,
+} from '@/lib/appointmentStatuses';
 import {
   buildAppointmentReviewItems,
   buildContactsReviewItems,
@@ -74,6 +88,10 @@ import {
   maskGovernmentIdNumber,
   resolveContactNumber,
 } from '@/components/patients/patientDemographicsConstants';
+import { RegistrationChannelField } from '@/components/patients/RegistrationChannelField';
+import { PatientQuickRegistrationDemographics } from '@/components/patients/PatientQuickRegistrationDemographics';
+import { getPatientQueueDraftById } from '@/components/patients/patientRegistrationQueue';
+import { validatePhoneNumber } from '@/lib/phoneNumberUtils';
 
 function RequiredFieldLabel({ htmlFor, children }) {
   return (
@@ -87,6 +105,7 @@ function RequiredFieldLabel({ htmlFor, children }) {
 }
 
 const initialFormData = {
+  registrationChannel: 'appointment',
   // Patient Info
   mrn: '',
   lastName: '',
@@ -224,11 +243,14 @@ const initialFormData = {
   // Appointment (Outpatient)
   appointmentDate: '',
   appointmentTime: '',
+  appointmentStartTime: '',
+  appointmentEndTime: '',
   appointmentVisitType: '',
   appointmentDepartment: '',
   appointmentProvider: '',
   appointmentReason: '',
   appointmentNotes: '',
+  status: getDefaultAppointmentStatusName(),
 };
 
 const INSURANCE_RANK_ORDER = ['primary', 'secondary', 'tertiary'];
@@ -377,7 +399,17 @@ const consentForms = [
   },
 ];
 
-export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isOpen = true }) {
+export function PatientFormContent({
+  patient,
+  onSubmit,
+  isLoading,
+  onCancel,
+  queueDraftId = null,
+  isOpen = true,
+  registrationMode = 'full',
+}) {
+  const isQuickRegistration = registrationMode === 'quick';
+  const isNewRegistration = !patient;
   const { user } = useAuth();
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
@@ -412,6 +444,8 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
     const combined = [first, last].filter(Boolean).join(' ').trim();
     return combined || 'User';
   }, [user]);
+
+  const [statusOptions, setStatusOptions] = useState(() => getAppointmentStatuses());
 
   const [consentSignatures, setConsentSignatures] = useState({});
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
@@ -593,6 +627,15 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
     </div>
   );
 
+  const statusSelectOptions = useMemo(() => {
+    const options = [...statusOptions];
+    const current = formData.status;
+    if (current && !options.some((s) => s.name === current)) {
+      options.unshift({ id: 'legacy-status', name: current, color: '#6b7280' });
+    }
+    return options;
+  }, [statusOptions, formData.status]);
+
   const reviewHelpers = useMemo(
     () => ({
       formatValue,
@@ -604,6 +647,7 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
       formatDepartmentForReview,
       formatReferredByForReview,
       formatAppointmentVisitType,
+      formatAppointmentTimeSlot,
       resolvedPronouns,
     }),
     [insuranceProviders, formData.pronouns, formData.pronounsOther],
@@ -625,6 +669,11 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
     () => buildInsuranceReviewItems(formData, reviewHelpers),
     [formData, reviewHelpers],
   );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setStatusOptions(getAppointmentStatuses());
+  }, [isOpen]);
 
   // Fetch insurance providers on mount / when open
   useEffect(() => {
@@ -664,6 +713,8 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     if (patient) {
       const storedPronouns = patient.pronouns || '';
       const isPresetPronoun = PRONOUN_OPTIONS.some(
@@ -804,22 +855,45 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
 
         appointmentDate: patient.appointmentDate ? patient.appointmentDate.split('T')[0] : '',
         appointmentTime: patient.appointmentTime || '',
+        appointmentStartTime: patient.appointmentStartTime || '',
+        appointmentEndTime: patient.appointmentEndTime || '',
         appointmentVisitType: patient.appointmentVisitType || '',
         appointmentDepartment: patient.appointmentDepartment || patient.department || '',
         appointmentProvider: patient.appointmentProvider || '',
         appointmentReason: patient.appointmentReason || '',
         appointmentNotes: patient.appointmentNotes || '',
+        status: patient.status || patient.appointmentStatus || getDefaultAppointmentStatusName(),
       });
       setDocuments(Array.isArray(patient.documents) ? patient.documents : []);
+    } else if (queueDraftId) {
+      const draft = getPatientQueueDraftById(queueDraftId);
+      if (draft?.formData) {
+        setFormData({
+          ...initialFormData,
+          ...draft.formData,
+          registrationChannel: draft.registrationChannel || draft.formData.registrationChannel || 'appointment',
+        });
+        setDocuments(Array.isArray(draft.documents) ? draft.documents : []);
+        setInsuranceList(Array.isArray(draft.insuranceList) ? draft.insuranceList : []);
+      } else {
+        setFormData(initialFormData);
+        setDocuments([]);
+        setInsuranceList([]);
+      }
     } else {
-      setFormData(initialFormData);
+      setFormData(
+        isQuickRegistration
+          ? { ...initialFormData, registrationChannel: 'appointment', preferredContactMethod: 'cell' }
+          : initialFormData,
+      );
       setDocuments([]);
+      setInsuranceList([]);
     }
     setNewDocument(emptyNewDocument());
     setDocumentFormErrors({});
     setErrors({});
     setActiveTab('patient');
-  }, [patient, isOpen]);
+  }, [patient, isOpen, queueDraftId, isQuickRegistration]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -840,7 +914,74 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
     [usedInsuranceTypeKeys],
   );
 
+  const validateQuickRegistration = ({ bookAppointment = false } = {}) => {
+    const newErrors = {};
+    const appointmentErrorKeys = new Set([
+      'appointmentDate',
+      'appointmentTime',
+      'appointmentVisitType',
+      'appointmentStartTime',
+      'appointmentEndTime',
+    ]);
+
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
+    if (!formData.cellPhone?.trim()) {
+      newErrors.cellPhone = 'Phone number is required';
+    } else {
+      const phoneCheck = validatePhoneNumber(formData.cellPhone);
+      if (!phoneCheck.valid) {
+        newErrors.cellPhone = phoneCheck.message || 'Invalid phone number format';
+      }
+    }
+    if (!formData.address?.trim()) newErrors.address = 'Address is required';
+    if (!formData.city?.trim()) newErrors.city = 'City is required';
+    if (!formData.state?.trim()) newErrors.state = 'State is required';
+    if (!formData.zip?.trim()) newErrors.zip = 'Zip is required';
+
+    if (formData.dateOfBirth) {
+      const dob = new Date(formData.dateOfBirth);
+      const today = new Date();
+      if (dob > today) {
+        newErrors.dateOfBirth = 'Date of birth cannot be in the future';
+      }
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Invalid email format';
+    }
+
+    if (bookAppointment) {
+      validateRegistrationAppointmentFields(formData, newErrors);
+      if (formData.referringPhysicianPhone && !PHONE_REGEX.test(formData.referringPhysicianPhone)) {
+        newErrors.referringPhysicianPhone = 'Invalid phone number format';
+      }
+      if (formData.referringPhysicianFax && !PHONE_REGEX.test(formData.referringPhysicianFax)) {
+        newErrors.referringPhysicianFax = 'Invalid fax number format';
+      }
+    }
+
+    setErrors(newErrors);
+
+    let errorTab = 'patient';
+    if (bookAppointment && Object.keys(newErrors).some((key) => appointmentErrorKeys.has(key))) {
+      errorTab = 'appointment';
+    }
+
+    return {
+      isValid: Object.keys(newErrors).length === 0,
+      errorTab,
+      documentWarnings: [],
+      missingRequiredDocuments: [],
+    };
+  };
+
   const validate = ({ scope = 'all' } = {}) => {
+    if (isQuickRegistration) {
+      return validateQuickRegistration();
+    }
+
     const newErrors = {};
     const includePatient = scope === 'all' || scope === 'patient';
     const includeContacts = scope === 'all' || scope === 'contacts';
@@ -1071,49 +1212,79 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
     }
   }, [formData.insuranceBillingType, formData.insuranceType, usedInsuranceTypeKeys]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const validation = validate();
-    if (!validation.isValid) {
-      setActiveTab(validation.errorTab);
-      return;
-    }
-
+  const buildSubmitPayload = () => {
     const submitData = { ...formData };
     submitData.pronouns = resolvedPronouns();
     delete submitData.pronounsOther;
+    if (isQuickRegistration) {
+      submitData.preferredContactMethod = 'cell';
+      submitData.registrationChannel = submitData.registrationChannel || 'appointment';
+    }
     submitData.contactNumber = resolveContactNumber(submitData);
     if (!submitData.country) submitData.country = DEFAULT_COUNTRY;
     if (submitData.subscriberSsnLast4) {
       submitData.subscriberSsnLast4 = String(submitData.subscriberSsnLast4).replace(/\D/g, '').slice(0, 4);
     }
-    
-    // Convert empty strings to null for optional fields
-    Object.keys(submitData).forEach((key) => {  
+
+    Object.keys(submitData).forEach((key) => {
       if (submitData[key] === '') {
         submitData[key] = null;
       }
     });
 
-    // Convert numeric fields
     if (submitData.copay) submitData.copay = parseFloat(submitData.copay);
     if (submitData.deductible) submitData.deductible = parseFloat(submitData.deductible);
-    if (submitData.coinsurancePercentage) submitData.coinsurancePercentage = parseFloat(submitData.coinsurancePercentage);
+    if (submitData.coinsurancePercentage) {
+      submitData.coinsurancePercentage = parseFloat(submitData.coinsurancePercentage);
+    }
     if (submitData.accountBalance) submitData.accountBalance = parseFloat(submitData.accountBalance);
 
-    // Map insuranceCompany to insuranceProviderId for API compatibility
     if (submitData.insuranceCompany) {
       submitData.insuranceProviderId = submitData.insuranceCompany;
+    }
+    if (submitData.insuranceBillingType) {
+      submitData.billingType = submitData.insuranceBillingType;
+    }
+    if (submitData.insuranceBillingType !== 'self-pay') {
+      submitData.paymentMethod = null;
     }
 
     delete submitData.profilePhotoFileName;
     delete submitData.mrn;
     submitData.documents = serializeDocumentsForSubmit(documents);
 
-    onSubmit(submitData);
+    return submitData;
   };
 
-  const tabOrder = ['patient', 'contacts', 'appointment', 'insurance', 'documents', 'consentForms', 'review'];
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isQuickRegistration && activeTab === 'appointment') {
+      handleBookAppointment();
+      return;
+    }
+    const validation = validate();
+    if (!validation.isValid) {
+      setActiveTab(validation.errorTab);
+      return;
+    }
+    onSubmit(buildSubmitPayload());
+  };
+
+  const handleBookAppointment = () => {
+    const validation = validateQuickRegistration({ bookAppointment: true });
+    if (!validation.isValid) {
+      setActiveTab(validation.errorTab);
+      return;
+    }
+    onSubmit({
+      ...buildSubmitPayload(),
+      bookAppointment: true,
+    });
+  };
+
+  const tabOrder = isQuickRegistration
+    ? ['patient', 'insurance', 'appointment']
+    : ['patient', 'contacts', 'appointment', 'insurance', 'documents', 'consentForms', 'review'];
   const currentTabIndex = tabOrder.indexOf(activeTab);
   const canGoPrev = currentTabIndex > 0;
   const canGoNext = currentTabIndex >= 0 && currentTabIndex < tabOrder.length - 1;
@@ -1128,40 +1299,81 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
     setActiveTab(tabOrder[currentTabIndex + 1]);
   };
 
-  const formActionButtons = (
-    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end shrink-0">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={goNext}
-        disabled={!canGoNext || isLoading}
-        className="w-full sm:w-auto"
-      >
-        Save and Next
-      </Button>
-      <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-        {isLoading ? 'Saving...' : 'Save and Close'}
-      </Button>
-    </div>
-  );
+  const formActionButtons =
+    isQuickRegistration && activeTab === 'appointment' ? (
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end shrink-0">
+        <Button
+          type="button"
+          disabled={isLoading}
+          onClick={handleBookAppointment}
+          className="w-full sm:w-auto"
+        >
+          {isLoading ? 'Booking...' : 'Book Appointment'}
+        </Button>
+      </div>
+    ) : (
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end shrink-0">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={goNext}
+          disabled={!canGoNext || isLoading}
+          className="w-full sm:w-auto"
+        >
+          Save and Next
+        </Button>
+        <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+          {isLoading ? 'Saving...' : 'Save and Close'}
+        </Button>
+      </div>
+    );
 
   return (
     <form onSubmit={handleSubmit} className="ehr-form space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="patient">Demographics</TabsTrigger>
-              <TabsTrigger value="contacts">Contacts</TabsTrigger>
-              <TabsTrigger value="appointment">Appointment</TabsTrigger>
-              <TabsTrigger value="insurance">Insurance Info</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-              <TabsTrigger value="consentForms">Consent Forms</TabsTrigger>
-              <TabsTrigger value="review">Review</TabsTrigger>
-            </TabsList>
+            {isQuickRegistration ? (
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="patient">Demographics</TabsTrigger>
+                <TabsTrigger value="insurance">Insurance Info</TabsTrigger>
+                <TabsTrigger value="appointment">Appointment</TabsTrigger>
+              </TabsList>
+            ) : (
+              <TabsList className="grid w-full grid-cols-7">
+                <TabsTrigger value="patient">Demographics</TabsTrigger>
+                <TabsTrigger value="contacts">Contacts</TabsTrigger>
+                <TabsTrigger value="appointment">Appointment</TabsTrigger>
+                <TabsTrigger value="insurance">Insurance Info</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+                <TabsTrigger value="consentForms">Consent Forms</TabsTrigger>
+                <TabsTrigger value="review">Review</TabsTrigger>
+              </TabsList>
+            )}
 
-            <div className="flex justify-end pt-3">{formActionButtons}</div>
+            {!isQuickRegistration && (
+              <div className="flex justify-end pt-3">{formActionButtons}</div>
+            )}
 
             {/* TAB 1: Patient Info */}
             <TabsContent value="patient" className="space-y-6 mt-4">
+              {isQuickRegistration ? (
+                <PatientQuickRegistrationDemographics
+                  formData={formData}
+                  errors={errors}
+                  isLoading={isLoading}
+                  onChange={handleChange}
+                />
+              ) : (
+                <>
+              {isNewRegistration && (
+                <div className="rounded-lg border border-border bg-muted/20 p-4">
+                  <RegistrationChannelField
+                    value={formData.registrationChannel || 'appointment'}
+                    onChange={(value) => handleChange('registrationChannel', value)}
+                    disabled={isLoading}
+                  />
+                </div>
+              )}
+
               {/* Basic Patient Information */}
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">Basic Patient Information</h3>
@@ -1874,9 +2086,12 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
                   />
                 </div>
               </div>
+                </>
+              )}
             </TabsContent>
 
             {/* TAB 2: Contacts */}
+            {!isQuickRegistration && (
             <TabsContent value="contacts" className="space-y-6 mt-4">
               <PatientRegistrationContactsFields
                 formData={formData}
@@ -1953,45 +2168,87 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
                 </div>
               </div>
             </TabsContent>
+            )}
 
             {/* TAB 3: Appointment (Outpatient) */}
             <TabsContent value="appointment" className="space-y-6 mt-4">
               <PatientRegistrationAppointmentFields
+                idPrefix="patient-reg"
                 formData={formData}
                 errors={errors}
                 onChange={handleChange}
+                timeSlotOptions={APPOINTMENT_TIME_SLOT_OPTIONS}
+                showAppointmentStatus
+                statusOptions={statusSelectOptions}
+                hideReferralSection
+                showReferringPhysicianSection
               />
             </TabsContent>
 
             {/* TAB 4: Insurance Info */}
             <TabsContent value="insurance" className="space-y-6 mt-4">
-              {/* Billing Type Dropdown */}
+              {/* Billing Type */}
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="insuranceBillingType">Billing Type</Label>
                   <Select
-                    value={formData.insuranceBillingType || ''}
-                    onValueChange={(value) => handleChange('insuranceBillingType', value)}
+                    value={formData.insuranceBillingType || BILLING_TYPE_SELECT_VALUE}
+                    onValueChange={(value) => {
+                      const billingType =
+                        value === BILLING_TYPE_SELECT_VALUE ? '' : value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        insuranceBillingType: billingType,
+                        billingType,
+                        ...(billingType !== 'self-pay' ? { paymentMethod: '' } : {}),
+                      }));
+                      if (errors.insuranceBillingType) {
+                        setErrors((prev) => ({ ...prev, insuranceBillingType: null }));
+                      }
+                      if (billingType !== 'self-pay' && errors.paymentMethod) {
+                        setErrors((prev) => ({ ...prev, paymentMethod: null }));
+                      }
+                    }}
                   >
-                    <SelectTrigger className="w-full max-w-xs">
-                      <SelectValue placeholder="Select billing type" />
+                    <SelectTrigger id="insuranceBillingType" className="w-full max-w-xs">
+                      <SelectValue placeholder="Select Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="insurance">Insurance</SelectItem>
-                      <SelectItem value="self-pay">Self Pay</SelectItem>
+                      {INSURANCE_BILLING_TYPE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              {/* Show message if Self Pay is selected */}
-              {formData.insuranceBillingType === 'self-pay' && (
-                <div className="rounded-lg border bg-muted/50 p-4">
-                  <p className="text-sm text-muted-foreground">
-                    Self Pay selected. No insurance information required.
-                  </p>
-                </div>
-              )}
+                {formData.insuranceBillingType === 'self-pay' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="paymentMethod">Mode of Payment</Label>
+                    <Select
+                      value={formData.paymentMethod || PAYMENT_METHOD_SELECT_VALUE}
+                      onValueChange={(value) =>
+                        handleChange(
+                          'paymentMethod',
+                          value === PAYMENT_METHOD_SELECT_VALUE ? '' : value,
+                        )
+                      }
+                    >
+                      <SelectTrigger id="paymentMethod" className="w-full max-w-xs">
+                        <SelectValue placeholder="Select mode of payment" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SELF_PAY_PAYMENT_METHOD_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
 
               {/* Primary Insurance - Only show if Insurance is selected */}
               {formData.insuranceBillingType === 'insurance' && (
@@ -2422,6 +2679,8 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
 
             </TabsContent>
 
+            {!isQuickRegistration && (
+            <>
             {/* TAB 5: Documents */}
             <TabsContent value="documents" className="space-y-6 mt-4">
               {(errors.documentsPhotoId || errors.documentsInsuranceFront) && (
@@ -2801,7 +3060,7 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
                             <TableCell>{formatValue(doc.documentCategory)}</TableCell>
                             <TableCell>{formatDocumentDetailColumn(doc)}</TableCell>
                             <TableCell>
-                              {doc.documentCategory === 'ID Proof' && doc.documentExpirationDate
+                              {doc.documentCategory === 'Identity Proof' && doc.documentExpirationDate
                                 ? formatDateValue(doc.documentExpirationDate)
                                 : 'N/A'}
                             </TableCell>
@@ -2815,6 +3074,8 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
                 )}
               </div>
             </TabsContent>
+            </>
+            )}
           </Tabs>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4">
@@ -2834,12 +3095,33 @@ export function PatientFormContent({ patient, onSubmit, isLoading, onCancel, isO
   );
 }
 
-export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoading }) {
+export function PatientFormDialog({
+  open,
+  onOpenChange,
+  patient,
+  onSubmit,
+  isLoading,
+  registrationMode = 'full',
+}) {
+  const isQuickRegistration = registrationMode === 'quick';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className={
+          isQuickRegistration
+            ? 'max-h-[90vh] w-[min(calc(100vw-2rem),720px)] overflow-y-auto max-sm:min-w-0 sm:min-w-[560px] sm:max-w-[720px]'
+            : 'max-h-[90vh] w-[min(calc(100vw-2rem),1100px)] overflow-y-auto max-sm:min-w-0 sm:min-w-[900px] sm:max-w-none sm:w-[clamp(900px,min(92vw,1100px),1100px)]'
+        }
+      >
         <DialogHeader>
-          <DialogTitle>{patient ? 'Edit Patient' : 'Add New Patient'}</DialogTitle>
+          <DialogTitle>
+            {patient
+              ? 'Edit Patient'
+              : isQuickRegistration
+                ? 'Quick Patient Registration'
+                : 'Add New Patient'}
+          </DialogTitle>
         </DialogHeader>
         <PatientFormContent
           patient={patient}
@@ -2847,6 +3129,7 @@ export function PatientFormDialog({ open, onOpenChange, patient, onSubmit, isLoa
           isLoading={isLoading}
           onCancel={() => onOpenChange(false)}
           isOpen={open}
+          registrationMode={registrationMode}
         />
       </DialogContent>
     </Dialog>

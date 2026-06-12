@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:5000/api';
+export const API_BASE_URL = 'http://localhost:3000/api';
 
 const TOKEN_KEY = 'hms_token';
 
@@ -16,11 +16,14 @@ export async function handleResponse(response) {
     data = {};
   }
   if (!response.ok) {
-    // Handle 401 Unauthorized - redirect to login
-    if (response.status === 401) {
+    // Expired/invalid session: clear storage and return to login (not for failed login attempts)
+    if (response.status === 401 && !response.url.includes('/auth/login')) {
+      const hadSession = !!localStorage.getItem(TOKEN_KEY);
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem('hms_user');
-      window.location.href = '/login';
+      if (hadSession && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
     throw new Error(data.message || data.error || 'An error occurred');
   }

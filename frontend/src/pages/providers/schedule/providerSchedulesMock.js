@@ -27,7 +27,29 @@ const DAYS_OPTIONS = [
 ];
 
 const SLOT_DURATIONS = [10, 15, 20, 30];
-const APPOINTMENT_TYPES = ['New', 'Follow-up', 'Both'];
+const APPOINTMENT_TYPES_STORAGE_KEY = 'hms_appointment_types';
+
+const DEFAULT_APPOINTMENT_TYPE_OPTIONS = [
+  { value: 'New Patient', label: 'New Patient' },
+  { value: 'Follow-up', label: 'Follow-up' },
+  { value: 'Urgent', label: 'Urgent' },
+  { value: 'Telehealth', label: 'Telehealth' },
+  { value: 'Procedure', label: 'Procedure' },
+];
+
+export function normalizeAppointmentTypes(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (!value || value === 'Both') return ['New', 'Follow-up'];
+  if (typeof value === 'string') {
+    return value.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+export function formatAppointmentTypes(value) {
+  const types = normalizeAppointmentTypes(value);
+  return types.length ? types.join(', ') : '-';
+}
 
 let nextScheduleId = 100;
 let schedules = [
@@ -43,7 +65,7 @@ let schedules = [
     endTime: '17:00',
     sameTimeForAllDays: true,
     slotDuration: 30,
-    appointmentType: 'Both',
+    appointmentType: ['New', 'Follow-up'],
     maxAppointmentsPerSlot: 2,
     overBooking: 0,
     locations: ['Main Building', 'Annex'],
@@ -109,14 +131,53 @@ export const providerSchedulesStore = {
   },
 
   getAppointmentTypes() {
-    return Promise.resolve(APPOINTMENT_TYPES);
+    try {
+      const raw = localStorage.getItem(APPOINTMENT_TYPES_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const options = parsed
+            .filter((x) => x.isActive !== false && x.name)
+            .map((x) => ({ value: x.name, label: x.name }));
+          if (options.length > 0) return Promise.resolve(options);
+        }
+      }
+    } catch {
+      /* use defaults */
+    }
+    return Promise.resolve(DEFAULT_APPOINTMENT_TYPE_OPTIONS);
   },
 
   getSchedules(filters = {}) {
     let list = schedules.filter((s) => !s.deleted);
-    if (filters.providerId) list = list.filter((s) => Number(s.providerId) === Number(filters.providerId));
+    const selectedProviderIds = Array.isArray(filters.providerIds)
+      ? filters.providerIds.map(String)
+      : filters.providerId
+        ? [String(filters.providerId)]
+        : [];
+    if (selectedProviderIds.length > 0) {
+      list = list.filter((s) => selectedProviderIds.includes(String(s.providerId)));
+    }
     if (filters.specialty) list = list.filter((s) => (s.specialty || '').toLowerCase().includes(String(filters.specialty).toLowerCase()));
-    if (filters.day) list = list.filter((s) => (s.days || []).includes(filters.day));
+    const selectedDays = Array.isArray(filters.days)
+      ? filters.days
+      : filters.day
+        ? [filters.day]
+        : [];
+    if (selectedDays.length > 0) {
+      list = list.filter((s) => (s.days || []).some((d) => selectedDays.includes(d)));
+    }
+    if (filters.dateFrom || filters.dateTo) {
+      const filterStart = filters.dateFrom || null;
+      const filterEnd = filters.dateTo || null;
+      if (filterStart && filterEnd && filterStart > filterEnd) {
+        list = [];
+      } else {
+        list = list.filter((s) =>
+          dateRangeOverlaps(s.effectiveStartDate, s.effectiveEndDate, filterStart, filterEnd)
+        );
+      }
+    }
     if (filters.status) list = list.filter((s) => s.status === filters.status);
     // Auto-mark expired as inactive for display
     const today = new Date().toISOString().split('T')[0];
@@ -163,7 +224,7 @@ export const providerSchedulesStore = {
       endTime: data.endTime || '17:00',
       sameTimeForAllDays: data.sameTimeForAllDays !== false,
       slotDuration: data.slotDuration || 30,
-      appointmentType: data.appointmentType || 'Both',
+      appointmentType: normalizeAppointmentTypes(data.appointmentType),
       maxAppointmentsPerSlot: data.maxAppointmentsPerSlot ?? 1,
       overBooking: Number.isFinite(Number(data.overBooking)) ? Number(data.overBooking) : 0,
       locations: Array.isArray(data.locations) ? data.locations : [],
@@ -186,6 +247,10 @@ export const providerSchedulesStore = {
     schedules[idx] = {
       ...schedules[idx],
       ...data,
+      appointmentType:
+        data.appointmentType !== undefined
+          ? normalizeAppointmentTypes(data.appointmentType)
+          : schedules[idx].appointmentType,
       providerName: provider ? `${provider.firstName} ${provider.lastName}` : schedules[idx].providerName,
       specialty: data.specialty !== undefined ? data.specialty : (provider?.specialty ?? schedules[idx].specialty),
       subSpecialty: data.subSpecialty !== undefined ? data.subSpecialty : (provider?.subSpecialty ?? schedules[idx].subSpecialty),

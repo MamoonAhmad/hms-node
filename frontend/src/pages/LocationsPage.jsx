@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { LocationFormDialog } from '@/components/locations/LocationFormDialog';
 import { DeleteLocationDialog } from '@/components/locations/DeleteLocationDialog';
-import { locationApi, tenantApi } from '@/services/api';
+import { locationApi } from '@/services/api';
 
 function formatCityStateCountry(location) {
   const parts = [];
@@ -36,7 +36,7 @@ const COLUMNS = [
   },
   {
     key: 'tenant',
-    label: 'Tenant',
+    label: 'Facility Name',
     render: (row) => row.tenant?.name ?? <span className="text-muted-foreground">-</span>,
   },
   {
@@ -92,25 +92,11 @@ export function LocationsPage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [tenantFilter, setTenantFilter] = useState('');
-  const [tenants, setTenants] = useState([]);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    const fetchTenants = async () => {
-      try {
-        const response = await tenantApi.getAll({ limit: 100, isActive: true });
-        setTenants(response.data || []);
-      } catch (err) {
-        console.error('Failed to fetch tenants:', err);
-      }
-    };
-    fetchTenants();
-  }, []);
 
   const fetchLocations = useCallback(async () => {
     setIsLoading(true);
@@ -122,7 +108,6 @@ export function LocationsPage() {
       };
       if (search) params.search = search;
       if (statusFilter !== '') params.isActive = statusFilter;
-      if (tenantFilter) params.tenantId = tenantFilter;
 
       const response = await locationApi.getAll(params);
       setLocations(response.data || []);
@@ -132,7 +117,7 @@ export function LocationsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search, statusFilter, tenantFilter]);
+  }, [pagination.page, pagination.limit, search, statusFilter]);
 
   useEffect(() => {
     fetchLocations();
@@ -162,11 +147,6 @@ export function LocationsPage() {
 
   const handleStatusChange = (value) => {
     setStatusFilter(value === 'all' ? '' : value);
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  const handleTenantChange = (value) => {
-    setTenantFilter(value === 'all' ? '' : value);
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
@@ -230,19 +210,6 @@ export function LocationsPage() {
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <Select value={tenantFilter || 'all'} onValueChange={handleTenantChange}>
-          <SelectTrigger className="w-full sm:w-[220px]" aria-label="Filter by tenant">
-            <SelectValue placeholder="All tenants" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All tenants</SelectItem>
-            {tenants.map((tenant) => (
-              <SelectItem key={tenant.id} value={String(tenant.id)}>
-                {tenant.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <Select value={statusFilter || 'all'} onValueChange={handleStatusChange}>
           <SelectTrigger className="w-full sm:w-[160px]" aria-label="Filter by status">
             <SelectValue placeholder="All statuses" />

@@ -12,7 +12,9 @@ import {
 } from '@/components/ui/select';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
-import { providerSchedulesStore } from './providerSchedulesMock';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { providerSchedulesStore, formatAppointmentTypes, normalizeAppointmentTypes } from './providerSchedulesMock';
 import { ProviderScheduleFormDialog } from './ProviderScheduleFormDialog';
 import { ViewScheduleDialog } from './ViewScheduleDialog';
 
@@ -37,9 +39,12 @@ const SCHEDULE_COLUMNS = [
   { key: 'subSpecialty', label: 'Sub-Specialty', render: (row) => row.subSpecialty || '-' },
   { key: 'days', label: 'Days', render: (row) => (row.days || []).join(', ') || '-' },
   { key: 'timeSlot', label: 'Time Slot(s)', render: (row) => formatTimeSlot(row.startTime, row.endTime) },
-  { key: 'appointmentType', label: 'Appointment Type' },
+  {
+    key: 'appointmentType',
+    label: 'Appointment Type',
+    render: (row) => formatAppointmentTypes(row.appointmentType),
+  },
   { key: 'overBooking', label: 'Over booking', render: (row) => (row.overBooking ?? 0) },
-  { key: 'locations', label: 'Locations', render: (row) => (row.locations || []).join(', ') || '-' },
   {
     key: 'status',
     label: 'Status',
@@ -82,10 +87,12 @@ export function ProviderSchedulesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [filters, setFilters] = useState({
-    providerId: '',
+    providerIds: [],
     specialty: '',
-    day: '',
+    days: [],
     status: '',
+    dateFrom: '',
+    dateTo: '',
   });
   const [search, setSearch] = useState('');
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
@@ -116,6 +123,11 @@ export function ProviderSchedulesPage() {
     providerSchedulesStore.getProviders(false).then(setProviders);
   }, []);
 
+  const providerOptions = useMemo(
+    () => providers.map((p) => ({ value: String(p.id), label: p.name })),
+    [providers],
+  );
+
   const filteredBySearch = useMemo(() => {
     const q = search.toLowerCase().trim();
     if (!q) return schedules;
@@ -124,8 +136,7 @@ export function ProviderSchedulesPage() {
       const specialty = (row.specialty || '').toLowerCase();
       const subSpecialty = (row.subSpecialty || '').toLowerCase();
       const days = (row.days || []).join(' ').toLowerCase();
-      const appointmentType = (row.appointmentType || '').toLowerCase();
-      const locations = (row.locations || []).join(' ').toLowerCase();
+      const appointmentType = normalizeAppointmentTypes(row.appointmentType).join(' ').toLowerCase();
       const overBooking = String(row.overBooking ?? '').toLowerCase();
       const status = (row.displayStatus || row.status || '').toLowerCase();
       return (
@@ -134,7 +145,6 @@ export function ProviderSchedulesPage() {
         subSpecialty.includes(q) ||
         days.includes(q) ||
         appointmentType.includes(q) ||
-        locations.includes(q) ||
         overBooking.includes(q) ||
         status.includes(q)
       );
@@ -266,48 +276,53 @@ export function ProviderSchedulesPage() {
 
       {/* Filters */}
       <div className="rounded-lg border bg-card p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div className="space-y-2">
             <Label>Provider</Label>
-            <Select
-              value={filters.providerId || 'all'}
-              onValueChange={(v) => setFilters((prev) => ({ ...prev, providerId: v === 'all' ? '' : v }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All providers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All providers</SelectItem>
-                {providers.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiSelect
+              options={providerOptions}
+              value={filters.providerIds}
+              onChange={(v) => setFilters((prev) => ({ ...prev, providerIds: v }))}
+              placeholder="All providers"
+              className="w-full"
+              searchable
+              showSelectAll
+              selectAllLabel="Select all providers"
+            />
           </div>
           <div className="space-y-2">
             <Label>Specialty</Label>
             <Input
+              className="w-full"
               placeholder="Filter by specialty"
               value={filters.specialty}
               onChange={(e) => setFilters((prev) => ({ ...prev, specialty: e.target.value }))}
             />
           </div>
           <div className="space-y-2">
-            <Label>Day</Label>
-            <Select
-              value={filters.day || 'all'}
-              onValueChange={(v) => setFilters((prev) => ({ ...prev, day: v === 'all' ? '' : v }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All days" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All days</SelectItem>
-                {DAYS_OPTIONS.map((d) => (
-                  <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Days</Label>
+            <MultiSelect
+              options={DAYS_OPTIONS}
+              value={filters.days}
+              onChange={(v) => setFilters((prev) => ({ ...prev, days: v }))}
+              placeholder="All days"
+              className="w-full"
+              showSelectAll
+              selectAllLabel="Select all days"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="schedule-date-range">From - To Date</Label>
+            <DateRangePicker
+              id="schedule-date-range"
+              dateFrom={filters.dateFrom}
+              dateTo={filters.dateTo}
+              onChange={({ dateFrom, dateTo }) =>
+                setFilters((prev) => ({ ...prev, dateFrom, dateTo }))
+              }
+              placeholder="Select date range"
+              className="w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label>Status</Label>
@@ -315,7 +330,7 @@ export function ProviderSchedulesPage() {
               value={filters.status || 'all'}
               onValueChange={(v) => setFilters((prev) => ({ ...prev, status: v === 'all' ? '' : v }))}
             >
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -341,7 +356,7 @@ export function ProviderSchedulesPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-          searchPlaceholder="Search by provider, specialty, days, type, locations, status..."
+          searchPlaceholder="Search by provider, specialty, days, type, status..."
         emptyMessage="No schedules found. Click Add Schedule to create one."
         actions={(row) => (
           <div className="flex items-center gap-1">

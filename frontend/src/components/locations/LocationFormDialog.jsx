@@ -10,14 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { tenantApi } from '@/services/api';
+import { useFacilityConfig } from '@/contexts/FacilityConfigContext';
+import { locationApi, tenantApi } from '@/services/api';
+
+const MAIN_FACILITY_FALLBACK_NAME = 'Main Facility';
 
 const initialFormData = {
   name: '',
@@ -42,51 +38,77 @@ export function LocationFormDialog({
 }) {
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
-  const [tenants, setTenants] = useState([]);
-  const [loadingTenants, setLoadingTenants] = useState(false);
+  const [mainFacilityName, setMainFacilityName] = useState(MAIN_FACILITY_FALLBACK_NAME);
+  const { locationName, locationId } = useFacilityConfig();
 
   const isEditing = !!location;
 
-  // Fetch tenants
   useEffect(() => {
-    const fetchTenants = async () => {
-      setLoadingTenants(true);
+    if (!open) return undefined;
+
+    let cancelled = false;
+
+    const resolveMainFacility = async () => {
+      const displayName = locationName || MAIN_FACILITY_FALLBACK_NAME;
+      let tenantId = '';
+
       try {
-        const response = await tenantApi.getAll({ limit: 100, isActive: true });
-        setTenants(response.data);
+        if (locationId) {
+          const res = await locationApi.getById(locationId);
+          const loc = res?.data;
+          tenantId =
+            loc?.tenantId != null
+              ? String(loc.tenantId)
+              : loc?.tenant?.id != null
+                ? String(loc.tenant.id)
+                : '';
+        }
+
+        if (!tenantId) {
+          const tRes = await tenantApi.getAll({ limit: 1, isActive: true });
+          const tenant = tRes?.data?.[0];
+          if (tenant) tenantId = String(tenant.id);
+        }
       } catch (error) {
-        console.error('Failed to fetch tenants:', error);
-      } finally {
-        setLoadingTenants(false);
+        console.error('Failed to resolve main facility:', error);
       }
+
+      if (cancelled) return;
+
+      setMainFacilityName(displayName);
+
+      if (location) {
+        const tid = location.tenantId ?? location.tenant?.id;
+        setFormData({
+          name: location.name || '',
+          address: location.address || '',
+          city: location.city || '',
+          state: location.state || '',
+          country: location.country || '',
+          phone: location.phone || '',
+          tenantId: tid != null ? String(tid) : tenantId,
+          isActive: location.isActive !== undefined ? location.isActive : true,
+          hasOnsiteLab: location.hasOnsiteLab !== undefined ? location.hasOnsiteLab : true,
+          hasOnsitePharmacy:
+            location.hasOnsitePharmacy !== undefined ? location.hasOnsitePharmacy : true,
+          hasOnsiteRadiology:
+            location.hasOnsiteRadiology !== undefined ? location.hasOnsiteRadiology : true,
+        });
+      } else {
+        setFormData({
+          ...initialFormData,
+          tenantId,
+        });
+      }
+      setErrors({});
     };
 
-    if (open) {
-      fetchTenants();
-    }
-  }, [open]);
+    resolveMainFacility();
 
-  useEffect(() => {
-    if (location) {
-      const tid = location.tenantId ?? location.tenant?.id;
-      setFormData({
-        name: location.name || '',
-        address: location.address || '',
-        city: location.city || '',
-        state: location.state || '',
-        country: location.country || '',
-        phone: location.phone || '',
-        tenantId: tid != null ? String(tid) : '',
-        isActive: location.isActive !== undefined ? location.isActive : true,
-        hasOnsiteLab: location.hasOnsiteLab !== undefined ? location.hasOnsiteLab : true,
-        hasOnsitePharmacy: location.hasOnsitePharmacy !== undefined ? location.hasOnsitePharmacy : true,
-        hasOnsiteRadiology: location.hasOnsiteRadiology !== undefined ? location.hasOnsiteRadiology : true,
-      });
-    } else {
-      setFormData(initialFormData);
-    }
-    setErrors({});
-  }, [location, open]);
+    return () => {
+      cancelled = true;
+    };
+  }, [location, open, locationId, locationName]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -99,7 +121,7 @@ export function LocationFormDialog({
     const newErrors = {};
 
     if (!formData.name.trim()) newErrors.name = 'Location name is required';
-    if (!formData.tenantId) newErrors.tenantId = 'Tenant is required';
+    if (!formData.tenantId) newErrors.tenantId = 'Facility is required';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -152,22 +174,14 @@ export function LocationFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tenantId">Tenant *</Label>
-              <Select
-                value={formData.tenantId}
-                onValueChange={(value) => handleChange('tenantId', value)}
-              >
-                <SelectTrigger className={errors.tenantId ? 'border-destructive' : ''}>
-                  <SelectValue placeholder={loadingTenants ? "Loading..." : "Select tenant"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={String(tenant.id)}>
-                      {tenant.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="facilityName">Facility Name</Label>
+              <Input
+                id="facilityName"
+                value={mainFacilityName}
+                disabled
+                readOnly
+                className="bg-muted cursor-not-allowed"
+              />
               {errors.tenantId && (
                 <p className="text-xs text-destructive">{errors.tenantId}</p>
               )}
