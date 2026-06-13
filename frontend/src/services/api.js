@@ -116,6 +116,7 @@ export const subSpecialtyApi = {
 
 export { procedureCategoryApi } from './api/procedureCategory.api.js';
 export { procedureApi } from './api/procedure.api.js';
+export { hcpcsCodeApi } from './api/hcpcsCode.api.js';
 
 // Charge Master API
 export const chargeMasterApi = {

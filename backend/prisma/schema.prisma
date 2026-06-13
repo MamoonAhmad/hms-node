@@ -282,6 +282,28 @@ model ProcedureCategoryOnProcedure {
   @@map("procedure_category_on_procedure")
 }
 
+model HcpcsCode {
+  id            String    @id @default(uuid())
+  code          String
+  description   String
+  effectiveDate DateTime? @db.Date
+  expiryDate    DateTime? @db.Date
+  deletedAt     DateTime?
+  createdBy     String
+  updatedBy     String
+  deletedBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  creator       User      @relation("CreatedHcpcsCodes", fields: [createdBy], references: [id])
+  updater       User      @relation("UpdatedHcpcsCodes", fields: [updatedBy], references: [id])
+  deleter       User?     @relation("DeletedHcpcsCodes", fields: [deletedBy], references: [id])
+
+  @@index([code])
+  @@index([effectiveDate])
+  @@index([deletedAt])
+  @@map("hcpcs_codes")
+}
+
 model Provider {
   id                       String   @id @default(uuid())
   npi                      String   @unique
@@ -511,6 +533,9 @@ model User {
   proceduresCreated          Procedure[]          @relation("CreatedProcedures")
   proceduresUpdated          Procedure[]          @relation("UpdatedProcedures")
   proceduresDeleted          Procedure[]          @relation("DeletedProcedures")
+  hcpcsCodesCreated          HcpcsCode[]          @relation("CreatedHcpcsCodes")
+  hcpcsCodesUpdated          HcpcsCode[]          @relation("UpdatedHcpcsCodes")
+  hcpcsCodesDeleted          HcpcsCode[]          @relation("DeletedHcpcsCodes")
 
   @@map("users")
 }
