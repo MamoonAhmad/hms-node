@@ -1,13 +1,13 @@
-const appointmentStatusService = require('../services/appointmentStatus.service');
+const appointmentTypeService = require('../services/appointmentType.service');
 const pick = require('../utils/pick');
 
-const appointmentStatusController = {
+const appointmentTypeController = {
   /**
    * @swagger
-   * /api/appointment-statuses:
+   * /api/appointment-types:
    *   post:
-   *     summary: Create a new appointment status
-   *     tags: [Appointment Statuses]
+   *     summary: Create a new appointment type
+   *     tags: [Appointment Types]
    *     security:
    *       - bearerAuth: []
    *     requestBody:
@@ -15,10 +15,10 @@ const appointmentStatusController = {
    *       content:
    *         application/json:
    *           schema:
-   *             $ref: '#/components/schemas/CreateAppointmentStatus'
+   *             $ref: '#/components/schemas/CreateAppointmentType'
    *     responses:
    *       201:
-   *         description: Appointment status created successfully
+   *         description: Appointment type created successfully
    *         content:
    *           application/json:
    *             schema:
@@ -29,25 +29,25 @@ const appointmentStatusController = {
    *                 message:
    *                   type: string
    *                 data:
-   *                   $ref: '#/components/schemas/AppointmentStatus'
+   *                   $ref: '#/components/schemas/AppointmentType'
    *       400:
-   *         description: Validation error or invalid color
+   *         description: Validation error
    *       409:
-   *         description: An appointment status with this name already exists
+   *         description: An appointment type with this name already exists
    */
   async create(req, res, next) {
     try {
-      const row = await appointmentStatusService.create(req.body, req.user.id);
+      const row = await appointmentTypeService.create(req.body, req.user.id);
       res.status(201).json({
         success: true,
-        message: 'Appointment status created successfully',
+        message: 'Appointment type created successfully',
         data: row,
       });
     } catch (error) {
       if (error?.code === 'P2002') {
         return res.status(409).json({
           success: false,
-          message: 'An appointment status with this name already exists',
+          message: 'An appointment type with this name already exists',
         });
       }
       if (error?.statusCode === 400) {
@@ -59,10 +59,10 @@ const appointmentStatusController = {
 
   /**
    * @swagger
-   * /api/appointment-statuses:
+   * /api/appointment-types:
    *   get:
-   *     summary: Get all appointment statuses with pagination
-   *     tags: [Appointment Statuses]
+   *     summary: Get all appointment types with pagination
+   *     tags: [Appointment Types]
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -82,7 +82,7 @@ const appointmentStatusController = {
    *         name: search
    *         schema:
    *           type: string
-   *         description: Search by name or color
+   *         description: Search by name or description
    *       - in: query
    *         name: isActive
    *         schema:
@@ -90,7 +90,7 @@ const appointmentStatusController = {
    *         description: Filter by active status
    *     responses:
    *       200:
-   *         description: Paginated list of non-deleted appointment statuses with appointment counts
+   *         description: Paginated list of non-deleted appointment types
    *         content:
    *           application/json:
    *             schema:
@@ -101,14 +101,14 @@ const appointmentStatusController = {
    *                 data:
    *                   type: array
    *                   items:
-   *                     $ref: '#/components/schemas/AppointmentStatus'
+   *                     $ref: '#/components/schemas/AppointmentType'
    *                 pagination:
    *                   $ref: '#/components/schemas/Pagination'
    */
   async findAll(req, res, next) {
     try {
       const filters = pick(req.query, ['page', 'limit', 'search', 'isActive']);
-      const result = await appointmentStatusService.findAll(filters);
+      const result = await appointmentTypeService.findAll(filters);
       res.json({ success: true, ...result });
     } catch (error) {
       next(error);
@@ -117,15 +117,15 @@ const appointmentStatusController = {
 
   /**
    * @swagger
-   * /api/appointment-statuses/active:
+   * /api/appointment-types/active:
    *   get:
-   *     summary: Get all active appointment statuses (for dropdowns and scheduling)
-   *     tags: [Appointment Statuses]
+   *     summary: Get all active appointment types (for dropdowns)
+   *     tags: [Appointment Types]
    *     security:
    *       - bearerAuth: []
    *     responses:
    *       200:
-   *         description: List of active, non-deleted appointment statuses ordered by sortOrder
+   *         description: List of active, non-deleted appointment types ordered by sortOrder
    *         content:
    *           application/json:
    *             schema:
@@ -136,11 +136,11 @@ const appointmentStatusController = {
    *                 data:
    *                   type: array
    *                   items:
-   *                     $ref: '#/components/schemas/AppointmentStatus'
+   *                     $ref: '#/components/schemas/AppointmentType'
    */
   async findAllActive(_req, res, next) {
     try {
-      const rows = await appointmentStatusService.findAllActive();
+      const rows = await appointmentTypeService.findAllActive();
       res.json({ success: true, data: rows });
     } catch (error) {
       next(error);
@@ -149,10 +149,10 @@ const appointmentStatusController = {
 
   /**
    * @swagger
-   * /api/appointment-statuses/{id}:
+   * /api/appointment-types/{id}:
    *   get:
-   *     summary: Get an appointment status by ID
-   *     tags: [Appointment Statuses]
+   *     summary: Get an appointment type by ID
+   *     tags: [Appointment Types]
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -162,10 +162,10 @@ const appointmentStatusController = {
    *         schema:
    *           type: string
    *           format: uuid
-   *         description: Appointment status ID
+   *         description: Appointment type ID
    *     responses:
    *       200:
-   *         description: Appointment status details
+   *         description: Appointment type details
    *         content:
    *           application/json:
    *             schema:
@@ -174,15 +174,15 @@ const appointmentStatusController = {
    *                 success:
    *                   type: boolean
    *                 data:
-   *                   $ref: '#/components/schemas/AppointmentStatus'
+   *                   $ref: '#/components/schemas/AppointmentType'
    *       404:
-   *         description: Appointment status not found
+   *         description: Appointment type not found
    */
   async findById(req, res, next) {
     try {
-      const row = await appointmentStatusService.findById(req.params.id);
+      const row = await appointmentTypeService.findById(req.params.id);
       if (!row) {
-        return res.status(404).json({ success: false, message: 'Appointment status not found' });
+        return res.status(404).json({ success: false, message: 'Appointment type not found' });
       }
       res.json({ success: true, data: row });
     } catch (error) {
@@ -192,10 +192,10 @@ const appointmentStatusController = {
 
   /**
    * @swagger
-   * /api/appointment-statuses/{id}:
+   * /api/appointment-types/{id}:
    *   put:
-   *     summary: Update an appointment status
-   *     tags: [Appointment Statuses]
+   *     summary: Update an appointment type
+   *     tags: [Appointment Types]
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -205,16 +205,16 @@ const appointmentStatusController = {
    *         schema:
    *           type: string
    *           format: uuid
-   *         description: Appointment status ID
+   *         description: Appointment type ID
    *     requestBody:
    *       required: true
    *       content:
    *         application/json:
    *           schema:
-   *             $ref: '#/components/schemas/UpdateAppointmentStatus'
+   *             $ref: '#/components/schemas/UpdateAppointmentType'
    *     responses:
    *       200:
-   *         description: Appointment status updated successfully
+   *         description: Appointment type updated successfully
    *         content:
    *           application/json:
    *             schema:
@@ -225,27 +225,27 @@ const appointmentStatusController = {
    *                 message:
    *                   type: string
    *                 data:
-   *                   $ref: '#/components/schemas/AppointmentStatus'
+   *                   $ref: '#/components/schemas/AppointmentType'
    *       400:
-   *         description: Validation error or invalid color
+   *         description: Validation error
    *       404:
-   *         description: Appointment status not found
+   *         description: Appointment type not found
    *       409:
-   *         description: An appointment status with this name already exists
+   *         description: An appointment type with this name already exists
    */
   async update(req, res, next) {
     try {
-      const row = await appointmentStatusService.update(req.params.id, req.body, req.user.id);
+      const row = await appointmentTypeService.update(req.params.id, req.body, req.user.id);
       res.json({
         success: true,
-        message: 'Appointment status updated successfully',
+        message: 'Appointment type updated successfully',
         data: row,
       });
     } catch (error) {
       if (error?.code === 'P2002') {
         return res.status(409).json({
           success: false,
-          message: 'An appointment status with this name already exists',
+          message: 'An appointment type with this name already exists',
         });
       }
       if (error?.statusCode === 400 || error?.statusCode === 404) {
@@ -257,11 +257,11 @@ const appointmentStatusController = {
 
   /**
    * @swagger
-   * /api/appointment-statuses/{id}:
+   * /api/appointment-types/{id}:
    *   delete:
-   *     summary: Soft-delete an appointment status
+   *     summary: Soft-delete an appointment type
    *     description: Sets deletedAt, isActive to false, and records deletedBy. The record is excluded from list and active endpoints.
-   *     tags: [Appointment Statuses]
+   *     tags: [Appointment Types]
    *     security:
    *       - bearerAuth: []
    *     parameters:
@@ -271,10 +271,10 @@ const appointmentStatusController = {
    *         schema:
    *           type: string
    *           format: uuid
-   *         description: Appointment status ID
+   *         description: Appointment type ID
    *     responses:
    *       200:
-   *         description: Appointment status removed successfully
+   *         description: Appointment type removed successfully
    *         content:
    *           application/json:
    *             schema:
@@ -285,14 +285,14 @@ const appointmentStatusController = {
    *                 message:
    *                   type: string
    *       404:
-   *         description: Appointment status not found
+   *         description: Appointment type not found
    */
   async delete(req, res, next) {
     try {
-      await appointmentStatusService.delete(req.params.id, req.user.id);
+      await appointmentTypeService.delete(req.params.id, req.user.id);
       res.json({
         success: true,
-        message: 'Appointment status removed successfully',
+        message: 'Appointment type removed successfully',
       });
     } catch (error) {
       if (error?.statusCode === 404) {
@@ -303,4 +303,4 @@ const appointmentStatusController = {
   },
 };
 
-module.exports = appointmentStatusController;
+module.exports = appointmentTypeController;

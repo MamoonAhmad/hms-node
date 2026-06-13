@@ -220,6 +220,28 @@ model SubSpecialty {
   @@map("sub_specialties")
 }
 
+model AppointmentType {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  defaultTime Float?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  deletedAt   DateTime?
+  createdBy   String
+  updatedBy   String
+  deletedBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  creator     User      @relation("CreatedAppointmentTypes", fields: [createdBy], references: [id])
+  updater     User      @relation("UpdatedAppointmentTypes", fields: [updatedBy], references: [id])
+  deleter     User?     @relation("DeletedAppointmentTypes", fields: [deletedBy], references: [id])
+
+  @@index([name])
+  @@index([deletedAt])
+  @@map("appointment_types")
+}
+
 model AppointmentStatus {
   id        String    @id @default(uuid())
   name      String
@@ -302,6 +324,9 @@ model User {
   appointmentStatusesCreated AppointmentStatus[] @relation("CreatedAppointmentStatuses")
   appointmentStatusesUpdated AppointmentStatus[] @relation("UpdatedAppointmentStatuses")
   appointmentStatusesDeleted AppointmentStatus[] @relation("DeletedAppointmentStatuses")
+  appointmentTypesCreated    AppointmentType[]    @relation("CreatedAppointmentTypes")
+  appointmentTypesUpdated    AppointmentType[]    @relation("UpdatedAppointmentTypes")
+  appointmentTypesDeleted    AppointmentType[]    @relation("DeletedAppointmentTypes")
 
   @@map("users")
 }

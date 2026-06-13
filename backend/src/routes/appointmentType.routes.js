@@ -1,26 +1,26 @@
 const express = require('express');
 const router = express.Router();
-const appointmentStatusController = require('../controllers/appointmentStatus.controller');
+const appointmentTypeController = require('../controllers/appointmentType.controller');
 const {
-  createAppointmentStatusSchema,
-  updateAppointmentStatusSchema,
-  queryAppointmentStatusSchema,
-  appointmentStatusIdSchema,
+  createAppointmentTypeSchema,
+  updateAppointmentTypeSchema,
+  queryAppointmentTypeSchema,
+  appointmentTypeIdSchema,
   validate,
-} = require('../validation/appointmentStatus.validation');
+} = require('../validation/appointmentType.validation');
 
 /**
  * @swagger
  * tags:
- *   name: Appointment Statuses
- *   description: Appointment status catalogue management endpoints
+ *   name: Appointment Types
+ *   description: Appointment type catalogue management endpoints
  */
 
 /**
  * @swagger
  * components:
  *   schemas:
- *     AppointmentStatus:
+ *     AppointmentType:
  *       type: object
  *       properties:
  *         id:
@@ -28,10 +28,15 @@ const {
  *           format: uuid
  *         name:
  *           type: string
- *           description: Status label shown in scheduling UI
- *         color:
+ *           description: Display name of the appointment type
+ *         description:
  *           type: string
- *           description: Hex color code (e.g. #3b82f6)
+ *           nullable: true
+ *         defaultTime:
+ *           type: number
+ *           format: float
+ *           nullable: true
+ *           description: Default duration in minutes
  *         isActive:
  *           type: boolean
  *         sortOrder:
@@ -91,26 +96,23 @@ const {
  *               type: string
  *             email:
  *               type: string
- *         _count:
- *           type: object
- *           description: Present on list responses; appointment count by status name
- *           properties:
- *             appointments:
- *               type: integer
  *
- *     CreateAppointmentStatus:
+ *     CreateAppointmentType:
  *       type: object
  *       required:
  *         - name
- *         - color
  *       properties:
  *         name:
  *           type: string
- *           example: Checked In
- *         color:
+ *           example: Follow-up Visit
+ *         description:
  *           type: string
- *           example: "#3b82f6"
- *           description: Hex color with or without leading #
+ *           example: Standard follow-up consultation
+ *         defaultTime:
+ *           type: number
+ *           format: float
+ *           example: 30
+ *           description: Default duration in minutes
  *         isActive:
  *           type: boolean
  *           default: true
@@ -118,31 +120,35 @@ const {
  *           type: integer
  *           default: 0
  *
- *     UpdateAppointmentStatus:
+ *     UpdateAppointmentType:
  *       type: object
  *       minProperties: 1
  *       properties:
  *         name:
  *           type: string
- *         color:
+ *         description:
  *           type: string
- *           description: Hex color with or without leading #
+ *           nullable: true
+ *         defaultTime:
+ *           type: number
+ *           format: float
+ *           nullable: true
  *         isActive:
  *           type: boolean
  *         sortOrder:
  *           type: integer
  */
 
-router.post('/', validate(createAppointmentStatusSchema, 'body'), appointmentStatusController.create);
-router.get('/', validate(queryAppointmentStatusSchema, 'query'), appointmentStatusController.findAll);
-router.get('/active', appointmentStatusController.findAllActive);
-router.get('/:id', validate(appointmentStatusIdSchema, 'params'), appointmentStatusController.findById);
+router.post('/', validate(createAppointmentTypeSchema, 'body'), appointmentTypeController.create);
+router.get('/', validate(queryAppointmentTypeSchema, 'query'), appointmentTypeController.findAll);
+router.get('/active', appointmentTypeController.findAllActive);
+router.get('/:id', validate(appointmentTypeIdSchema, 'params'), appointmentTypeController.findById);
 router.put(
   '/:id',
-  validate(appointmentStatusIdSchema, 'params'),
-  validate(updateAppointmentStatusSchema, 'body'),
-  appointmentStatusController.update,
+  validate(appointmentTypeIdSchema, 'params'),
+  validate(updateAppointmentTypeSchema, 'body'),
+  appointmentTypeController.update,
 );
-router.delete('/:id', validate(appointmentStatusIdSchema, 'params'), appointmentStatusController.delete);
+router.delete('/:id', validate(appointmentTypeIdSchema, 'params'), appointmentTypeController.delete);
 
 module.exports = router;

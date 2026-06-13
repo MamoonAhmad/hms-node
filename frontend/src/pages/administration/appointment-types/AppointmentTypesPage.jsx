@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -21,37 +22,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { appointmentTypeApi } from '@/services/api';
+
+const MODAL_SHELL_PROPS = {
+  closeOnOverlayClick: false,
+  onEscapeKeyDown: (e) => e.preventDefault(),
+};
+
 const emptyForm = () => ({
   name: '',
   description: '',
   isActive: true,
   defaultTime: '',
 });
-
-const STORAGE_KEY = 'hms_appointment_types';
-
-function getStored() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function setStored(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
-
-const defaultSeed = [
-  { id: 'apt-new', name: 'New Patient', description: '', isActive: true },
-  { id: 'apt-follow', name: 'Follow-up', description: '', isActive: true },
-  { id: 'apt-urgent', name: 'Urgent', description: '', isActive: true },
-  { id: 'apt-tele', name: 'Telehealth', description: '', isActive: true },
-  { id: 'apt-proc', name: 'Procedure', description: '', isActive: true },
-];
 
 function rowToForm(row) {
   const defaultTime = row?.defaultTime;
@@ -63,17 +46,47 @@ function rowToForm(row) {
   };
 }
 
-function formatDefaultTimeDisplay(value) {
+function formatTimeDisplay(value) {
   if (value === '' || value == null) return '—';
   return String(value);
 }
 
 function parseDefaultTime(value) {
   const trimmed = String(value ?? '').trim();
-  if (!trimmed) return '';
+  if (!trimmed) return null;
   const num = Number(trimmed);
   if (Number.isNaN(num)) return null;
   return num;
+}
+
+function buildPayload(form) {
+  const name = form.name.trim();
+  const defaultTime = parseDefaultTime(form.defaultTime);
+  return {
+    name,
+    description: form.description?.trim() || null,
+    isActive: form.isActive !== false,
+    defaultTime,
+  };
+}
+
+function payloadsEqual(a, b) {
+  return (
+    a.name === b.name &&
+    (a.description || '') === (b.description || '') &&
+    a.isActive === b.isActive &&
+    (a.defaultTime ?? null) === (b.defaultTime ?? null)
+  );
+}
+
+function auditUserLabel(user) {
+  if (!user) return '—';
+  return user.name || user.email || '—';
+}
+
+function formatAuditDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString();
 }
 
 export function AppointmentTypesPage() {
@@ -84,20 +97,29 @@ export function AppointmentTypesPage() {
   const [formMode, setFormMode] = useState('create');
   const [selectedItem, setSelectedItem] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const load = () => {
-    const stored = getStored();
-    if (stored.length === 0) {
-      setStored(defaultSeed);
-      setItems(defaultSeed);
-      return;
+  const fetchList = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await appointmentTypeApi.getAll({ limit: 500 });
+      setItems(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      setError(err.message);
+      setItems([]);
+    } finally {
+      setIsLoading(false);
     }
-    setItems(stored);
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    fetchList();
+  }, [fetchList]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -105,7 +127,8 @@ export function AppointmentTypesPage() {
     return items.filter(
       (x) =>
         (x.name || '').toLowerCase().includes(q) ||
-        (x.description || '').toLowerCase().includes(q)
+        (x.description || '').toLowerCase().includes(q) ||
+        formatTimeDisplay(x.defaultTime).toLowerCase().includes(q),
     );
   }, [items, search]);
 
@@ -115,6 +138,7 @@ export function AppointmentTypesPage() {
     setFormMode(mode);
     setSelectedItem(row);
     setForm(row ? rowToForm(row) : emptyForm());
+    setFieldErrors({});
     setIsFormOpen(true);
   };
 
@@ -123,74 +147,75 @@ export function AppointmentTypesPage() {
     setFormMode('create');
     setSelectedItem(null);
     setForm(emptyForm());
+    setFieldErrors({});
   };
 
-  const buildPayload = (name, defaultTime) => ({
-    name,
-    description: form.description?.trim() || '',
-    isActive: form.isActive !== false,
-    defaultTime,
-  });
+  const validateForm = () => {
+    const next = {};
+    const name = form.name.trim();
+    if (!name) next.name = 'Appointment type is required';
+    if (form.defaultTime.trim() !== '' && parseDefaultTime(form.defaultTime) === null) {
+      next.defaultTime = 'Time must be a valid number (integers or decimals allowed)';
+    }
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (isReadOnly) return;
+    if (!validateForm()) return;
 
-    const name = form.name.trim();
-    if (!name) return;
+    const payload = buildPayload(form);
 
-    const defaultTime = parseDefaultTime(form.defaultTime);
-    if (defaultTime === null) {
-      alert('Time must be a valid number (integers or decimals allowed)');
-      return;
+    if (formMode === 'edit' && selectedItem) {
+      const original = buildPayload(rowToForm(selectedItem));
+      if (payloadsEqual(payload, original)) {
+        closeForm();
+        return;
+      }
     }
 
     setIsSubmitting(true);
+    setError(null);
     try {
-      const list = getStored();
-      const nameTaken = list.some(
-        (x) =>
-          (x.name || '').toLowerCase() === name.toLowerCase() &&
-          x.id !== selectedItem?.id,
-      );
-      if (nameTaken) {
-        alert('Appointment type already exists');
-        return;
-      }
-
-      const payload = buildPayload(name, defaultTime);
-      let next;
-
-      if (formMode === 'edit' && selectedItem) {
-        next = list.map((x) =>
-          x.id === selectedItem.id
-            ? { ...x, ...payload, updatedAt: new Date().toISOString() }
-            : x,
-        );
+      if (formMode === 'edit' && selectedItem?.id) {
+        await appointmentTypeApi.update(selectedItem.id, payload);
       } else {
-        next = [
-          ...list,
-          {
-            id: crypto.randomUUID(),
-            ...payload,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ];
+        await appointmentTypeApi.create(payload);
       }
-
-      setStored(next);
-      setItems(next);
       closeForm();
+      await fetchList();
+    } catch (err) {
+      setError(err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = (row) => {
-    const next = getStored().filter((x) => x.id !== row.id);
-    setStored(next);
-    setItems(next);
+  const handleDeleteClick = (row) => {
+    setDeleteTarget(row);
+    setIsDeleteOpen(true);
+  };
+
+  const closeDeleteDialog = () => {
+    setIsDeleteOpen(false);
+    setDeleteTarget(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget?.id) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await appointmentTypeApi.delete(deleteTarget.id);
+      closeDeleteDialog();
+      await fetchList();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -198,22 +223,24 @@ export function AppointmentTypesPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-foreground">Appointment Types</h1>
-          <p className="text-muted-foreground">Manage outpatient appointment types used in scheduling.</p>
+          <p className="text-muted-foreground">
+            Manage outpatient appointment types used in scheduling.
+          </p>
         </div>
-        <Button type="button" onClick={() => openForm('create')} className="w-full sm:w-auto">
+        <Button type="button" onClick={() => openForm('create')} className="w-full sm:w-auto shrink-0">
           <Plus className="h-4 w-4 mr-2" />
           Add Appointment Type
         </Button>
       </div>
 
-      <Dialog
-        open={isFormOpen}
-        onOpenChange={(open) => {
-          if (!open) closeForm();
-          else setIsFormOpen(true);
-        }}
-      >
-        <DialogContent className="max-w-2xl w-[95vw]">
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+          {error}
+        </div>
+      )}
+
+      <Dialog open={isFormOpen} onOpenChange={() => {}}>
+        <DialogContent className="max-w-2xl w-[95vw]" {...MODAL_SHELL_PROPS}>
           <DialogHeader>
             <DialogTitle>
               {formMode === 'view'
@@ -225,36 +252,57 @@ export function AppointmentTypesPage() {
           </DialogHeader>
 
           <form onSubmit={handleFormSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="aptTypeName">Name</Label>
+            <div className="space-y-2">
+              <Label htmlFor="aptTypeName">
+                Appointment Type {!isReadOnly && <span className="text-destructive">*</span>}
+              </Label>
+              {isReadOnly ? (
                 <Input
                   id="aptTypeName"
                   value={form.name}
-                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g., Annual Physical"
-                  disabled={isReadOnly}
-                  className={cn(isReadOnly && 'bg-muted cursor-default')}
+                  readOnly
+                  className="bg-muted cursor-default"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <div className="flex items-center gap-2 pt-2">
+              ) : (
+                <Input
+                  id="aptTypeName"
+                  value={form.name}
+                  onChange={(e) => {
+                    setForm((p) => ({ ...p, name: e.target.value }));
+                    if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: undefined }));
+                  }}
+                  placeholder="e.g., Annual Physical"
+                  className={cn(fieldErrors.name && 'border-destructive')}
+                />
+              )}
+              {fieldErrors.name && <p className="text-xs text-destructive">{fieldErrors.name}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Status</Label>
+              {isReadOnly ? (
+                <Input
+                  value={form.isActive ? 'Active' : 'Inactive'}
+                  readOnly
+                  className="bg-muted cursor-default max-w-xs"
+                />
+              ) : (
+                <div className="flex items-center gap-2 pt-1">
                   <Checkbox
                     id="aptTypeActive"
                     checked={form.isActive}
                     onCheckedChange={(checked) => setForm((p) => ({ ...p, isActive: !!checked }))}
-                    disabled={isReadOnly}
                   />
-                  <Label
-                    htmlFor="aptTypeActive"
-                    className={cn('font-normal', !isReadOnly && 'cursor-pointer')}
-                  >
+                  <Label htmlFor="aptTypeActive" className="font-normal cursor-pointer">
                     Active
                   </Label>
+                  <span className="text-sm text-muted-foreground">
+                    ({form.isActive ? 'Active' : 'Inactive'})
+                  </span>
                 </div>
-              </div>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="aptTypeTime">Time (optional)</Label>
               <Input
@@ -263,26 +311,57 @@ export function AppointmentTypesPage() {
                 step="any"
                 min="0"
                 value={form.defaultTime}
-                onChange={(e) => setForm((p) => ({ ...p, defaultTime: e.target.value }))}
+                onChange={(e) => {
+                  setForm((p) => ({ ...p, defaultTime: e.target.value }));
+                  if (fieldErrors.defaultTime) {
+                    setFieldErrors((p) => ({ ...p, defaultTime: undefined }));
+                  }
+                }}
                 placeholder="e.g. 30 or 15.5"
-                disabled={isReadOnly}
-                className={cn(isReadOnly && 'bg-muted cursor-default')}
+                readOnly={isReadOnly}
+                className={cn(
+                  isReadOnly && 'bg-muted cursor-default',
+                  fieldErrors.defaultTime && 'border-destructive',
+                )}
               />
+              {fieldErrors.defaultTime && (
+                <p className="text-xs text-destructive">{fieldErrors.defaultTime}</p>
+              )}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="aptTypeDesc">Description (optional)</Label>
+              <Label htmlFor="aptTypeDesc">Description</Label>
               <Textarea
                 id="aptTypeDesc"
                 value={form.description}
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                 rows={3}
                 placeholder="Short description for staff"
-                disabled={isReadOnly}
+                readOnly={isReadOnly}
                 className={cn(isReadOnly && 'bg-muted cursor-default')}
               />
             </div>
 
-            <DialogFooter className="gap-2">
+            {(formMode === 'view' || formMode === 'edit') && selectedItem && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Created by</p>
+                  <p className="font-medium">{auditUserLabel(selectedItem.creator)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {formatAuditDate(selectedItem.createdAt)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Updated by</p>
+                  <p className="font-medium">{auditUserLabel(selectedItem.updater)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {formatAuditDate(selectedItem.updatedAt)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={closeForm}>
                 {isReadOnly ? 'Close' : 'Cancel'}
               </Button>
@@ -300,9 +379,33 @@ export function AppointmentTypesPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isDeleteOpen} onOpenChange={() => {}}>
+        <DialogContent className="max-w-lg w-[95vw]" {...MODAL_SHELL_PROPS}>
+          <DialogHeader>
+            <DialogTitle>Delete Appointment Type</DialogTitle>
+            <DialogDescription>
+              Do you actually want to delete this appointment type?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={closeDeleteDialog} disabled={isSubmitting}>
+              No
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isSubmitting || !deleteTarget}
+            >
+              {isSubmitting ? 'Deleting...' : 'Yes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="rounded-lg border bg-card p-4 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-foreground">Existing Appointment Types</div>
+          <div className="text-sm font-semibold text-foreground">Appointment types</div>
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -315,38 +418,40 @@ export function AppointmentTypesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Description</TableHead>
+                <TableHead className="w-16">Sr. No.</TableHead>
+                <TableHead>Appointment Type</TableHead>
                 <TableHead>Time</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>Created by</TableHead>
+                <TableHead>Updated by</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-32 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center h-32 text-muted-foreground">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center h-32 text-muted-foreground">
                     No appointment types found
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((row) => (
+                filtered.map((row, index) => (
                   <TableRow key={row.id}>
+                    <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                     <TableCell className="font-medium">{row.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{row.description || '—'}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDefaultTimeDisplay(row.defaultTime)}
+                      {formatTimeDisplay(row.defaultTime)}
                     </TableCell>
-                    <TableCell>
-                      {row.isActive ? (
-                        <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-primary/10 text-primary">
-                          Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full px-2 py-1 text-xs font-medium bg-muted text-foreground">
-                          Inactive
-                        </span>
-                      )}
+                    <TableCell className="text-sm text-muted-foreground">
+                      {auditUserLabel(row.creator)}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {auditUserLabel(row.updater)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -379,7 +484,7 @@ export function AppointmentTypesPage() {
                           className="h-8 w-8 text-destructive hover:text-destructive"
                           title="Delete"
                           aria-label="Delete"
-                          onClick={() => handleDelete(row)}
+                          onClick={() => handleDeleteClick(row)}
                         >
                           <Trash2 className="h-4 w-4 icon-action-delete" />
                         </Button>
@@ -395,4 +500,3 @@ export function AppointmentTypesPage() {
     </div>
   );
 }
-
