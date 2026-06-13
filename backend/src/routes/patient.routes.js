@@ -5,6 +5,7 @@ const {
   createPatientSchema,
   updatePatientSchema,
   queryPatientSchema,
+  checkDuplicatesSchema,
   patientIdSchema,
   patientMrnSchema,
   validate,
@@ -184,12 +185,10 @@ const {
 
 // Create a new patient
 router.post('/', validate(createPatientSchema, 'body'), patientController.create);
-
-// Get all patients with pagination
+router.post('/check-duplicates', validate(checkDuplicatesSchema, 'body'), patientController.checkDuplicates);
 router.get('/', validate(queryPatientSchema, 'query'), patientController.findAll);
-
-// Get patient by MRN
 router.get('/mrn/:mrn', validate(patientMrnSchema, 'params'), patientController.findByMrn);
+router.post('/:id/assign-me', validate(patientIdSchema, 'params'), patientController.assignToMe);
 
 // Get patient by ID
 router.get('/:id', validate(patientIdSchema, 'params'), patientController.findById);

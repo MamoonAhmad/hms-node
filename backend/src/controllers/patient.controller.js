@@ -28,7 +28,7 @@ const patientController = {
    */
   async create(req, res, next) {
     try {
-      const patient = await patientService.create(req.body);
+      const patient = await patientService.create(req.body, req.user?.id);
       res.status(201).json({
         success: true,
         message: 'Patient created successfully',
@@ -93,15 +93,64 @@ const patientController = {
    */
   async findAll(req, res, next) {
     try {
-      // Pick only allowed query parameters
-      const filters = pick(req.query, ['page', 'limit', 'search', 'gender', 'insuranceProvider']);
-      
+      const filters = pick(req.query, [
+        'page',
+        'limit',
+        'search',
+        'gender',
+        'insuranceProviderId',
+        'insuranceProviderIds',
+        'insurancePayerIds',
+        'mrn',
+        'firstName',
+        'lastName',
+        'dateFrom',
+        'dateTo',
+        'registrationStatus',
+        'consentForm',
+        'insuranceType',
+        'providerIds',
+        'listTab',
+      ]);
+
+      if (filters.listTab === 'my_list' && req.user?.id) {
+        filters.assignedToId = req.user.id;
+      }
+
+      if (filters.gender === 'm') filters.gender = 'male';
+      if (filters.gender === 'f') filters.gender = 'female';
+
       const result = await patientService.findAll(filters);
       res.json({
         success: true,
         ...result,
       });
     } catch (error) {
+      next(error);
+    }
+  },
+
+  async checkDuplicates(req, res, next) {
+    try {
+      const result = await patientService.checkDuplicates(req.body);
+      res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async assignToMe(req, res, next) {
+    try {
+      const patient = await patientService.assignToMe(req.params.id, req.user?.id);
+      res.json({
+        success: true,
+        message: 'Patient assigned successfully',
+        data: patient,
+      });
+    } catch (error) {
+      if (error?.statusCode === 404) {
+        return res.status(404).json({ success: false, message: error.message });
+      }
       next(error);
     }
   },
@@ -227,7 +276,7 @@ const patientController = {
         });
       }
 
-      const updatedPatient = await patientService.update(req.params.id, req.body);
+      const updatedPatient = await patientService.update(req.params.id, req.body, req.user?.id);
       res.json({
         success: true,
         message: 'Patient updated successfully',
@@ -267,7 +316,7 @@ const patientController = {
         });
       }
 
-      await patientService.delete(req.params.id);
+      await patientService.delete(req.params.id, req.user?.id);
       res.json({
         success: true,
         message: 'Patient deleted successfully',

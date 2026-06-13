@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Plus, Pencil, Eye, X } from 'lucide-react';
@@ -27,10 +27,6 @@ import {
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/layout/PageHeader';
-import {
-  getPatientQueueDrafts,
-  queueDraftToPatientRow,
-} from '@/components/patients/patientRegistrationQueue';
 
 const PATIENT_LIST_TABS = {
   ALL: 'all',
@@ -84,19 +80,11 @@ function endOfDay(dateStr) {
   return d;
 }
 
-/** Placeholder list-tab scope until backend my-list / draft APIs are wired. */
-function patientsForListTab(patients, listTab) {
-  switch (listTab) {
-    case PATIENT_LIST_TABS.DRAFT:
-      return patients.filter((patient) => {
-        const status = (patient.registrationStatus || '').toLowerCase();
-        return status === 'draft' || status === 'pending';
-      });
-    case PATIENT_LIST_TABS.MY_LIST:
-      return [];
-    default:
-      return patients;
-  }
+/** Map list tab to API listTab param. */
+function listTabParam(listTab) {
+  if (listTab === PATIENT_LIST_TABS.DRAFT) return 'draft';
+  if (listTab === PATIENT_LIST_TABS.MY_LIST) return 'my_list';
+  return 'all';
 }
 
 export function PatientsPage() {
@@ -107,40 +95,65 @@ export function PatientsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [listTab, setListTab] = useState(PATIENT_LIST_TABS.ALL);
   const [filters, setFilters] = useState(FILTER_DEFAULTS);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0 });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setIsLoading(true);
       try {
-        const [patientsRes, providersRes, payersRes] = await Promise.all([
-          patientApi.getAll({ limit: 500 }),
+        const [providersRes, payersRes] = await Promise.all([
           providerApi.getAll({ limit: 500, isActive: true }).catch(() => ({ data: [] })),
           insuranceProviderApi.getActive().catch(() => ({ data: [] })),
         ]);
         if (cancelled) return;
-        const apiPatients = (Array.isArray(patientsRes?.data) ? patientsRes.data : []).map((p) => ({
-          ...p,
-          registrationStatus: p.registrationStatus || 'completed',
-        }));
-        const queued = getPatientQueueDrafts().map(queueDraftToPatientRow);
-        setPatients([...queued, ...apiPatients]);
         setProviders(Array.isArray(providersRes?.data) ? providersRes.data : []);
         setInsurancePayers(Array.isArray(payersRes?.data) ? payersRes.data : []);
       } catch {
         if (!cancelled) {
-          setPatients([]);
           setProviders([]);
           setInsurancePayers([]);
         }
-      } finally {
-        if (!cancelled) setIsLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const fetchPatients = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const genderMap = { M: 'male', F: 'female', male: 'male', female: 'female' };
+      const response = await patientApi.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        listTab: listTabParam(listTab),
+        mrn: filters.mrn || undefined,
+        firstName: filters.firstName || undefined,
+        lastName: filters.lastName || undefined,
+        gender: filters.gender ? genderMap[filters.gender] || filters.gender : undefined,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        registrationStatus: filters.registrationStatus || undefined,
+        consentForm: filters.consentForm || undefined,
+        insuranceType: filters.insuranceType || undefined,
+        providerIds: filters.providerIds,
+        insurancePayerIds: filters.insurancePayerIds,
+      });
+      setPatients(response.data || []);
+      if (response.pagination) {
+        setPagination((prev) => ({ ...prev, ...response.pagination }));
+      }
+    } catch {
+      setPatients([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters, listTab, pagination.page, pagination.limit]);
+
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
 
   const providerOptions = useMemo(
     () =>
@@ -186,67 +199,7 @@ export function PatientsPage() {
     );
   }, [filters]);
 
-  const filteredPatients = useMemo(() => {
-    const fromDate = startOfDay(filters.dateFrom);
-    const toDate = endOfDay(filters.dateTo);
-    const mrnQ = filters.mrn.trim().toLowerCase();
-    const firstQ = filters.firstName.trim().toLowerCase();
-    const lastQ = filters.lastName.trim().toLowerCase();
-    const selectedProviderNames = filters.providerIds
-      .map((id) => providerNameById.get(id))
-      .filter(Boolean);
-    const selectedPayerIds = new Set(filters.insurancePayerIds);
-    const scopedPatients = patientsForListTab(patients, listTab);
-
-    return scopedPatients.filter((patient) => {
-      if (mrnQ && !(patient.mrn || '').toLowerCase().includes(mrnQ)) return false;
-      if (firstQ && !(patient.firstName || '').toLowerCase().includes(firstQ)) return false;
-      if (lastQ && !(patient.lastName || '').toLowerCase().includes(lastQ)) return false;
-
-      if (filters.gender) {
-        const gender = (patient.gender || '').toLowerCase();
-        if (gender !== filters.gender) return false;
-      }
-
-      if (fromDate || toDate) {
-        const created = getPatientCreatedDate(patient);
-        if (!created) return false;
-        if (fromDate && created < fromDate) return false;
-        if (toDate && created > toDate) return false;
-      }
-
-      if (filters.registrationStatus) {
-        const status = (patient.registrationStatus || 'completed').toLowerCase();
-        if (status !== filters.registrationStatus) return false;
-      }
-
-      if (filters.consentForm) {
-        const signed = patient.consentFormSigned === true || patient.consentSigned === true;
-        const want = filters.consentForm === 'signed';
-        if (signed !== want) return false;
-      }
-
-      if (filters.insuranceType) {
-        const hasInsurance = !!patient.insuranceProviderId;
-        const derived = patient.insuranceType || (hasInsurance ? 'billing' : 'self_pay');
-        if (derived !== filters.insuranceType) return false;
-      }
-
-      if (selectedPayerIds.size > 0) {
-        if (!patient.insuranceProviderId || !selectedPayerIds.has(patient.insuranceProviderId)) {
-          return false;
-        }
-      }
-
-      if (selectedProviderNames.length > 0) {
-        const pcp = (patient.primaryCarePhysician || '').toLowerCase();
-        const matched = selectedProviderNames.some((name) => name && pcp.includes(name));
-        if (!matched) return false;
-      }
-
-      return true;
-    });
-  }, [patients, filters, listTab, providerNameById]);
+  const displayedPatients = patients;
 
   const handleAddNewPatient = () => navigate('/patients/new');
   const handleEditPatient = (patient) => {
@@ -278,7 +231,7 @@ export function PatientsPage() {
       />
 
       <section className="content-panel rounded-lg px-4 py-3 sm:px-6">
-        <Tabs value={listTab} onValueChange={setListTab}>
+        <Tabs value={listTab} onValueChange={(value) => { setListTab(value); setPagination((p) => ({ ...p, page: 1 })); }}>
           <TabsList className="grid h-auto w-full max-w-xl grid-cols-3">
             <TabsTrigger value={PATIENT_LIST_TABS.ALL}>All Patients</TabsTrigger>
             <TabsTrigger value={PATIENT_LIST_TABS.DRAFT}>Draft Patients</TabsTrigger>
@@ -480,14 +433,14 @@ export function PatientsPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : filteredPatients.length === 0 ? (
+            ) : displayedPatients.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                   No patients found
                 </TableCell>
               </TableRow>
             ) : (
-              filteredPatients.map((patient) => (
+              displayedPatients.map((patient) => (
                 <TableRow key={patient.id}>
                   <TableCell className="font-mono text-sm">{patient.mrn ?? '—'}</TableCell>
                   <TableCell>{patient.firstName ?? '—'}</TableCell>

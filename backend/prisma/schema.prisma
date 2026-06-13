@@ -121,13 +121,111 @@ model Patient {
   subscriberState                   String?
   subscriberZip                     String?
   subscriberEmail                   String?
+  registrationStatus                String             @default("pending")
+  registrationChannel               String?
+  billingType                       String?
+  paymentMethod                     String?
+  primaryCareProviderId             String?
+  assignedToId                      String?
+  consentFormSigned                 Boolean            @default(false)
+  deletedAt                         DateTime?
+  createdBy                         String?
+  updatedBy                         String?
+  deletedBy                         String?
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
   appointments          Appointment[]
   orders                Order[]
   beds                  Bed[]
+  primaryCareProvider   Provider?          @relation("PatientPrimaryCareProvider", fields: [primaryCareProviderId], references: [id], onDelete: SetNull)
+  assignedTo            User?              @relation("AssignedPatients", fields: [assignedToId], references: [id], onDelete: SetNull)
+  creator               User?              @relation("CreatedPatients", fields: [createdBy], references: [id], onDelete: SetNull)
+  updater               User?              @relation("UpdatedPatients", fields: [updatedBy], references: [id], onDelete: SetNull)
+  deleter               User?              @relation("DeletedPatients", fields: [deletedBy], references: [id], onDelete: SetNull)
+  insurances            PatientInsurance[]
+  documents             PatientDocument[]
+  consentSignatures     PatientConsentSignature[]
 
+  @@index([registrationStatus])
+  @@index([assignedToId])
+  @@index([deletedAt])
+  @@index([createdAt])
   @@map("patients")
+}
+
+model PatientInsurance {
+  id                      String            @id @default(uuid())
+  patientId               String
+  insuranceType           String
+  insuranceProviderId     String
+  memberId                String
+  policyType              String?
+  planName                String?
+  groupNumber             String?
+  subscriberFirstName     String?
+  subscriberLastName      String?
+  subscriberRelationship  String?
+  subscriberGender        String?
+  subscriberDateOfBirth   DateTime?
+  subscriberPhone         String?
+  subscriberEmail         String?
+  subscriberSsnLast4      String?
+  subscriberEmployer      String?
+  subscriberStreetAddress String?
+  subscriberCity          String?
+  subscriberState         String?
+  subscriberZip           String?
+  coverageStartDate       DateTime?         @db.Date
+  coverageEndDate         DateTime?         @db.Date
+  coinsurancePercentage   Decimal?          @db.Decimal(5, 2)
+  copay                   Decimal?          @db.Decimal(10, 2)
+  deductible              Decimal?          @db.Decimal(10, 2)
+  authorizationNumber     String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  patient                 Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  insuranceProvider       InsuranceProvider @relation(fields: [insuranceProviderId], references: [id], onDelete: Restrict)
+
+  @@unique([patientId, insuranceType])
+  @@index([patientId])
+  @@index([insuranceProviderId])
+  @@map("patient_insurances")
+}
+
+model PatientDocument {
+  id           String   @id @default(uuid())
+  patientId    String
+  documentType String
+  fileName     String?
+  fileData     String?  @db.Text
+  mimeType     String?
+  uploadedBy   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([documentType])
+  @@map("patient_documents")
+}
+
+model PatientConsentSignature {
+  id              String      @id @default(uuid())
+  patientId       String
+  consentFormId   String
+  signedAt        DateTime    @default(now())
+  signedByUserId  String?
+  signatureType   String
+  signatureData   String      @db.Text
+  scrolledToEnd   Boolean     @default(false)
+  nameMatched     Boolean     @default(false)
+  patient         Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  consentForm     ConsentForm @relation(fields: [consentFormId], references: [id], onDelete: Restrict)
+  signedBy        User?       @relation("PatientConsentSignatures", fields: [signedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([patientId, consentFormId])
+  @@index([patientId])
+  @@map("patient_consent_signatures")
 }
 
 model InsuranceProvider {
@@ -145,6 +243,7 @@ model InsuranceProvider {
   deletedAt    DateTime?
   deletedBy    String?
   patients     Patient[]
+  patientInsurances PatientInsurance[]
   deleter      User?     @relation("DeletedInsuranceProviders", fields: [deletedBy], references: [id])
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -217,6 +316,7 @@ model ConsentForm {
   creator                    User      @relation("CreatedConsentForms", fields: [createdBy], references: [id])
   updater                    User      @relation("UpdatedConsentForms", fields: [updatedBy], references: [id])
   deleter                    User?     @relation("DeletedConsentForms", fields: [deletedBy], references: [id])
+  patientSignatures          PatientConsentSignature[]
 
   @@index([consentTitle])
   @@index([consentType])
@@ -453,6 +553,7 @@ model Provider {
   schedules                ProviderSchedule[]
   blockHours               ProviderBlockHour[]
   appointments             Appointment[]
+  primaryCarePatients      Patient[] @relation("PatientPrimaryCareProvider")
 
   @@map("providers")
 }
@@ -652,6 +753,11 @@ model User {
   roomsCreated               Room[]               @relation("CreatedRooms")
   roomsUpdated               Room[]               @relation("UpdatedRooms")
   roomsDeleted               Room[]               @relation("DeletedRooms")
+  patientsCreated            Patient[]            @relation("CreatedPatients")
+  patientsUpdated            Patient[]            @relation("UpdatedPatients")
+  patientsDeleted            Patient[]            @relation("DeletedPatients")
+  assignedPatients           Patient[]            @relation("AssignedPatients")
+  patientConsentSignatures   PatientConsentSignature[] @relation("PatientConsentSignatures")
 
   @@map("users")
 }

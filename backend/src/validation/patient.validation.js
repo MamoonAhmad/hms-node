@@ -388,18 +388,33 @@ const updatePatientSchema = Joi.object({
  * Schema for query parameters (pagination & search)
  */
 const queryPatientSchema = Joi.object({
-  page: Joi.number().integer().min(1).default(1)
-    .messages({
-      'number.min': 'Page must be at least 1',
-    }),
-  limit: Joi.number().integer().min(1).max(500).default(10)
-    .messages({
-      'number.min': 'Limit must be at least 1',
-      'number.max': 'Limit cannot exceed 100',
-    }),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(500).default(10),
   search: Joi.string().trim().max(100).allow(''),
-  gender: Joi.string().lowercase().valid('male', 'female', 'other'),
+  gender: Joi.string().lowercase().valid('male', 'female', 'other', 'm', 'f'),
   insuranceProviderId: Joi.string().uuid(),
+  insuranceProviderIds: Joi.string().trim().allow(''),
+  insurancePayerIds: Joi.string().trim().allow(''),
+  mrn: Joi.string().trim().max(100).allow(''),
+  firstName: Joi.string().trim().max(100).allow(''),
+  lastName: Joi.string().trim().max(100).allow(''),
+  dateFrom: Joi.string().trim().allow(''),
+  dateTo: Joi.string().trim().allow(''),
+  registrationStatus: Joi.string().valid('draft', 'pending', 'completed').allow(''),
+  consentForm: Joi.string().valid('signed', 'not_signed').allow(''),
+  insuranceType: Joi.string().valid('primary', 'secondary', 'tertiary').allow(''),
+  providerIds: Joi.string().trim().allow(''),
+  listTab: Joi.string().valid('all', 'draft', 'my_list').allow(''),
+  assignedToId: Joi.string().uuid(),
+});
+
+const checkDuplicatesSchema = Joi.object({
+  firstName: Joi.string().trim().required(),
+  lastName: Joi.string().trim().required(),
+  dateOfBirth: Joi.alternatives().try(Joi.date(), Joi.string()).required(),
+  contactNumber: Joi.string().trim().allow('', null),
+  address: Joi.string().trim().allow('', null),
+  excludeId: Joi.string().uuid().allow(null),
 });
 
 /**
@@ -459,6 +474,7 @@ module.exports = {
   createPatientSchema,
   updatePatientSchema,
   queryPatientSchema,
+  checkDuplicatesSchema,
   patientIdSchema,
   patientMrnSchema,
   validate,

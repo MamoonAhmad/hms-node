@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Eye, Edit, Trash2, Plus, Upload, FileText } from 'lucide-react';
-import { insuranceProviderApi, providerApi, appointmentStatusApi } from '@/services/api';
+import { insuranceProviderApi, providerApi, appointmentStatusApi, patientApi } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   APPOINTMENT_TIME_SLOT_OPTIONS,
@@ -448,6 +448,7 @@ export function PatientFormContent({
   const [statusOptions, setStatusOptions] = useState(() => getAppointmentStatusesFallback());
 
   const [consentSignatures, setConsentSignatures] = useState({});
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
   const [activeConsentFormId, setActiveConsentFormId] = useState(null);
   const [signatureMode, setSignatureMode] = useState('draw'); // draw | type
@@ -878,6 +879,7 @@ export function PatientFormContent({
         status: patient.status || patient.appointmentStatus || getDefaultAppointmentStatusName(),
       });
       setDocuments(Array.isArray(patient.documents) ? patient.documents : []);
+      setInsuranceList(Array.isArray(patient.insuranceList) ? patient.insuranceList : []);
     } else if (queueDraftId) {
       const draft = getPatientQueueDraftById(queueDraftId);
       if (draft?.formData) {
@@ -907,6 +909,59 @@ export function PatientFormContent({
     setErrors({});
     setActiveTab('patient');
   }, [patient, isOpen, queueDraftId, isQuickRegistration]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setDuplicateWarning(null);
+      return;
+    }
+
+    const { firstName, lastName, dateOfBirth, cellPhone, contactNumber, address } = formData;
+    if (!firstName?.trim() || !lastName?.trim() || !dateOfBirth || !address?.trim()) {
+      setDuplicateWarning(null);
+      return;
+    }
+
+    const phone = (cellPhone || contactNumber || '').trim();
+    if (!phone) {
+      setDuplicateWarning(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await patientApi.checkDuplicates({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          dateOfBirth,
+          contactNumber: phone,
+          address: address.trim(),
+          excludeId: patient?.id || null,
+        });
+        if (res.hasDuplicates && res.duplicates?.length) {
+          const match = res.duplicates[0];
+          setDuplicateWarning(
+            `A patient with the same name, date of birth, phone number, and address already exists (MRN: ${match.mrn || '—'}).`,
+          );
+        } else {
+          setDuplicateWarning(null);
+        }
+      } catch {
+        setDuplicateWarning(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [
+    isOpen,
+    formData.firstName,
+    formData.lastName,
+    formData.dateOfBirth,
+    formData.cellPhone,
+    formData.contactNumber,
+    formData.address,
+    patient?.id,
+  ]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -1266,6 +1321,14 @@ export function PatientFormContent({
     delete submitData.profilePhotoFileName;
     delete submitData.mrn;
     submitData.documents = serializeDocumentsForSubmit(documents);
+    submitData.insuranceList = insuranceList;
+    submitData.consentSignatures = Object.entries(consentSignatures).map(([consentFormId, sig]) => ({
+      consentFormId,
+      signatureType: sig.mode === 'draw' ? 'drawn' : 'typed',
+      signatureData: sig.value,
+      scrolledToEnd: !!sig.scrolledToEnd,
+      nameMatched: !!sig.nameMatched,
+    }));
 
     return submitData;
   };
@@ -1408,6 +1471,12 @@ export function PatientFormContent({
                     setErrors((prev) => ({ ...prev, profilePhoto: null }));
                   }}
                 />
+
+                {duplicateWarning && (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+                    {duplicateWarning}
+                  </div>
+                )}
 
                 {/* Row 1: First Name, Middle Name, Last Name, Suffix */}
                 <div className="grid grid-cols-4 gap-4">
