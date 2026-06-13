@@ -5,44 +5,34 @@ import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Label } from '@/components/ui/label';
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { providerBlockHoursStore } from './providerBlockHoursMock';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { providerApi, providerBlockHourApi } from '@/services/api';
+import { DAYS_FILTER_OPTIONS } from '@/lib/providerScheduleUtils';
+import { formatDateRange, formatTimeSlot, buildBlockPayload } from '@/lib/providerBlockHourUtils';
 import { BlockHoursFormDialog } from './BlockHoursFormDialog';
-import { ViewBlockHoursDialog } from './ViewBlockHoursDialog';
-
-const DAYS_OPTIONS = [
-  { value: 'Mon', label: 'Mon' },
-  { value: 'Tue', label: 'Tue' },
-  { value: 'Wed', label: 'Wed' },
-  { value: 'Thu', label: 'Thu' },
-  { value: 'Fri', label: 'Fri' },
-  { value: 'Sat', label: 'Sat' },
-  { value: 'Sun', label: 'Sun' },
-];
-
-function formatTimeSlot(start, end) {
-  if (!start || !end) return '-';
-  return `${start} – ${end}`;
-}
-
-function formatDateRange(start, end) {
-  if (!start && !end) return '-';
-  if (start && !end) return `${start} → (no end)`;
-  if (!start && end) return `(no start) → ${end}`;
-  return `${start} → ${end}`;
-}
 
 const BLOCK_COLUMNS = [
   { key: 'providerName', label: 'Provider Name', cellClassName: 'font-medium' },
-  { key: 'dateRange', label: 'Date Range', render: (row) => formatDateRange(row.effectiveStartDate, row.effectiveEndDate) },
+  {
+    key: 'dateRange',
+    label: 'Date Range',
+    render: (row) => formatDateRange(row.effectiveStartDate, row.effectiveEndDate),
+  },
   { key: 'days', label: 'Days', render: (row) => (row.days || []).join(', ') || '-' },
   { key: 'timeSlot', label: 'Time Range', render: (row) => formatTimeSlot(row.startTime, row.endTime) },
-  { key: 'locations', label: 'Locations', render: (row) => (row.locations || []).join(', ') || '-' },
   { key: 'reason', label: 'Reason', render: (row) => row.reason || '-' },
   {
     key: 'status',
@@ -55,58 +45,45 @@ const BLOCK_COLUMNS = [
   },
 ];
 
-function DeleteConfirmDialog({ open, onOpenChange, block, onConfirm, isLoading }) {
-  if (!block) return null;
-  return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center ${open ? '' : 'hidden'}`}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
-      <div className="relative z-50 rounded-lg border bg-background p-6 shadow-lg max-w-sm w-full mx-4">
-        <h3 className="text-lg font-semibold">Delete Block</h3>
-        <p className="text-sm text-muted-foreground mt-2">
-          Are you sure you want to delete the block hours for <strong>{block.providerName}</strong>?
-        </p>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="destructive" onClick={() => onConfirm(block)} disabled={isLoading}>
-            {isLoading ? 'Deleting...' : 'Delete'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function BlockHoursPage() {
   const [blocks, setBlocks] = useState([]);
   const [providers, setProviders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [filters, setFilters] = useState({ providerId: '', day: '', status: '' });
+  const [filters, setFilters] = useState({ providerId: '', days: [], status: '' });
   const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [formMode, setFormMode] = useState(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchBlocks = useCallback(() => {
+  const fetchBlocks = useCallback(async () => {
     setIsLoading(true);
-    providerBlockHoursStore
-      .getBlocks(filters)
-      .then((data) => {
-        setBlocks(data);
-        setIsLoading(false);
-      })
-      .catch(() => setIsLoading(false));
-  }, [filters]);
+    try {
+      const response = await providerBlockHourApi.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: search.trim() || undefined,
+        providerId: filters.providerId || undefined,
+        days: filters.days.length ? filters.days : undefined,
+        status: filters.status || undefined,
+      });
+      setBlocks(response.data || []);
+      setPagination((prev) => ({
+        ...prev,
+        total: response.pagination?.total ?? 0,
+        totalPages: response.pagination?.totalPages ?? 0,
+      }));
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to load block hours' });
+      setBlocks([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters, pagination.page, pagination.limit, search]);
 
   useEffect(() => {
     fetchBlocks();
@@ -114,48 +91,27 @@ export function BlockHoursPage() {
 
   useEffect(() => {
     setPagination((p) => ({ ...p, page: 1 }));
-  }, [filters]);
+  }, [filters, search]);
 
   useEffect(() => {
-    providerBlockHoursStore.getProviders(false).then(setProviders);
+    providerApi.getAll({ limit: 500 }).then((res) => {
+      setProviders(
+        (res.data || []).map((p) => ({
+          id: p.id,
+          name: [p.firstName, p.lastName].filter(Boolean).join(' '),
+          npi: p.npi || '',
+        })),
+      );
+    }).catch(() => setProviders([]));
   }, []);
 
-  const filteredBySearch = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return blocks;
-    return blocks.filter((row) => {
-      const providerName = (row.providerName || '').toLowerCase();
-      const days = (row.days || []).join(' ').toLowerCase();
-      const time = `${row.startTime || ''} ${row.endTime || ''}`.toLowerCase();
-      const dates = `${row.effectiveStartDate || ''} ${row.effectiveEndDate || ''}`.toLowerCase();
-      const locations = (row.locations || []).join(' ').toLowerCase();
-      const reason = (row.reason || '').toLowerCase();
-      const status = (row.status || '').toLowerCase();
-      return (
-        providerName.includes(q) ||
-        days.includes(q) ||
-        time.includes(q) ||
-        dates.includes(q) ||
-        locations.includes(q) ||
-        reason.includes(q) ||
-        status.includes(q)
-      );
-    });
-  }, [blocks, search]);
-
-  const total = filteredBySearch.length;
-  const currentPage = Math.min(
-    Math.max(1, pagination.page),
-    Math.max(1, Math.ceil(total / pagination.limit))
-  );
-  const paginatedBlocks = useMemo(
-    () => filteredBySearch.slice((currentPage - 1) * pagination.limit, currentPage * pagination.limit),
-    [filteredBySearch, currentPage, pagination.limit]
+  const providerOptions = useMemo(
+    () => providers.map((p) => ({ value: p.id, label: p.name })),
+    [providers],
   );
 
   const handleSearch = useCallback((keyword) => {
     setSearch(keyword);
-    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   const handlePageChange = useCallback((page) => {
@@ -166,26 +122,21 @@ export function BlockHoursPage() {
     setPagination((p) => ({ ...p, limit, page: 1 }));
   }, []);
 
-  const handleAdd = () => {
+  const openForm = (mode, block = null) => {
+    setSelectedBlock(block);
+    setFormMode(mode);
+  };
+
+  const closeForm = () => {
+    setFormMode(null);
     setSelectedBlock(null);
-    setIsFormOpen(true);
   };
 
-  const handleEdit = (b) => {
-    setSelectedBlock(b);
-    setIsFormOpen(true);
-  };
-
-  const handleView = (b) => {
-    setSelectedBlock(b);
-    setIsViewOpen(true);
-  };
-
-  const handleToggleStatus = async (b) => {
+  const handleToggleStatus = async (block) => {
     setIsSubmitting(true);
     setMessage({ type: '', text: '' });
     try {
-      await providerBlockHoursStore.toggleBlockStatus(b.id);
+      await providerBlockHourApi.toggleStatus(block.id);
       setMessage({ type: 'success', text: 'Block status updated' });
       fetchBlocks();
     } catch (err) {
@@ -195,16 +146,12 @@ export function BlockHoursPage() {
     }
   };
 
-  const handleDeleteClick = (b) => {
-    setSelectedBlock(b);
-    setIsDeleteOpen(true);
-  };
-
-  const handleDeleteConfirm = async (b) => {
+  const handleDeleteConfirm = async () => {
+    if (!selectedBlock) return;
     setIsDeleting(true);
     setMessage({ type: '', text: '' });
     try {
-      await providerBlockHoursStore.deleteBlock(b.id);
+      await providerBlockHourApi.delete(selectedBlock.id);
       setMessage({ type: 'success', text: 'Block deleted' });
       setIsDeleteOpen(false);
       setSelectedBlock(null);
@@ -216,19 +163,19 @@ export function BlockHoursPage() {
     }
   };
 
-  const handleFormSubmit = async (data) => {
+  const handleFormSubmit = async (formData) => {
     setIsSubmitting(true);
     setMessage({ type: '', text: '' });
     try {
-      if (selectedBlock) {
-        await providerBlockHoursStore.updateBlock(selectedBlock.id, data);
+      const payload = buildBlockPayload(formData);
+      if (formMode === 'edit' && selectedBlock) {
+        await providerBlockHourApi.update(selectedBlock.id, payload);
         setMessage({ type: 'success', text: 'Block updated' });
       } else {
-        await providerBlockHoursStore.createBlock(data);
+        await providerBlockHourApi.create(payload);
         setMessage({ type: 'success', text: 'Block added' });
       }
-      setIsFormOpen(false);
-      setSelectedBlock(null);
+      closeForm();
       fetchBlocks();
     } catch (err) {
       setMessage({ type: 'error', text: err.message || 'Failed to save block' });
@@ -242,9 +189,9 @@ export function BlockHoursPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Block Hours</h1>
-          <p className="text-muted-foreground">Block hours inside a provider’s existing schedule</p>
+          <p className="text-muted-foreground">Block hours inside a provider&apos;s existing schedule</p>
         </div>
-        <Button onClick={handleAdd}>
+        <Button onClick={() => openForm('create')}>
           <Plus className="h-4 w-4 mr-2" />
           Add Block Hours
         </Button>
@@ -275,29 +222,26 @@ export function BlockHoursPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All providers</SelectItem>
-                {providers.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                {providerOptions.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
-            <Label>Day</Label>
-            <Select
-              value={filters.day || 'all'}
-              onValueChange={(v) => setFilters((prev) => ({ ...prev, day: v === 'all' ? '' : v }))}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All days" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All days</SelectItem>
-                {DAYS_OPTIONS.map((d) => (
-                  <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Days</Label>
+            <MultiSelect
+              options={DAYS_FILTER_OPTIONS}
+              value={filters.days}
+              onChange={(v) => setFilters((prev) => ({ ...prev, days: v }))}
+              placeholder="All days"
+              className="w-full"
+              showSelectAll
+              selectAllLabel="All days"
+            />
           </div>
 
           <div className="space-y-2">
@@ -316,15 +260,14 @@ export function BlockHoursPage() {
               </SelectContent>
             </Select>
           </div>
-
         </div>
       </div>
 
       <DataTable
         columns={BLOCK_COLUMNS}
-        data={paginatedBlocks}
-        total={total}
-        page={currentPage}
+        data={blocks}
+        total={pagination.total}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
@@ -332,14 +275,28 @@ export function BlockHoursPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-        searchPlaceholder="Search by provider, dates, days, time, locations, reason, status..."
+        searchPlaceholder="Search by provider, dates, days, time, reason, status..."
         emptyMessage="No blocks found. Click Add Block Hours to create one."
         actions={(row) => (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleView(row)} title="View" aria-label="View">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => openForm('view', row)}
+              title="View"
+              aria-label="View"
+            >
               <Eye className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(row)} title="Edit" aria-label="Edit">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => openForm('edit', row)}
+              title="Edit"
+              aria-label="Edit"
+            >
               <Pencil className="h-4 w-4" />
             </Button>
             <Button
@@ -351,13 +308,22 @@ export function BlockHoursPage() {
               title={row.status === 'Active' ? 'Deactivate' : 'Activate'}
               aria-label={row.status === 'Active' ? 'Deactivate' : 'Activate'}
             >
-              <Power className="h-4 w-4" />
+              <Power
+                className={`h-4 w-4 ${
+                  row.status === 'Active'
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-destructive'
+                }`}
+              />
             </Button>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-destructive hover:text-destructive"
-              onClick={() => handleDeleteClick(row)}
+              onClick={() => {
+                setSelectedBlock(row);
+                setIsDeleteOpen(true);
+              }}
               title="Delete"
               aria-label="Delete"
             >
@@ -368,25 +334,35 @@ export function BlockHoursPage() {
       />
 
       <BlockHoursFormDialog
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        open={formMode === 'create' || formMode === 'edit' || formMode === 'view'}
+        readOnly={formMode === 'view'}
+        onOpenChange={(open) => {
+          if (!open) closeForm();
+        }}
         block={selectedBlock}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
       />
-      <ViewBlockHoursDialog
-        open={isViewOpen}
-        onOpenChange={setIsViewOpen}
-        block={selectedBlock}
-      />
-      <DeleteConfirmDialog
-        open={isDeleteOpen}
-        onOpenChange={setIsDeleteOpen}
-        block={selectedBlock}
-        onConfirm={handleDeleteConfirm}
-        isLoading={isDeleting}
-      />
+
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Block</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete the block hours for{' '}
+            <strong>{selectedBlock?.providerName}</strong>?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-

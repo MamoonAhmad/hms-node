@@ -188,6 +188,7 @@ model Provider {
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
   schedules                ProviderSchedule[]
+  blockHours               ProviderBlockHour[]
 
   @@map("providers")
 }
@@ -422,6 +423,28 @@ model ProviderScheduleAppointmentType {
 
   @@id([scheduleId, appointmentTypeId])
   @@map("provider_schedule_appointment_types")
+}
+
+model ProviderBlockHour {
+  id                 String    @id @default(uuid())
+  providerId         String
+  provider           Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  days               String[]
+  startTime          String
+  endTime            String
+  effectiveStartDate DateTime  @db.Date
+  effectiveEndDate   DateTime? @db.Date
+  reason             String?
+  status             String    @default("Active")
+  deletedAt          DateTime?
+  createdBy          String?
+  updatedBy          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([providerId])
+  @@index([deletedAt])
+  @@map("provider_block_hours")
 }
 
 model Department {
