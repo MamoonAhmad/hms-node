@@ -304,6 +304,31 @@ model HcpcsCode {
   @@map("hcpcs_codes")
 }
 
+model DiagnosisCode {
+  id            String    @id @default(uuid())
+  code          String
+  description   String
+  effectiveDate DateTime? @db.Date
+  expiryDate    DateTime? @db.Date
+  isActive      Boolean   @default(true)
+  codingNotes   String?
+  deletedAt     DateTime?
+  createdBy     String
+  updatedBy     String
+  deletedBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  creator       User      @relation("CreatedDiagnosisCodes", fields: [createdBy], references: [id])
+  updater       User      @relation("UpdatedDiagnosisCodes", fields: [updatedBy], references: [id])
+  deleter       User?     @relation("DeletedDiagnosisCodes", fields: [deletedBy], references: [id])
+
+  @@index([code])
+  @@index([effectiveDate])
+  @@index([isActive])
+  @@index([deletedAt])
+  @@map("diagnosis_codes")
+}
+
 model Provider {
   id                       String   @id @default(uuid())
   npi                      String   @unique
@@ -536,6 +561,9 @@ model User {
   hcpcsCodesCreated          HcpcsCode[]          @relation("CreatedHcpcsCodes")
   hcpcsCodesUpdated          HcpcsCode[]          @relation("UpdatedHcpcsCodes")
   hcpcsCodesDeleted          HcpcsCode[]          @relation("DeletedHcpcsCodes")
+  diagnosisCodesCreated      DiagnosisCode[]      @relation("CreatedDiagnosisCodes")
+  diagnosisCodesUpdated      DiagnosisCode[]      @relation("UpdatedDiagnosisCodes")
+  diagnosisCodesDeleted      DiagnosisCode[]      @relation("DeletedDiagnosisCodes")
 
   @@map("users")
 }
