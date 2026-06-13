@@ -17,6 +17,7 @@ const roleRoutes = require('./role.routes');
 const orderRoutes = require('./order.routes');
 const facilityConfigRoutes = require('./facilityConfig.routes');
 const departmentRoutes = require('./department.routes');
+const appointmentStatusRoutes = require('./appointmentStatus.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -24,6 +25,7 @@ router.use('/auth', authRoutes);
 // Protected routes (auth required)
 router.use('/patients', auth, patientRoutes);
 router.use('/appointments', auth, appointmentRoutes);
+router.use('/appointment-statuses', auth, appointmentStatusRoutes);
 router.use('/insurance-providers', auth, insuranceProviderRoutes);
 router.use('/providers', auth, providerRoutes);
 router.use('/specialties', auth, specialtyRoutes);

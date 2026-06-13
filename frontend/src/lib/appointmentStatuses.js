@@ -1,5 +1,3 @@
-export const APPOINTMENT_STATUSES_STORAGE_KEY = 'hms_appointment_statuses';
-
 export const DEFAULT_APPOINTMENT_STATUSES = [
   { id: 'status-scheduled', name: 'Scheduled', color: '#3b82f6' },
   { id: 'status-checked-in', name: 'Checked-In', color: '#ca8a04' },
@@ -10,31 +8,6 @@ export const DEFAULT_APPOINTMENT_STATUSES = [
   { id: 'status-rescheduled', name: 'Rescheduled', color: '#ea580c' },
 ];
 
-function readStored() {
-  try {
-    const raw = localStorage.getItem(APPOINTMENT_STATUSES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveAppointmentStatuses(list) {
-  localStorage.setItem(APPOINTMENT_STATUSES_STORAGE_KEY, JSON.stringify(list));
-}
-
-/** Returns appointment statuses from localStorage, seeding defaults on first use. */
-export function getAppointmentStatuses() {
-  const stored = readStored();
-  if (stored.length === 0) {
-    saveAppointmentStatuses(DEFAULT_APPOINTMENT_STATUSES);
-    return [...DEFAULT_APPOINTMENT_STATUSES];
-  }
-  return stored;
-}
-
 export function normalizeHexColor(value) {
   const trimmed = (value || '').trim();
   if (!trimmed) return '';
@@ -43,7 +16,38 @@ export function normalizeHexColor(value) {
   return null;
 }
 
-export function getDefaultAppointmentStatusName() {
-  const statuses = getAppointmentStatuses();
-  return statuses[0]?.name || 'Scheduled';
+export function isLightHexColor(hex) {
+  const normalized = normalizeHexColor(hex);
+  if (!normalized) return false;
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6;
+}
+
+/** Inline styles for a status chip from the catalogue. */
+export function statusChipStyle(name, catalog = []) {
+  const row = catalog.find((s) => s.name === name);
+  const hex = normalizeHexColor(row?.color) || '#6b7280';
+  const light = isLightHexColor(hex);
+  return {
+    backgroundColor: hex,
+    color: light ? '#1f2937' : '#ffffff',
+    borderColor: hex,
+  };
+}
+
+/** Fallback when the API is unavailable (offline / unauthenticated). */
+export function getAppointmentStatusesFallback() {
+  return [...DEFAULT_APPOINTMENT_STATUSES];
+}
+
+/** @deprecated Use appointmentStatusApi.getActive() — sync fallback only */
+export function getAppointmentStatuses() {
+  return getAppointmentStatusesFallback();
+}
+
+export function getDefaultAppointmentStatusName(catalog = getAppointmentStatusesFallback()) {
+  return catalog[0]?.name || 'Scheduled';
 }

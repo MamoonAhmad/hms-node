@@ -3,16 +3,8 @@ const Joi = require('joi');
 // Valid appointment types
 const appointmentTypes = ['New', 'Follow-up', 'Televisit'];
 
-// Valid statuses
-const appointmentStatuses = [
-  'Scheduled',
-  'Checked-In',
-  'In Progress',
-  'Completed',
-  'Cancelled',
-  'No-Show',
-  'Rescheduled',
-];
+// Valid statuses are managed in the appointment_statuses catalogue
+const statusFieldSchema = Joi.string().trim().min(1).max(100);
 
 /**
  * Schema for creating an appointment
@@ -48,10 +40,7 @@ const createAppointmentSchema = Joi.object({
   visitReason: Joi.string().trim().max(500).allow('', null),
   department: Joi.string().trim().max(100).allow('', null),
   provider: Joi.string().trim().max(200).allow('', null),
-  status: Joi.string().valid(...appointmentStatuses).default('Scheduled')
-    .messages({
-      'any.only': `Status must be one of: ${appointmentStatuses.join(', ')}`,
-    }),
+  status: statusFieldSchema.default('Scheduled'),
   notes: Joi.string().trim().max(1000).allow('', null),
 });
 
@@ -84,10 +73,7 @@ const updateAppointmentSchema = Joi.object({
   visitReason: Joi.string().trim().max(500).allow('', null),
   department: Joi.string().trim().max(100).allow('', null),
   provider: Joi.string().trim().max(200).allow('', null),
-  status: Joi.string().valid(...appointmentStatuses)
-    .messages({
-      'any.only': `Status must be one of: ${appointmentStatuses.join(', ')}`,
-    }),
+  status: statusFieldSchema,
   notes: Joi.string().trim().max(1000).allow('', null),
 }).min(1).messages({
   'object.min': 'At least one field must be provided for update',
@@ -100,7 +86,7 @@ const queryAppointmentSchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(10),
   search: Joi.string().trim().max(100).allow(''),
-  status: Joi.string().valid(...appointmentStatuses),
+  status: statusFieldSchema,
   appointmentType: Joi.string().valid(...appointmentTypes),
   department: Joi.string().trim().max(100),
   date: Joi.date().iso(),
@@ -148,7 +134,6 @@ module.exports = {
   queryAppointmentSchema,
   appointmentIdSchema,
   appointmentTypes,
-  appointmentStatuses,
   validate,
 };
 

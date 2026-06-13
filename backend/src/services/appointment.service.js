@@ -1,10 +1,13 @@
 const prisma = require('../lib/prisma');
+const appointmentStatusService = require('./appointmentStatus.service');
 
 const appointmentService = {
   /**
    * Create a new appointment
    */
   async create(data) {
+    const status = await appointmentStatusService.assertActiveStatusName(data.status || 'Scheduled');
+
     return prisma.appointment.create({
       data: {
         appointmentDate: new Date(data.appointmentDate),
@@ -14,7 +17,7 @@ const appointmentService = {
         visitReason: data.visitReason,
         department: data.department,
         provider: data.provider,
-        status: data.status || 'Scheduled',
+        status,
         notes: data.notes,
         patientId: data.patientId,
       },
@@ -173,6 +176,10 @@ const appointmentService = {
 
     if (data.appointmentDate) {
       updateData.appointmentDate = new Date(data.appointmentDate);
+    }
+
+    if (data.status !== undefined) {
+      updateData.status = await appointmentStatusService.assertActiveStatusName(data.status);
     }
 
     // Ensure duration is an integer

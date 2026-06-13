@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Eye, Edit, Trash2, Plus, Upload, FileText } from 'lucide-react';
-import { insuranceProviderApi, providerApi } from '@/services/api';
+import { insuranceProviderApi, providerApi, appointmentStatusApi } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   APPOINTMENT_TIME_SLOT_OPTIONS,
@@ -45,8 +45,8 @@ import {
   SELF_PAY_PAYMENT_METHOD_OPTIONS,
 } from '@/components/patients/patientRegistrationInsuranceConstants';
 import {
-  getAppointmentStatuses,
   getDefaultAppointmentStatusName,
+  getAppointmentStatusesFallback,
 } from '@/lib/appointmentStatuses';
 import {
   buildAppointmentReviewItems,
@@ -445,7 +445,7 @@ export function PatientFormContent({
     return combined || 'User';
   }, [user]);
 
-  const [statusOptions, setStatusOptions] = useState(() => getAppointmentStatuses());
+  const [statusOptions, setStatusOptions] = useState(() => getAppointmentStatusesFallback());
 
   const [consentSignatures, setConsentSignatures] = useState({});
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
@@ -672,7 +672,20 @@ export function PatientFormContent({
 
   useEffect(() => {
     if (!isOpen) return;
-    setStatusOptions(getAppointmentStatuses());
+    let cancelled = false;
+    appointmentStatusApi
+      .getActive()
+      .then((res) => {
+        if (cancelled) return;
+        const rows = Array.isArray(res.data) && res.data.length ? res.data : getAppointmentStatusesFallback();
+        setStatusOptions(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setStatusOptions(getAppointmentStatusesFallback());
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   // Fetch insurance providers on mount / when open

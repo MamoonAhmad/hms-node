@@ -39,8 +39,12 @@ import {
   DEPARTMENT_OPTIONS,
   OUTPATIENT_PROVIDERS,
 } from '@/components/patients/patientRegistrationAppointmentConstants';
-import { getDefaultAppointmentStatusName } from '@/lib/appointmentStatuses';
-import { appointmentApi, patientApi } from '@/services/api';
+import {
+  getDefaultAppointmentStatusName,
+  getAppointmentStatusesFallback,
+  statusChipStyle,
+} from '@/lib/appointmentStatuses';
+import { appointmentApi, appointmentStatusApi, patientApi } from '@/services/api';
 
 import { cn } from '@/lib/utils';
 
@@ -50,21 +54,6 @@ function toDateKey(date) {
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
-
-function parseLocalDate(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-const appointmentStatuses = [
-  'Scheduled',
-  'Checked-In',
-  'In Progress',
-  'Completed',
-  'Cancelled',
-  'No-Show',
-  'Rescheduled',
-];
 
 const FILTER_CONTROL_CLASS = 'h-10 w-full';
 
@@ -85,16 +74,6 @@ const timelineRangeOptions = [
 
 const appointmentTypes = ['New', 'Follow-up', 'Televisit'];
 
-const statusColors = {
-  Scheduled: 'bg-primary/10 text-primary',
-  'Checked-In': 'bg-yellow-100 text-yellow-800',
-  'In Progress': 'bg-purple-100 text-purple-800',
-  Completed: 'bg-green-100 text-green-800',
-  Cancelled: 'bg-red-100 text-red-800',
-  'No-Show': 'bg-gray-100 text-gray-800',
-  Rescheduled: 'bg-orange-100 text-orange-800',
-};
-
 export function AppointmentsPage() {
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
@@ -106,6 +85,9 @@ export function AppointmentsPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [appointmentStatusCatalog, setAppointmentStatusCatalog] = useState(
+    () => getAppointmentStatusesFallback(),
+  );
 
   // View mode: 'list' or 'timeline'
   const [viewMode, setViewMode] = useState('timeline');
@@ -178,6 +160,23 @@ export function AppointmentsPage() {
       setIsLoading(false);
     }
   }, [pagination.page, pagination.limit, search, statusFilter, typeFilter, departmentFilter, providerFilter, patientFilter, dateFilter, viewMode, timelineRange]);
+
+  useEffect(() => {
+    let cancelled = false;
+    appointmentStatusApi
+      .getActive()
+      .then((res) => {
+        if (cancelled) return;
+        const rows = Array.isArray(res.data) ? res.data : [];
+        if (rows.length) setAppointmentStatusCatalog(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setAppointmentStatusCatalog(getAppointmentStatusesFallback());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     fetchPatients();
@@ -523,23 +522,27 @@ export function AppointmentsPage() {
                 >
                   All
                 </Button>
-                {appointmentStatuses.map((status) => (
+                {appointmentStatusCatalog.map((statusRow) => {
+                  const status = statusRow.name;
+                  const chipStyle = statusChipStyle(status, appointmentStatusCatalog);
+                  const isActive = statusFilter === status;
+                  return (
                   <Button
-                    key={status}
+                    key={statusRow.id || status}
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => handleStatusTabChange(status)}
                     className={cn(
                       'h-8 shrink-0',
-                      statusFilter === status
-                        ? cn('shadow-sm ring-1 ring-border/60', statusColors[status])
-                        : SEGMENTED_ITEM_IDLE,
+                      isActive ? 'shadow-sm ring-1 ring-border/60' : SEGMENTED_ITEM_IDLE,
                     )}
+                    style={isActive ? chipStyle : undefined}
                   >
                     {status}
                   </Button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -668,26 +671,22 @@ export function AppointmentsPage() {
                           handleStatusChange(appointment.id, value)
                         }
                       >
-                        <SelectTrigger className="h-8 w-32">
+                        <SelectTrigger className="h-8 w-36">
                           <span
-                            className={cn(
-                              'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                              statusColors[appointment.status] || ''
-                            )}
+                            className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                            style={statusChipStyle(appointment.status, appointmentStatusCatalog)}
                           >
                             {appointment.status}
                           </span>
                         </SelectTrigger>
                         <SelectContent>
-                          {appointmentStatuses.map((status) => (
-                            <SelectItem key={status} value={status}>
+                          {appointmentStatusCatalog.map((statusRow) => (
+                            <SelectItem key={statusRow.id || statusRow.name} value={statusRow.name}>
                               <span
-                                className={cn(
-                                  'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-                                  statusColors[status] || ''
-                                )}
+                                className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                                style={statusChipStyle(statusRow.name, appointmentStatusCatalog)}
                               >
-                                {status}
+                                {statusRow.name}
                               </span>
                             </SelectItem>
                           ))}

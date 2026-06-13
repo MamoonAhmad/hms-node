@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 const TOKEN_KEY = 'hms_token';
 
 // Re-export from modular API (so @/services/api resolves to this file)
@@ -150,6 +150,8 @@ export const appointmentApi = {
     return handleResponse(response);
   },
 };
+
+export { appointmentStatusApi } from './api/appointmentStatus.api.js';
 
 export const insuranceProviderApi = {
   // Get all insurance providers with pagination and filters

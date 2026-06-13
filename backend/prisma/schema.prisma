@@ -220,6 +220,27 @@ model SubSpecialty {
   @@map("sub_specialties")
 }
 
+model AppointmentStatus {
+  id        String    @id @default(uuid())
+  name      String
+  color     String    @default("#3b82f6")
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  deletedAt DateTime?
+  createdBy String
+  updatedBy String
+  deletedBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  creator   User      @relation("CreatedAppointmentStatuses", fields: [createdBy], references: [id])
+  updater   User      @relation("UpdatedAppointmentStatuses", fields: [updatedBy], references: [id])
+  deleter   User?     @relation("DeletedAppointmentStatuses", fields: [deletedBy], references: [id])
+
+  @@index([name])
+  @@index([deletedAt])
+  @@map("appointment_statuses")
+}
+
 model Appointment {
   id              String   @id @default(uuid())
   appointmentDate DateTime @db.Date
@@ -276,8 +297,11 @@ model User {
   tenantsUpdated    Tenant[]   @relation("UpdatedTenants")
   locationsCreated  Location[] @relation("CreatedLocations")
   locationsUpdated  Location[] @relation("UpdatedLocations")
-  rolesCreated      Role[]     @relation("CreatedRoles")
-  rolesUpdated      Role[]     @relation("UpdatedRoles")
+  rolesCreated      Role[]             @relation("CreatedRoles")
+  rolesUpdated      Role[]             @relation("UpdatedRoles")
+  appointmentStatusesCreated AppointmentStatus[] @relation("CreatedAppointmentStatuses")
+  appointmentStatusesUpdated AppointmentStatus[] @relation("UpdatedAppointmentStatuses")
+  appointmentStatusesDeleted AppointmentStatus[] @relation("DeletedAppointmentStatuses")
 
   @@map("users")
 }

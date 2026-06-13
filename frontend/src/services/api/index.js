@@ -2,6 +2,7 @@
 export { authApi } from './auth.api';
 export { patientApi } from './patient.api';
 export { appointmentApi } from './appointment.api';
+export { appointmentStatusApi } from './appointmentStatus.api';
 export { insuranceProviderApi } from './insuranceProvider.api';
 export { tenantApi } from './tenant.api';
 export { locationApi } from './location.api';

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -20,44 +21,31 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import {
-  APPOINTMENT_STATUSES_STORAGE_KEY,
-  DEFAULT_APPOINTMENT_STATUSES,
-  getAppointmentStatuses,
+  isLightHexColor,
   normalizeHexColor,
-  saveAppointmentStatuses,
 } from '@/lib/appointmentStatuses';
-
-const STORAGE_KEY = APPOINTMENT_STATUSES_STORAGE_KEY;
-const defaultSeed = DEFAULT_APPOINTMENT_STATUSES;
+import { appointmentStatusApi } from '@/services/api';
 
 const emptyForm = () => ({
   name: '',
   color: '#3b82f6',
 });
 
-function getStored() {
-  return getAppointmentStatuses();
-}
-
-function setStored(list) {
-  saveAppointmentStatuses(list);
-}
-
-function isLightColor(hex) {
-  const normalized = normalizeHexColor(hex);
-  if (!normalized) return false;
-  const r = parseInt(normalized.slice(1, 3), 16);
-  const g = parseInt(normalized.slice(3, 5), 16);
-  const b = parseInt(normalized.slice(5, 7), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6;
-}
-
 function rowToForm(row) {
   return {
     name: row?.name || '',
     color: normalizeHexColor(row?.color) || '#3b82f6',
   };
+}
+
+function auditUserLabel(user) {
+  if (!user) return '—';
+  return user.name || user.email || '—';
+}
+
+function formatAuditDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString();
 }
 
 export function AppointmentStatusPage() {
@@ -68,21 +56,29 @@ export function AppointmentStatusPage() {
   const [formMode, setFormMode] = useState('create');
   const [selectedItem, setSelectedItem] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [colorError, setColorError] = useState('');
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const load = () => {
-    const stored = getStored();
-    if (stored.length === 0) {
-      setStored(defaultSeed);
-      setItems(defaultSeed);
-      return;
+  const fetchList = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await appointmentStatusApi.getAll({ limit: 500 });
+      setItems(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      setError(err.message);
+      setItems([]);
+    } finally {
+      setIsLoading(false);
     }
-    setItems(stored);
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    fetchList();
+  }, [fetchList]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -120,7 +116,7 @@ export function AppointmentStatusPage() {
     if (colorError) setColorError('');
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     const name = form.name.trim();
     if (!name) return;
@@ -132,50 +128,42 @@ export function AppointmentStatusPage() {
     }
 
     setIsSubmitting(true);
+    setError(null);
     try {
-      const list = getStored();
-      const nameTaken = list.some(
-        (x) => x.name.toLowerCase() === name.toLowerCase() && x.id !== selectedItem?.id,
-      );
-      if (nameTaken) {
-        alert('An appointment status with this name already exists');
-        return;
-      }
-
       const payload = { name, color };
-
-      let next;
-      if (formMode === 'edit' && selectedItem) {
-        next = list.map((x) =>
-          x.id === selectedItem.id
-            ? { ...x, ...payload, updatedAt: new Date().toISOString() }
-            : x,
-        );
+      if (formMode === 'edit' && selectedItem?.id) {
+        await appointmentStatusApi.update(selectedItem.id, payload);
       } else {
-        next = [
-          ...list,
-          {
-            id: crypto.randomUUID(),
-            ...payload,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ];
+        await appointmentStatusApi.create(payload);
       }
-
-      setStored(next);
-      setItems(next);
       closeForm();
+      await fetchList();
+    } catch (err) {
+      setError(err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = (row) => {
-    if (!window.confirm(`Delete appointment status "${row.name}"?`)) return;
-    const next = getStored().filter((x) => x.id !== row.id);
-    setStored(next);
-    setItems(next);
+  const handleDeleteClick = (row) => {
+    setDeleteTarget(row);
+    setIsDeleteOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget?.id) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await appointmentStatusApi.delete(deleteTarget.id);
+      setIsDeleteOpen(false);
+      setDeleteTarget(null);
+      await fetchList();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const pickerValue = normalizeHexColor(form.color) || '#3b82f6';
@@ -194,6 +182,12 @@ export function AppointmentStatusPage() {
           Add Appointment Status
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+          {error}
+        </div>
+      )}
 
       <Dialog
         open={isFormOpen}
@@ -253,6 +247,25 @@ export function AppointmentStatusPage() {
               </div>
             </div>
 
+            {formMode === 'edit' && selectedItem && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Created by</p>
+                  <p className="font-medium">{auditUserLabel(selectedItem.creator)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {formatAuditDate(selectedItem.createdAt)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Updated by</p>
+                  <p className="font-medium">{auditUserLabel(selectedItem.updater)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {formatAuditDate(selectedItem.updatedAt)}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <DialogFooter className="gap-2 pt-2">
               <Button type="button" variant="outline" onClick={closeForm}>
                 Cancel
@@ -262,6 +275,37 @@ export function AppointmentStatusPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-lg w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>Remove Appointment Status</DialogTitle>
+            <DialogDescription>
+              Remove <span className="font-semibold">{deleteTarget?.name}</span> from the active
+              catalogue? It will no longer appear when scheduling new appointments.
+              {deleteTarget?._count?.appointments > 0 && (
+                <span className="mt-2 block text-muted-foreground">
+                  {deleteTarget._count.appointments} existing appointment(s) will keep this status
+                  label on their records.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isSubmitting || !deleteTarget}
+            >
+              {isSubmitting ? 'Removing...' : 'Remove'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -282,20 +326,28 @@ export function AppointmentStatusPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Color</TableHead>
+                <TableHead>Created by</TableHead>
+                <TableHead>Updated by</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center h-32 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center h-32 text-muted-foreground">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-32 text-muted-foreground">
                     No appointment statuses found
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((row) => {
                   const hex = normalizeHexColor(row.color) || '#6b7280';
-                  const light = isLightColor(hex);
+                  const light = isLightHexColor(hex);
                   return (
                     <TableRow key={row.id}>
                       <TableCell className="font-medium">{row.name}</TableCell>
@@ -313,6 +365,12 @@ export function AppointmentStatusPage() {
                           </span>
                           <span className="text-sm text-muted-foreground font-mono">{hex}</span>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {auditUserLabel(row.creator)}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {auditUserLabel(row.updater)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -334,7 +392,7 @@ export function AppointmentStatusPage() {
                             className="h-8 w-8 text-destructive hover:text-destructive"
                             title="Delete"
                             aria-label="Delete"
-                            onClick={() => handleDelete(row)}
+                            onClick={() => handleDeleteClick(row)}
                           >
                             <Trash2 className="h-4 w-4 icon-action-delete" />
                           </Button>

@@ -1,4 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
+
+/* eslint-disable react-hooks/set-state-in-effect -- Dialog form sync and async status catalog load */
+
 import { Plus } from 'lucide-react';
 import {
   Dialog,
@@ -21,9 +24,10 @@ import {
 } from '@/components/patients/patientRegistrationAppointmentConstants';
 import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 import {
-  getAppointmentStatuses,
   getDefaultAppointmentStatusName,
+  getAppointmentStatusesFallback,
 } from '@/lib/appointmentStatuses';
+import { appointmentStatusApi } from '@/services/api';
 import { cn } from '@/lib/utils';
 
 const emptyForm = () => ({
@@ -55,7 +59,7 @@ export function AppointmentFormDialog({
 }) {
   const [formData, setFormData] = useState(emptyForm);
   const [errors, setErrors] = useState({});
-  const [statusOptions, setStatusOptions] = useState(() => getAppointmentStatuses());
+  const [statusOptions, setStatusOptions] = useState(() => getAppointmentStatusesFallback());
 
   const isEditing = !!appointment;
 
@@ -80,37 +84,80 @@ export function AppointmentFormDialog({
   useEffect(() => {
     if (!open) return;
 
-    const statuses = getAppointmentStatuses();
-    setStatusOptions(statuses);
-    const defaultStatus = statuses[0]?.name || 'Scheduled';
+    let cancelled = false;
+    appointmentStatusApi
+      .getActive()
+      .then((res) => {
+        if (cancelled) return;
+        const statuses = Array.isArray(res.data) && res.data.length ? res.data : getAppointmentStatusesFallback();
+        setStatusOptions(statuses);
+        const defaultStatus = getDefaultAppointmentStatusName(statuses);
 
-    if (appointment) {
-      const { appointmentNotes, referral } = parseNotesWithReferral(appointment.notes);
-      const visitType =
-        API_TYPE_TO_VISIT_TYPE[appointment.appointmentType] || 'new-patient';
-      setFormData({
-        patientId: appointment.patientId || '',
-        appointmentDate: appointment.appointmentDate
-          ? appointment.appointmentDate.split('T')[0]
-          : '',
-        appointmentTime: appointment.appointmentTime || '',
-        appointmentVisitType: visitType,
-        appointmentProvider: appointment.provider || '',
-        appointmentReason: appointment.visitReason || '',
-        appointmentNotes,
-        ...referral,
-        duration: appointment.duration || 30,
-        status: appointment.status || defaultStatus,
+        if (appointment) {
+          const { appointmentNotes, referral } = parseNotesWithReferral(appointment.notes);
+          const visitType =
+            API_TYPE_TO_VISIT_TYPE[appointment.appointmentType] || 'new-patient';
+          setFormData({
+            patientId: appointment.patientId || '',
+            appointmentDate: appointment.appointmentDate
+              ? appointment.appointmentDate.split('T')[0]
+              : '',
+            appointmentTime: appointment.appointmentTime || '',
+            appointmentVisitType: visitType,
+            appointmentProvider: appointment.provider || '',
+            appointmentReason: appointment.visitReason || '',
+            appointmentNotes,
+            ...referral,
+            duration: appointment.duration || 30,
+            status: appointment.status || defaultStatus,
+          });
+        } else {
+          setFormData({
+            ...emptyForm(),
+            appointmentDate: initialDate || '',
+            appointmentTime: initialTime || '',
+            status: defaultStatus,
+          });
+        }
+        setErrors({});
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const statuses = getAppointmentStatusesFallback();
+        setStatusOptions(statuses);
+        const defaultStatus = getDefaultAppointmentStatusName(statuses);
+        if (appointment) {
+          const { appointmentNotes, referral } = parseNotesWithReferral(appointment.notes);
+          const visitType =
+            API_TYPE_TO_VISIT_TYPE[appointment.appointmentType] || 'new-patient';
+          setFormData({
+            patientId: appointment.patientId || '',
+            appointmentDate: appointment.appointmentDate
+              ? appointment.appointmentDate.split('T')[0]
+              : '',
+            appointmentTime: appointment.appointmentTime || '',
+            appointmentVisitType: visitType,
+            appointmentProvider: appointment.provider || '',
+            appointmentReason: appointment.visitReason || '',
+            appointmentNotes,
+            ...referral,
+            duration: appointment.duration || 30,
+            status: appointment.status || defaultStatus,
+          });
+        } else {
+          setFormData({
+            ...emptyForm(),
+            appointmentDate: initialDate || '',
+            appointmentTime: initialTime || '',
+            status: defaultStatus,
+          });
+        }
+        setErrors({});
       });
-    } else {
-      setFormData({
-        ...emptyForm(),
-        appointmentDate: initialDate || '',
-        appointmentTime: initialTime || '',
-        status: defaultStatus,
-      });
-    }
-    setErrors({});
+
+    return () => {
+      cancelled = true;
+    };
   }, [appointment, open, initialDate, initialTime]);
 
   useEffect(() => {
