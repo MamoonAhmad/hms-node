@@ -125,6 +125,7 @@ model Patient {
   updatedAt             DateTime           @updatedAt
   appointments          Appointment[]
   orders                Order[]
+  beds                  Bed[]
 
   @@map("patients")
 }
@@ -390,19 +391,21 @@ model RoomTypeOnRoom {
 }
 
 model Bed {
-  id          String    @id @default(uuid())
-  bedLabel    String
-  roomId      String
-  status      String    @default("available")
-  patientName String?
-  service     String?
-  notes       String?
-  deletedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  bedLabel  String
+  roomId    String
+  status    String    @default("available")
+  patientId String?
+  service   String?
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  patient   Patient?  @relation(fields: [patientId], references: [id], onDelete: SetNull)
 
   @@index([roomId])
+  @@index([patientId])
   @@index([status])
   @@index([deletedAt])
   @@map("beds")

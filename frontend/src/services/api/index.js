@@ -24,6 +24,7 @@ export { hcpcsCodeApi } from './hcpcsCode.api';
 export { diagnosisCodeApi } from './diagnosisCode.api';
 export { roomTypeApi } from './roomType.api';
 export { roomApi } from './room.api';
+export { bedApi } from './bed.api';
 
 // Re-export shared utilities
 export { API_BASE_URL, getAuthHeaders, handleResponse } from './client';

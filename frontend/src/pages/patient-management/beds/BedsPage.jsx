@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BedDouble, Eye, Pencil, Plus, Trash2, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
@@ -22,8 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { loadBeds, saveBeds } from '@/pages/patient-management/roomsBedsStorage';
-import { roomApi } from '@/services/api';
+import { bedApi, roomApi, patientApi } from '@/services/api';
 
 const BED_LIST_TABS = {
   ALL: 'all',
@@ -36,34 +35,23 @@ const BED_LIST_TABS = {
 const BED_STATUSES = [
   { value: 'available', label: 'Available' },
   { value: 'occupied', label: 'Occupied' },
-  { value: 'cleaning', label: 'Cleaning' },
   { value: 'reserved', label: 'Reserved' },
+  { value: 'cleaning', label: 'Cleaning' },
   { value: 'blocked', label: 'Blocked' },
 ];
+
+const PATIENT_SELECT_STATUSES = ['available', 'reserved'];
+const PATIENT_READONLY_STATUSES = ['occupied'];
+const NO_PATIENT_STATUSES = ['cleaning', 'blocked'];
 
 const emptyForm = () => ({
   bedLabel: '',
   roomId: '',
   status: 'available',
-  patientName: '',
+  patientId: '',
   service: '',
   notes: '',
 });
-
-function bedsForListTab(beds, listTab) {
-  switch (listTab) {
-    case BED_LIST_TABS.AVAILABLE:
-      return beds.filter((b) => b.status === 'available');
-    case BED_LIST_TABS.OCCUPIED:
-      return beds.filter((b) => b.status === 'occupied');
-    case BED_LIST_TABS.RESERVED:
-      return beds.filter((b) => b.status === 'reserved');
-    case BED_LIST_TABS.UNAVAILABLE:
-      return beds.filter((b) => b.status === 'cleaning' || b.status === 'blocked');
-    default:
-      return beds;
-  }
-}
 
 function emptyMessageForTab(listTab) {
   switch (listTab) {
@@ -76,7 +64,7 @@ function emptyMessageForTab(listTab) {
     case BED_LIST_TABS.UNAVAILABLE:
       return 'No beds in cleaning or blocked status match your search.';
     default:
-      return 'No beds yet — add a bed or load sample data from Rooms.';
+      return 'No beds yet — add a bed after creating at least one room.';
   }
 }
 
@@ -97,11 +85,19 @@ function statusVariant(status) {
   }
 }
 
+function formatPatientOption(patient) {
+  const name = [patient.firstName, patient.middleName, patient.lastName].filter(Boolean).join(' ');
+  return name ? `${name} (${patient.mrn})` : patient.mrn;
+}
+
 export function BedsPage() {
-  const [beds, setBeds] = useState([]);
+  const [items, setItems] = useState([]);
+  const [summary, setSummary] = useState({ total: 0, available: 0, occupied: 0, unavailable: 0 });
   const [rooms, setRooms] = useState([]);
+  const [patients, setPatients] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
+  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
   const [search, setSearch] = useState('');
   const [listTab, setListTab] = useState(BED_LIST_TABS.ALL);
 
@@ -109,145 +105,159 @@ export function BedsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [mode, setMode] = useState('create');
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(emptyForm());
   const [submitting, setSubmitting] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
 
-  const refreshBeds = () => {
-    setBeds(loadBeds());
-  };
+  const listTabParam = listTab === BED_LIST_TABS.ALL ? undefined : listTab;
 
-  const refreshRooms = async () => {
+  const fetchBeds = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const response = await roomApi.getActive();
-      setRooms(response.data || []);
-      return response.data || [];
+      const response = await bedApi.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: search || undefined,
+        listTab: listTabParam,
+      });
+      setItems(response.data || []);
+      setPagination((prev) => ({ ...prev, ...response.pagination }));
+      if (response.summary) setSummary(response.summary);
+    } catch (err) {
+      setError(err.message);
+      setItems([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.page, pagination.limit, search, listTabParam]);
+
+  useEffect(() => {
+    fetchBeds();
+  }, [fetchBeds]);
+
+  const loadFormOptions = async () => {
+    setLoadingOptions(true);
+    try {
+      const [roomsRes, patientsRes] = await Promise.all([
+        roomApi.getAll({ limit: 500 }),
+        patientApi.getAll({ limit: 500 }),
+      ]);
+      setRooms(roomsRes.data || []);
+      setPatients(patientsRes.data || []);
+      return {
+        rooms: roomsRes.data || [],
+        patients: patientsRes.data || [],
+      };
     } catch {
       setRooms([]);
-      return [];
+      setPatients([]);
+      return { rooms: [], patients: [] };
+    } finally {
+      setLoadingOptions(false);
     }
   };
 
   useEffect(() => {
-    setIsLoading(true);
-    const load = async () => {
-      await refreshRooms();
-      refreshBeds();
-      setIsLoading(false);
-    };
-    load();
+    loadFormOptions();
   }, []);
 
-  const roomLabel = (id) => {
-    const r = rooms.find((x) => x.id === id);
-    if (!r) return '—';
-    return r.displayName ? `${r.roomNumber} — ${r.displayName}` : r.roomNumber;
-  };
-
-  const filtered = useMemo(() => {
-    const scoped = bedsForListTab(beds, listTab);
-    const q = search.toLowerCase().trim();
-    if (!q) return scoped;
-    return scoped.filter((b) => {
-      const room = roomLabel(b.roomId).toLowerCase();
-      const blob = [b.bedLabel, b.status, b.patientName, b.service, b.notes, room]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return blob.includes(q);
-    });
-  }, [beds, search, rooms, listTab]);
-
-  const rows = useMemo(() => {
-    const total = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-    const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
-    const base = (currentPage - 1) * pagination.limit;
-    return filtered.slice(base, base + pagination.limit).map((row, i) => ({
-      ...row,
-      _srNo: base + i + 1,
-      _roomLabel: roomLabel(row.roomId),
-    }));
-  }, [filtered, pagination, rooms]);
-
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-  const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
+  const rows = useMemo(
+    () =>
+      items.map((row, i) => ({
+        ...row,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [items, pagination.page, pagination.limit],
+  );
 
   const statusLabel = (v) => BED_STATUSES.find((x) => x.value === v)?.label || v;
 
+  const showPatientSelect = PATIENT_SELECT_STATUSES.includes(form.status);
+  const showPatientReadOnly = PATIENT_READONLY_STATUSES.includes(form.status);
+  const hidePatientField = NO_PATIENT_STATUSES.includes(form.status);
+
+  const matchedPatient = patients.find((p) => p.id === form.patientId);
+  const linkedPatientName =
+    selected?.patientName || (matchedPatient ? formatPatientOption(matchedPatient) : '');
+
+  const handleStatusChange = (status) => {
+    setForm((prev) => {
+      const next = { ...prev, status };
+      if (NO_PATIENT_STATUSES.includes(status)) {
+        next.patientId = '';
+      }
+      return next;
+    });
+  };
+
   const openCreate = async () => {
-    const activeRooms = await refreshRooms();
-    refreshBeds();
+    const { rooms: roomList } = await loadFormOptions();
     setSelected(null);
     setMode('create');
     setForm({
       ...emptyForm(),
-      roomId: activeRooms[0]?.id || '',
+      roomId: roomList[0]?.id || '',
     });
     setDialogOpen(true);
   };
 
-  const openView = async (row) => {
-    await refreshRooms();
-    refreshBeds();
-    setSelected(row);
-    setMode('view');
-    setForm({
-      bedLabel: row.bedLabel || '',
-      roomId: row.roomId || '',
-      status: row.status || 'available',
-      patientName: row.patientName || '',
-      service: row.service || '',
-      notes: row.notes || '',
-    });
-    setDialogOpen(true);
+  const openRecord = async (row, nextMode) => {
+    await loadFormOptions();
+    try {
+      const response = await bedApi.getById(row.id);
+      const record = response.data;
+      setSelected(record);
+      setMode(nextMode);
+      setForm({
+        bedLabel: record.bedLabel || '',
+        roomId: record.roomId || '',
+        status: record.status || 'available',
+        patientId: record.patientId || '',
+        service: record.service || '',
+        notes: record.notes || '',
+      });
+      setDialogOpen(true);
+    } catch (err) {
+      alert(err.message || 'Failed to load bed');
+    }
   };
 
-  const openEdit = async (row) => {
-    await refreshRooms();
-    refreshBeds();
-    setSelected(row);
-    setMode('edit');
-    setForm({
-      bedLabel: row.bedLabel || '',
-      roomId: row.roomId || '',
-      status: row.status || 'available',
-      patientName: row.patientName || '',
-      service: row.service || '',
-      notes: row.notes || '',
-    });
-    setDialogOpen(true);
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (mode === 'view') return;
+
+    if (form.status === 'occupied' && !form.patientId) {
+      alert('Assign a patient while status is Available or Reserved before marking the bed Occupied.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
         bedLabel: form.bedLabel.trim(),
-        roomId: form.roomId || null,
+        roomId: form.roomId,
         status: form.status,
-        patientName: form.status === 'occupied' ? form.patientName.trim() : '',
-        service: form.service.trim(),
-        notes: form.notes.trim(),
-        updatedAt: new Date().toISOString(),
+        service: form.service.trim() || null,
+        notes: form.notes.trim() || null,
       };
 
+      if (PATIENT_SELECT_STATUSES.includes(form.status)) {
+        payload.patientId = form.patientId || null;
+      } else if (form.status === 'occupied' && form.patientId) {
+        payload.patientId = form.patientId;
+      }
+
       if (mode === 'edit' && selected?.id) {
-        setBeds((prev) => {
-          const next = prev.map((b) => (b.id === selected.id ? { ...b, ...payload } : b));
-          saveBeds(next);
-          return next;
-        });
+        await bedApi.update(selected.id, payload);
       } else {
-        setBeds((prev) => {
-          const id = `b_${Date.now()}`;
-          const next = [{ id, ...payload, createdAt: new Date().toISOString() }, ...prev];
-          saveBeds(next);
-          return next;
-        });
+        await bedApi.create(payload);
       }
       setDialogOpen(false);
+      setSelected(null);
+      fetchBeds();
+    } catch (err) {
+      alert(err.message || 'Save failed');
     } finally {
       setSubmitting(false);
     }
@@ -258,16 +268,16 @@ export function BedsPage() {
     setDeleteOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!selected?.id) return;
     setSubmitting(true);
     try {
-      setBeds((prev) => {
-        const next = prev.filter((b) => b.id !== selected.id);
-        saveBeds(next);
-        return next;
-      });
+      await bedApi.delete(selected.id);
       setDeleteOpen(false);
+      setSelected(null);
+      fetchBeds();
+    } catch (err) {
+      alert(err.message || 'Delete failed');
     } finally {
       setSubmitting(false);
     }
@@ -281,7 +291,7 @@ export function BedsPage() {
       cellClassName: 'font-medium',
       render: (row) => row.bedLabel || '—',
     },
-    { key: '_roomLabel', label: 'Room', render: (row) => row._roomLabel },
+    { key: 'roomLabel', label: 'Room', render: (row) => row.roomLabel || '—' },
     {
       key: 'status',
       label: 'Status',
@@ -295,7 +305,7 @@ export function BedsPage() {
       key: 'patientName',
       label: 'Patient',
       render: (row) =>
-        row.status === 'occupied' && row.patientName ? (
+        row.patientName ? (
           <span className="inline-flex items-center gap-1.5">
             <UserRound className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
             {row.patientName}
@@ -308,7 +318,6 @@ export function BedsPage() {
   ];
 
   const readOnly = mode === 'view';
-  const occupiedHint = form.status === 'occupied';
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -319,8 +328,8 @@ export function BedsPage() {
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Beds</h1>
           </div>
           <p className="text-muted-foreground max-w-2xl">
-            Track each physical bed: link it to a room, set census status, and optionally note the
-            patient when the bed is occupied. Add rooms first if your room list is empty.
+            Track each physical bed: link it to a room, set census status, and assign patients from
+            the registry when the bed is available or reserved.
           </p>
         </div>
         <Button onClick={openCreate} className="shrink-0" disabled={!rooms.length}>
@@ -329,7 +338,13 @@ export function BedsPage() {
         </Button>
       </div>
 
-      {!rooms.length && (
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+          {error}
+        </div>
+      )}
+
+      {!rooms.length && !isLoading && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
           No rooms defined yet. Open{' '}
           <strong className="font-semibold">Rooms</strong> under Rooms Management and create at
@@ -358,33 +373,29 @@ export function BedsPage() {
       <div className="grid gap-3 sm:grid-cols-4">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="text-muted-foreground text-sm">Total beds</div>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{beds.length}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.total}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="text-muted-foreground text-sm">Available</div>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-            {beds.filter((b) => b.status === 'available').length}
+            {summary.available}
           </p>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="text-muted-foreground text-sm">Occupied</div>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">
-            {beds.filter((b) => b.status === 'occupied').length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.occupied}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="text-muted-foreground text-sm">Cleaning / blocked</div>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">
-            {beds.filter((b) => b.status === 'cleaning' || b.status === 'blocked').length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.unavailable}</p>
         </div>
       </div>
 
       <DataTable
         columns={columns}
         data={rows}
-        total={total}
-        page={currentPage}
+        total={pagination.total}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
@@ -399,10 +410,10 @@ export function BedsPage() {
         emptyMessage={emptyMessageForTab(listTab)}
         actions={(row) => (
           <div className="flex justify-end gap-1">
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => openView(row)} aria-label="View">
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => openRecord(row, 'view')} aria-label="View">
               <Eye className="h-4 w-4" />
             </Button>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => openEdit(row)} aria-label="Edit">
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => openRecord(row, 'edit')} aria-label="Edit">
               <Pencil className="h-4 w-4" />
             </Button>
             <Button
@@ -428,7 +439,7 @@ export function BedsPage() {
             <DialogDescription>
               {readOnly
                 ? 'Read-only view.'
-                : 'Beds are listed on the inpatient bed board and can mirror your ADT system later.'}
+                : 'Assign patients from the registry when the bed is available or reserved.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -438,7 +449,7 @@ export function BedsPage() {
                 id="bedLabel"
                 value={form.bedLabel}
                 onChange={(e) => setForm((f) => ({ ...f, bedLabel: e.target.value }))}
-                disabled={readOnly}
+                disabled={readOnly || submitting}
                 required={!readOnly}
                 placeholder="e.g. 301-A"
               />
@@ -448,7 +459,7 @@ export function BedsPage() {
               <Select
                 value={form.roomId || undefined}
                 onValueChange={(v) => setForm((f) => ({ ...f, roomId: v }))}
-                disabled={readOnly || !rooms.length}
+                disabled={readOnly || submitting || !rooms.length}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select room" />
@@ -466,8 +477,8 @@ export function BedsPage() {
               <Label>Bed status</Label>
               <Select
                 value={form.status}
-                onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
-                disabled={readOnly}
+                onValueChange={handleStatusChange}
+                disabled={readOnly || submitting}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -481,23 +492,52 @@ export function BedsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="patientName">Patient (when occupied)</Label>
-              <Input
-                id="patientName"
-                value={form.patientName}
-                onChange={(e) => setForm((f) => ({ ...f, patientName: e.target.value }))}
-                disabled={readOnly || !occupiedHint}
-                placeholder={occupiedHint ? 'Patient name or MRN label' : 'Set status to Occupied to edit'}
-              />
-            </div>
+
+            {!hidePatientField && showPatientReadOnly && (
+              <div className="space-y-2">
+                <Label htmlFor="patientReadOnly">Patient</Label>
+                <Input
+                  id="patientReadOnly"
+                  value={selected?.patientName || linkedPatientName || '—'}
+                  disabled
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
+            )}
+
+            {!hidePatientField && showPatientSelect && (
+              <div className="space-y-2">
+                <Label>Patient</Label>
+                <Select
+                  value={form.patientId || '__none__'}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, patientId: v === '__none__' ? '' : v }))
+                  }
+                  disabled={readOnly || submitting || loadingOptions}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingOptions ? 'Loading patients…' : 'Select patient (optional)'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No patient assigned</SelectItem>
+                    {patients.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {formatPatientOption(p)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="service">Service / specialty</Label>
               <Input
                 id="service"
                 value={form.service}
                 onChange={(e) => setForm((f) => ({ ...f, service: e.target.value }))}
-                disabled={readOnly}
+                disabled={readOnly || submitting}
                 placeholder="e.g. General, Telemetry"
               />
             </div>
@@ -508,12 +548,12 @@ export function BedsPage() {
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                disabled={readOnly}
+                disabled={readOnly || submitting}
               />
             </div>
             {!readOnly && (
               <DialogFooter className="gap-2 sm:gap-0">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting || !form.bedLabel.trim() || !form.roomId}>

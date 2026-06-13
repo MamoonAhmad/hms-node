@@ -392,7 +392,7 @@ const queryPatientSchema = Joi.object({
     .messages({
       'number.min': 'Page must be at least 1',
     }),
-  limit: Joi.number().integer().min(1).max(100).default(10)
+  limit: Joi.number().integer().min(1).max(500).default(10)
     .messages({
       'number.min': 'Limit must be at least 1',
       'number.max': 'Limit cannot exceed 100',
