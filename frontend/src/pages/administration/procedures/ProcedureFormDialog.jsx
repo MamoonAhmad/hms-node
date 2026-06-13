@@ -16,64 +16,85 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-// Mock categories - static data only
-const mockCategories = [
-  { id: 1, name: 'Office Visits' },
-  { id: 2, name: 'Laboratory' },
-  { id: 3, name: 'Radiology' },
-  { id: 4, name: 'Surgery' },
-];
+import { MultiSelect } from '@/components/ui/multi-select';
+import { departmentApi, procedureCategoryApi } from '@/services/api';
 
-export function ProcedureFormDialog({ open, onOpenChange, procedure, onSubmit, isLoading }) {
-  const [formData, setFormData] = useState({
-    procedureDescription: '',
-    genericDescription: '',
-    procedureCategoryId: '',
-    procedureDepartment: '',
-    cptCode: '',
-    revenueCode: '',
-    mod1: '',
-    mod2: '',
-    mod3: '',
-    mod4: '',
-  });
+const emptyForm = () => ({
+  procedureDescription: '',
+  genericDescription: '',
+  procedureCategoryIds: [],
+  departmentId: '',
+  cptCode: '',
+  revenueCode: '',
+  mod1: '',
+  mod2: '',
+  mod3: '',
+  mod4: '',
+});
+
+export function ProcedureFormDialog({ open, onOpenChange, procedure, mode = 'create', onSubmit, isLoading }) {
+  const [formData, setFormData] = useState(emptyForm());
   const [errors, setErrors] = useState({});
-  const [categories] = useState(mockCategories);
+  const [categories, setCategories] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  const isView = mode === 'view';
+  const isEdit = mode === 'edit';
+  const readOnly = isView;
 
   useEffect(() => {
-    if (open) {
-      if (procedure) {
-        setFormData({
-          procedureDescription: procedure.procedureDescription || procedure.procedureName || '',
-          genericDescription: procedure.genericDescription || procedure.genericName || '',
-          procedureCategoryId: procedure.procedureCategoryId || procedure.categoryId || procedure.category?.id || '',
-          procedureDepartment: procedure.procedureDepartment || procedure.department || '',
-          cptCode: procedure.cptCode || procedure.procedureCode || '',
-          revenueCode: procedure.revenueCode || '',
-          mod1: procedure.mod1 || '',
-          mod2: procedure.mod2 || '',
-          mod3: procedure.mod3 || '',
-          mod4: procedure.mod4 || '',
-        });
-      } else {
-        setFormData({
-          procedureDescription: '',
-          genericDescription: '',
-          procedureCategoryId: '',
-          procedureDepartment: '',
-          cptCode: '',
-          revenueCode: '',
-          mod1: '',
-          mod2: '',
-          mod3: '',
-          mod4: '',
-        });
+    if (!open) return;
+
+    const loadOptions = async () => {
+      setLoadingOptions(true);
+      try {
+        const [catRes, deptRes] = await Promise.all([
+          procedureCategoryApi.getAll({ limit: 500 }),
+          departmentApi.getAll({ limit: 500, status: 'active' }),
+        ]);
+        setCategories(catRes.data || []);
+        setDepartments(deptRes.data || []);
+      } catch {
+        setCategories([]);
+        setDepartments([]);
+      } finally {
+        setLoadingOptions(false);
       }
-      setErrors({});
+    };
+
+    loadOptions();
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (procedure) {
+      setFormData({
+        procedureDescription: procedure.procedureDescription || '',
+        genericDescription: procedure.genericDescription || '',
+        procedureCategoryIds: procedure.procedureCategoryIds || procedure.categories?.map((c) => c.id) || [],
+        departmentId: procedure.departmentId || '',
+        cptCode: procedure.cptCode || '',
+        revenueCode: procedure.revenueCode || '',
+        mod1: procedure.mod1 || '',
+        mod2: procedure.mod2 || '',
+        mod3: procedure.mod3 || '',
+        mod4: procedure.mod4 || '',
+      });
+    } else {
+      setFormData(emptyForm());
     }
-  }, [procedure, open]);
+    setErrors({});
+  }, [procedure, open, mode]);
+
+  const categoryOptions = categories.map((c) => ({
+    value: c.id,
+    label: c.name || c.categoryName,
+  }));
 
   const handleChange = (field, value) => {
+    if (readOnly) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: null }));
@@ -82,13 +103,15 @@ export function ProcedureFormDialog({ open, onOpenChange, procedure, onSubmit, i
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) return;
+
     const newErrors = {};
-    
+
     if (!formData.procedureDescription.trim()) {
       newErrors.procedureDescription = 'Procedure description is required';
     }
-    if (!formData.procedureCategoryId) {
-      newErrors.procedureCategoryId = 'Procedure category is required';
+    if (!formData.procedureCategoryIds.length) {
+      newErrors.procedureCategoryIds = 'At least one procedure category is required';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -96,16 +119,27 @@ export function ProcedureFormDialog({ open, onOpenChange, procedure, onSubmit, i
       return;
     }
 
-    onSubmit(formData);
+    onSubmit({
+      ...formData,
+      procedureDescription: formData.procedureDescription.trim(),
+      genericDescription: formData.genericDescription.trim() || null,
+      departmentId: formData.departmentId || null,
+      cptCode: formData.cptCode.trim() || null,
+      revenueCode: formData.revenueCode.trim() || null,
+      mod1: formData.mod1.trim() || null,
+      mod2: formData.mod2.trim() || null,
+      mod3: formData.mod3.trim() || null,
+      mod4: formData.mod4.trim() || null,
+    });
   };
+
+  const title = isView ? 'View Procedure' : isEdit ? 'Edit Procedure' : 'Add Procedure';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {procedure ? 'Edit Procedure' : 'Add Procedure'}
-          </DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-6 py-4">
@@ -118,6 +152,8 @@ export function ProcedureFormDialog({ open, onOpenChange, procedure, onSubmit, i
                   onChange={(e) => handleChange('procedureDescription', e.target.value)}
                   className={errors.procedureDescription ? 'border-destructive' : ''}
                   placeholder="Enter procedure description"
+                  disabled={readOnly || isLoading}
+                  readOnly={readOnly}
                 />
                 {errors.procedureDescription && (
                   <p className="text-xs text-destructive">{errors.procedureDescription}</p>
@@ -130,40 +166,69 @@ export function ProcedureFormDialog({ open, onOpenChange, procedure, onSubmit, i
                   value={formData.genericDescription}
                   onChange={(e) => handleChange('genericDescription', e.target.value)}
                   placeholder="Enter generic description"
+                  disabled={readOnly || isLoading}
+                  readOnly={readOnly}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="procedureCategoryId">Procedure Category *</Label>
-                <Select
-                  value={formData.procedureCategoryId}
-                  onValueChange={(value) => handleChange('procedureCategoryId', value)}
-                >
-                  <SelectTrigger className={errors.procedureCategoryId ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name || category.categoryName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errors.procedureCategoryId && (
-                  <p className="text-xs text-destructive">{errors.procedureCategoryId}</p>
+                <Label htmlFor="procedureCategoryIds">Procedure Category *</Label>
+                {readOnly ? (
+                  <Input
+                    value={
+                      procedure?.categoryName ||
+                      procedure?.categories?.map((c) => c.name).join(', ') ||
+                      '—'
+                    }
+                    disabled
+                    readOnly
+                    className="bg-muted"
+                  />
+                ) : (
+                  <MultiSelect
+                    id="procedureCategoryIds"
+                    options={categoryOptions}
+                    value={formData.procedureCategoryIds}
+                    onChange={(value) => handleChange('procedureCategoryIds', value)}
+                    placeholder={loadingOptions ? 'Loading categories...' : 'Select categories'}
+                    searchable
+                    searchPlaceholder="Search categories..."
+                    className={errors.procedureCategoryIds ? 'border-destructive rounded-md' : ''}
+                  />
+                )}
+                {errors.procedureCategoryIds && (
+                  <p className="text-xs text-destructive">{errors.procedureCategoryIds}</p>
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="procedureDepartment">Procedure Department</Label>
-                <Input
-                  id="procedureDepartment"
-                  value={formData.procedureDepartment}
-                  onChange={(e) => handleChange('procedureDepartment', e.target.value)}
-                  placeholder="Enter department"
-                />
+                <Label htmlFor="departmentId">Procedure Department</Label>
+                {readOnly ? (
+                  <Input
+                    value={procedure?.procedureDepartment || procedure?.department?.departmentName || '—'}
+                    disabled
+                    readOnly
+                    className="bg-muted"
+                  />
+                ) : (
+                  <Select
+                    value={formData.departmentId || undefined}
+                    onValueChange={(value) => handleChange('departmentId', value)}
+                    disabled={loadingOptions || isLoading}
+                  >
+                    <SelectTrigger id="departmentId">
+                      <SelectValue placeholder={loadingOptions ? 'Loading departments...' : 'Select department'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.departmentName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 
@@ -175,6 +240,8 @@ export function ProcedureFormDialog({ open, onOpenChange, procedure, onSubmit, i
                   value={formData.cptCode}
                   onChange={(e) => handleChange('cptCode', e.target.value)}
                   placeholder="Enter CPT code"
+                  disabled={readOnly || isLoading}
+                  readOnly={readOnly}
                 />
               </div>
               <div className="space-y-2">
@@ -184,61 +251,46 @@ export function ProcedureFormDialog({ open, onOpenChange, procedure, onSubmit, i
                   value={formData.revenueCode}
                   onChange={(e) => handleChange('revenueCode', e.target.value)}
                   placeholder="Enter revenue code"
+                  disabled={readOnly || isLoading}
+                  readOnly={readOnly}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="mod1">Mod 1</Label>
-                <Input
-                  id="mod1"
-                  value={formData.mod1}
-                  onChange={(e) => handleChange('mod1', e.target.value)}
-                  placeholder="Mod 1"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mod2">Mod 2</Label>
-                <Input
-                  id="mod2"
-                  value={formData.mod2}
-                  onChange={(e) => handleChange('mod2', e.target.value)}
-                  placeholder="Mod 2"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mod3">Mod 3</Label>
-                <Input
-                  id="mod3"
-                  value={formData.mod3}
-                  onChange={(e) => handleChange('mod3', e.target.value)}
-                  placeholder="Mod 3"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mod4">Mod 4</Label>
-                <Input
-                  id="mod4"
-                  value={formData.mod4}
-                  onChange={(e) => handleChange('mod4', e.target.value)}
-                  placeholder="Mod 4"
-                />
-              </div>
+              {['mod1', 'mod2', 'mod3', 'mod4'].map((mod, index) => (
+                <div key={mod} className="space-y-2">
+                  <Label htmlFor={mod}>Mod {index + 1}</Label>
+                  <Input
+                    id={mod}
+                    value={formData[mod]}
+                    onChange={(e) => handleChange(mod, e.target.value)}
+                    placeholder={`Mod ${index + 1}`}
+                    disabled={readOnly || isLoading}
+                    readOnly={readOnly}
+                  />
+                </div>
+              ))}
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-              Close
-            </Button>
-            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-              {isLoading ? 'Saving...' : 'Save'}
-            </Button>
+            {readOnly ? (
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading} className="w-full sm:w-auto">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                  {isLoading ? 'Saving...' : 'Save'}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
-
-

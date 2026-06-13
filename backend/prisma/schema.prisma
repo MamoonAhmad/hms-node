@@ -224,6 +224,64 @@ model ConsentForm {
   @@map("consent_forms")
 }
 
+model ProcedureCategory {
+  id         String                         @id @default(uuid())
+  name       String
+  deletedAt  DateTime?
+  createdBy  String
+  updatedBy  String
+  deletedBy  String?
+  createdAt  DateTime                       @default(now())
+  updatedAt  DateTime                       @updatedAt
+  creator    User                           @relation("CreatedProcedureCategories", fields: [createdBy], references: [id])
+  updater    User                           @relation("UpdatedProcedureCategories", fields: [updatedBy], references: [id])
+  deleter    User?                          @relation("DeletedProcedureCategories", fields: [deletedBy], references: [id])
+  procedures ProcedureCategoryOnProcedure[]
+
+  @@index([name])
+  @@index([deletedAt])
+  @@map("procedure_categories")
+}
+
+model Procedure {
+  id                   String                         @id @default(uuid())
+  procedureDescription String
+  genericDescription   String?
+  departmentId         String?
+  cptCode              String?
+  revenueCode          String?
+  mod1                 String?
+  mod2                 String?
+  mod3                 String?
+  mod4                 String?
+  deletedAt            DateTime?
+  createdBy            String
+  updatedBy            String
+  deletedBy            String?
+  createdAt            DateTime                       @default(now())
+  updatedAt            DateTime                       @updatedAt
+  department           Department?                    @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  creator              User                           @relation("CreatedProcedures", fields: [createdBy], references: [id])
+  updater              User                           @relation("UpdatedProcedures", fields: [updatedBy], references: [id])
+  deleter              User?                          @relation("DeletedProcedures", fields: [deletedBy], references: [id])
+  categories           ProcedureCategoryOnProcedure[]
+
+  @@index([procedureDescription])
+  @@index([cptCode])
+  @@index([deletedAt])
+  @@map("procedures")
+}
+
+model ProcedureCategoryOnProcedure {
+  procedureId         String
+  procedureCategoryId String
+  procedure           Procedure         @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  procedureCategory   ProcedureCategory @relation(fields: [procedureCategoryId], references: [id], onDelete: Cascade)
+
+  @@id([procedureId, procedureCategoryId])
+  @@map("procedure_category_on_procedure")
+}
+
 model Provider {
   id                       String   @id @default(uuid())
   npi                      String   @unique
@@ -447,6 +505,12 @@ model User {
   consentFormsCreated        ConsentForm[]        @relation("CreatedConsentForms")
   consentFormsUpdated        ConsentForm[]        @relation("UpdatedConsentForms")
   consentFormsDeleted        ConsentForm[]        @relation("DeletedConsentForms")
+  procedureCategoriesCreated ProcedureCategory[]  @relation("CreatedProcedureCategories")
+  procedureCategoriesUpdated ProcedureCategory[]  @relation("UpdatedProcedureCategories")
+  procedureCategoriesDeleted ProcedureCategory[]  @relation("DeletedProcedureCategories")
+  proceduresCreated          Procedure[]          @relation("CreatedProcedures")
+  proceduresUpdated          Procedure[]          @relation("UpdatedProcedures")
+  proceduresDeleted          Procedure[]          @relation("DeletedProcedures")
 
   @@map("users")
 }
@@ -595,6 +659,7 @@ model Department {
   location                   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   providers                  Provider[]
   appointments               Appointment[]
+  procedures                   Procedure[]
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 

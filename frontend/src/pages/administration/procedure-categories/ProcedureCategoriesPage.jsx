@@ -1,7 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ProcedureCategoryFormDialog } from './ProcedureCategoryFormDialog';
 import { procedureCategoryApi } from '@/services/api';
 
@@ -21,12 +29,13 @@ export function ProcedureCategoriesPage() {
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchCategories = async () => {
     setIsLoading(true);
     try {
-      const response = await procedureCategoryApi.getAll();
+      const response = await procedureCategoryApi.getAll({ limit: 500 });
       setCategories(response.data || response || []);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -89,6 +98,20 @@ export function ProcedureCategoriesPage() {
     }
   };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setIsSubmitting(true);
+    try {
+      await procedureCategoryApi.delete(deleteTarget.id);
+      setDeleteTarget(null);
+      fetchCategories();
+    } catch (err) {
+      alert(err.message || 'Delete failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -117,15 +140,27 @@ export function ProcedureCategoriesPage() {
         searchPlaceholder="Search by category name..."
         emptyMessage="No categories found"
         actions={(category) => (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleEdit(category)}
-            className="h-8 w-8 p-0"
-            title="Edit"
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => handleEdit(category)}
+              aria-label="Edit"
+              title="Edit"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setDeleteTarget(category)}
+              className="text-destructive hover:text-destructive"
+              aria-label="Delete"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       />
 
@@ -136,6 +171,29 @@ export function ProcedureCategoriesPage() {
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
       />
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Delete procedure category</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-foreground">
+                {deleteTarget?.name || deleteTarget?.categoryName}
+              </span>
+              ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-3 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting}>
+              {isSubmitting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

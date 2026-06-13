@@ -1,7 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Plus, Pencil, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/data-table';
 import { ProcedureFormDialog } from './ProcedureFormDialog';
 import {
@@ -9,157 +8,136 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-
-// Mock data - static data only
-const mockProcedures = [
-  {
-    id: 1,
-    procedureDescription: 'Office Visit - Established Patient',
-    genericDescription: 'Routine office visit',
-    procedureCategoryId: 1,
-    category: { id: 1, name: 'Office Visits' },
-    procedureDepartment: 'General Medicine',
-    cptCode: '99213',
-    revenueCode: '0510',
-    mod1: '',
-    mod2: '',
-    mod3: '',
-    mod4: '',
-  },
-  {
-    id: 2,
-    procedureDescription: 'Complete Blood Count (CBC)',
-    genericDescription: 'Laboratory test',
-    procedureCategoryId: 2,
-    category: { id: 2, name: 'Laboratory' },
-    procedureDepartment: 'Lab',
-    cptCode: '85025',
-    revenueCode: '0300',
-    mod1: '',
-    mod2: '',
-    mod3: '',
-    mod4: '',
-  },
-  {
-    id: 3,
-    procedureDescription: 'Chest X-Ray',
-    genericDescription: 'Radiology procedure',
-    procedureCategoryId: 3,
-    category: { id: 3, name: 'Radiology' },
-    procedureDepartment: 'Radiology',
-    cptCode: '71020',
-    revenueCode: '0320',
-    mod1: '',
-    mod2: '',
-    mod3: '',
-    mod4: '',
-  },
-];
-
-const mockCategories = [
-  { id: 1, name: 'Office Visits' },
-  { id: 2, name: 'Laboratory' },
-  { id: 3, name: 'Radiology' },
-  { id: 4, name: 'Surgery' },
-];
+import { procedureApi } from '@/services/api';
 
 const PROCEDURE_COLUMNS = [
   {
     key: 'procedureDescription',
     label: 'Procedure Description',
     cellClassName: 'font-medium',
-    render: (row) => row.procedureDescription || row.procedureName,
   },
-  { key: 'genericDescription', label: 'Generic Description', render: (row) => row.genericDescription || row.genericName || '-' },
-  { key: 'category', label: 'Category', render: (row) => row.category?.name || row.categoryName || '-' },
-  { key: 'cptCode', label: 'CPT Code', render: (row) => row.cptCode || row.procedureCode || '-' },
-  { key: 'revenueCode', label: 'Revenue Code', render: (row) => row.revenueCode || '-' },
+  {
+    key: 'genericDescription',
+    label: 'Generic Description',
+    render: (row) => row.genericDescription || '—',
+  },
+  {
+    key: 'categoryName',
+    label: 'Category',
+    render: (row) => row.categoryName || row.categories?.map((c) => c.name).join(', ') || '—',
+  },
+  { key: 'cptCode', label: 'CPT Code', render: (row) => row.cptCode || '—' },
+  { key: 'revenueCode', label: 'Revenue Code', render: (row) => row.revenueCode || '—' },
 ];
 
 export function ProceduresPage() {
-  const [procedures, setProcedures] = useState(mockProcedures);
+  const [procedures, setProcedures] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState('create');
   const [selectedProcedure, setSelectedProcedure] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
 
-  const filteredProcedures = useMemo(() => {
-    if (!search.trim()) return procedures;
-    const q = search.toLowerCase().trim();
-    return procedures.filter(
-      (p) =>
-        (p.procedureDescription || p.procedureName || '').toLowerCase().includes(q) ||
-        (p.genericDescription || p.genericName || '').toLowerCase().includes(q) ||
-        (p.category?.name || p.categoryName || '').toLowerCase().includes(q) ||
-        (p.cptCode || p.procedureCode || '').toLowerCase().includes(q) ||
-        (p.procedureDepartment || p.department || '').toLowerCase().includes(q)
-    );
-  }, [procedures, search]);
+  const fetchProcedures = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await procedureApi.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: search || undefined,
+      });
+      setProcedures(response.data || []);
+      setPagination((prev) => ({ ...prev, ...response.pagination }));
+    } catch (err) {
+      setError(err.message);
+      setProcedures([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.page, pagination.limit, search]);
 
-  const total = filteredProcedures.length;
-  const currentPage = Math.min(Math.max(1, pagination.page), Math.max(1, Math.ceil(total / pagination.limit)));
+  useEffect(() => {
+    fetchProcedures();
+  }, [fetchProcedures]);
+
   const rows = useMemo(
-    () => filteredProcedures.slice((currentPage - 1) * pagination.limit, currentPage * pagination.limit),
-    [filteredProcedures, currentPage, pagination.limit]
+    () =>
+      procedures.map((row, i) => ({
+        ...row,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [procedures, pagination.page, pagination.limit],
   );
 
   const handleSearch = useCallback((keyword) => {
     setSearch(keyword);
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
-  const handlePageChange = useCallback((page) => setPagination((p) => ({ ...p, page })), []);
-  const handlePageSizeChange = useCallback((limit) => setPagination((p) => ({ ...p, limit, page: 1 })), []);
 
-  const handleCreate = () => {
-    setSelectedProcedure(null);
-    setIsFormOpen(true);
-  };
+  const handlePageChange = useCallback((page) => {
+    setPagination((p) => ({ ...p, page }));
+  }, []);
 
-  const handleEdit = (procedure) => {
-    setSelectedProcedure(procedure);
-    setIsFormOpen(true);
-  };
+  const handlePageSizeChange = useCallback((limit) => {
+    setPagination((p) => ({ ...p, limit, page: 1 }));
+  }, []);
 
-  const handleView = (procedure) => {
-    setSelectedProcedure(procedure);
-    setIsViewModalOpen(true);
-  };
-
-  const handleDelete = (procedure) => {
-    if (window.confirm(`Are you sure you want to delete this procedure?`)) {
-      setProcedures(procedures.filter(p => p.id !== procedure.id));
+  const openProcedure = async (record, mode) => {
+    try {
+      const response = await procedureApi.getById(record.id);
+      setSelectedProcedure(response.data);
+      setFormMode(mode);
+      setIsFormOpen(true);
+    } catch (err) {
+      alert(err.message || 'Failed to load procedure');
     }
   };
 
-  const handleFormSubmit = (data) => {
+  const handleCreate = () => {
+    setSelectedProcedure(null);
+    setFormMode('create');
+    setIsFormOpen(true);
+  };
+
+  const handleFormSubmit = async (data) => {
     setIsSubmitting(true);
-    // Simulate API call delay
-    setTimeout(() => {
-      if (selectedProcedure) {
-        // Update existing
-        setProcedures(procedures.map(p => 
-          p.id === selectedProcedure.id 
-            ? { ...p, ...data, category: mockCategories.find(c => c.id === data.procedureCategoryId) }
-            : p
-        ));
+    try {
+      if (formMode === 'edit' && selectedProcedure?.id) {
+        await procedureApi.update(selectedProcedure.id, data);
       } else {
-        // Add new
-        const newProcedure = {
-          id: Math.max(...procedures.map(p => p.id), 0) + 1,
-          ...data,
-          category: mockCategories.find(c => c.id === data.procedureCategoryId),
-        };
-        setProcedures([...procedures, newProcedure]);
+        await procedureApi.create(data);
       }
       setIsFormOpen(false);
       setSelectedProcedure(null);
+      fetchProcedures();
+    } catch (err) {
+      alert(err.message || 'Save failed');
+    } finally {
       setIsSubmitting(false);
-    }, 500);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setIsSubmitting(true);
+    try {
+      await procedureApi.delete(deleteTarget.id);
+      setDeleteTarget(null);
+      fetchProcedures();
+    } catch (err) {
+      alert(err.message || 'Delete failed');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -171,33 +149,59 @@ export function ProceduresPage() {
         </div>
         <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
-          Add Code
+          Add Procedure
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+          {error}
+        </div>
+      )}
 
       <DataTable
         columns={PROCEDURE_COLUMNS}
         data={rows}
-        total={total}
-        page={currentPage}
+        total={pagination.total}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         onSearch={handleSearch}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        isLoading={isLoading}
         getRowId={(row) => row.id}
         searchPlaceholder="Search procedures..."
         emptyMessage="No procedures found"
         actions={(procedure) => (
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => handleView(procedure)} className="h-8 w-8 p-0" title="View">
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => openProcedure(procedure, 'view')}
+              aria-label="View"
+              title="View"
+            >
               <Eye className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleEdit(procedure)} className="h-8 w-8 p-0" title="Edit">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => openProcedure(procedure, 'edit')}
+              aria-label="Edit"
+              title="Edit"
+            >
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleDelete(procedure)} className="h-8 w-8 p-0" title="Delete">
-              <Trash2 className="h-4 w-4 text-destructive" />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setDeleteTarget(procedure)}
+              className="text-destructive hover:text-destructive"
+              aria-label="Delete"
+              title="Delete"
+            >
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         )}
@@ -205,105 +209,31 @@ export function ProceduresPage() {
 
       <ProcedureFormDialog
         open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) setSelectedProcedure(null);
+        }}
         procedure={selectedProcedure}
+        mode={formMode}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
       />
 
-      {/* View Modal */}
-      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-        <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="max-w-md w-[calc(100%-2rem)] sm:w-full">
           <DialogHeader>
-            <DialogTitle>View Procedure Code</DialogTitle>
+            <DialogTitle>Delete procedure</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-foreground">{deleteTarget?.procedureDescription}</span>?
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Procedure Description</Label>
-                <Input
-                  value={selectedProcedure?.procedureDescription || selectedProcedure?.procedureName || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Generic Description</Label>
-                <Input
-                  value={selectedProcedure?.genericDescription || selectedProcedure?.genericName || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Procedure Category</Label>
-                <Input
-                  value={selectedProcedure?.category?.name || selectedProcedure?.categoryName || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Procedure Department</Label>
-                <Input
-                  value={selectedProcedure?.procedureDepartment || selectedProcedure?.department || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Procedure/CPT Code</Label>
-                <Input
-                  value={selectedProcedure?.cptCode || selectedProcedure?.procedureCode || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Revenue Code</Label>
-                <Input
-                  value={selectedProcedure?.revenueCode || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Mod 1</Label>
-                <Input
-                  value={selectedProcedure?.mod1 || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Mod 2</Label>
-                <Input
-                  value={selectedProcedure?.mod2 || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Mod 3</Label>
-                <Input
-                  value={selectedProcedure?.mod3 || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Mod 4</Label>
-                <Input
-                  value={selectedProcedure?.mod4 || '-'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsViewModalOpen(false)} className="w-full sm:w-auto">
-              Close
+          <DialogFooter className="gap-3 sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="button" variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting}>
+              {isSubmitting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -311,5 +241,3 @@ export function ProceduresPage() {
     </div>
   );
 }
-
-

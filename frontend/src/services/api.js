@@ -114,86 +114,8 @@ export const subSpecialtyApi = {
   },
 };
 
-// Procedure Categories API
-export const procedureCategoryApi = {
-  async getAll(params = {}) {
-    const searchParams = new URLSearchParams();
-    if (params.page) searchParams.set('page', params.page);
-    if (params.limit) searchParams.set('limit', params.limit);
-    if (params.search) searchParams.set('search', params.search);
-    const response = await fetch(`${API_BASE_URL}/procedure-categories?${searchParams}`);
-    return handleResponse(response);
-  },
-  async getById(id) {
-    const response = await fetch(`${API_BASE_URL}/procedure-categories/${id}`);
-    return handleResponse(response);
-  },
-  async getAllActive() {
-    const response = await fetch(`${API_BASE_URL}/procedure-categories/active`);
-    return handleResponse(response);
-  },
-  async create(data) {
-    const response = await fetch(`${API_BASE_URL}/procedure-categories`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-  async update(id, data) {
-    const response = await fetch(`${API_BASE_URL}/procedure-categories/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-  async delete(id) {
-    const response = await fetch(`${API_BASE_URL}/procedure-categories/${id}`, {
-      method: 'DELETE',
-    });
-    return handleResponse(response);
-  },
-};
-
-// Procedures API
-export const procedureApi = {
-  async getAll(params = {}) {
-    const searchParams = new URLSearchParams();
-    if (params.page) searchParams.set('page', params.page);
-    if (params.limit) searchParams.set('limit', params.limit);
-    if (params.search) searchParams.set('search', params.search);
-    if (params.categoryId) searchParams.set('categoryId', params.categoryId);
-    const response = await fetch(`${API_BASE_URL}/procedures?${searchParams}`);
-    return handleResponse(response);
-  },
-  async getById(id) {
-    const response = await fetch(`${API_BASE_URL}/procedures/${id}`);
-    return handleResponse(response);
-  },
-  async create(data) {
-    const response = await fetch(`${API_BASE_URL}/procedures`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-  async update(id, data) {
-    const response = await fetch(`${API_BASE_URL}/procedures/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-  async delete(id) {
-    const response = await fetch(`${API_BASE_URL}/procedures/${id}`, {
-      method: 'DELETE',
-    });
-    return handleResponse(response);
-  },
-};
+export { procedureCategoryApi } from './api/procedureCategory.api.js';
+export { procedureApi } from './api/procedure.api.js';
 
 // Charge Master API
 export const chargeMasterApi = {

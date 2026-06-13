@@ -23,6 +23,8 @@ const providerScheduleRoutes = require('./providerSchedule.routes');
 const providerBlockHourRoutes = require('./providerBlockHour.routes');
 const chiefComplaintRoutes = require('./chiefComplaint.routes');
 const consentFormRoutes = require('./consentForm.routes');
+const procedureCategoryRoutes = require('./procedureCategory.routes');
+const procedureRoutes = require('./procedure.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -36,6 +38,8 @@ router.use('/provider-schedules', auth, providerScheduleRoutes);
 router.use('/provider-block-hours', auth, providerBlockHourRoutes);
 router.use('/chief-complaints', auth, chiefComplaintRoutes);
 router.use('/consent-forms', auth, consentFormRoutes);
+router.use('/procedure-categories', auth, procedureCategoryRoutes);
+router.use('/procedures', auth, procedureRoutes);
 router.use('/insurance-providers', auth, insuranceProviderRoutes);
 router.use('/providers', auth, providerRoutes);
 router.use('/specialties', auth, specialtyRoutes);

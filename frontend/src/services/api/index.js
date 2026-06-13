@@ -18,6 +18,8 @@ export { providerScheduleApi } from './providerSchedule.api';
 export { providerBlockHourApi } from './providerBlockHour.api';
 export { chiefComplaintApi } from './chiefComplaint.api';
 export { consentFormApi } from './consentForm.api';
+export { procedureCategoryApi } from './procedureCategory.api';
+export { procedureApi } from './procedure.api';
 
 // Re-export shared utilities
 export { API_BASE_URL, getAuthHeaders, handleResponse } from './client';
