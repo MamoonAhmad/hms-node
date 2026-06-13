@@ -22,6 +22,7 @@ const appointmentTypeRoutes = require('./appointmentType.routes');
 const providerScheduleRoutes = require('./providerSchedule.routes');
 const providerBlockHourRoutes = require('./providerBlockHour.routes');
 const chiefComplaintRoutes = require('./chiefComplaint.routes');
+const consentFormRoutes = require('./consentForm.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -34,6 +35,7 @@ router.use('/appointment-types', auth, appointmentTypeRoutes);
 router.use('/provider-schedules', auth, providerScheduleRoutes);
 router.use('/provider-block-hours', auth, providerBlockHourRoutes);
 router.use('/chief-complaints', auth, chiefComplaintRoutes);
+router.use('/consent-forms', auth, consentFormRoutes);
 router.use('/insurance-providers', auth, insuranceProviderRoutes);
 router.use('/providers', auth, providerRoutes);
 router.use('/specialties', auth, specialtyRoutes);

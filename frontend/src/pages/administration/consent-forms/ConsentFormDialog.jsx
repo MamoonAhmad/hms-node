@@ -21,7 +21,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  CONSENT_LANGUAGE_OPTIONS,
   CONSENT_STATUS_OPTIONS,
   CONSENT_TYPE_OPTIONS,
   SIGNATURE_PLACEMENT_OPTIONS,
@@ -47,7 +46,7 @@ function SignaturePlacementSelect({ id, value, onChange, error }) {
   );
 }
 
-export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, onSave }) {
+export function ConsentFormDialog({ open, onOpenChange, record, onSave, isSubmitting = false }) {
   const [form, setForm] = useState(emptyConsentForm());
   const [errors, setErrors] = useState({});
   const isEdit = Boolean(record?.id);
@@ -245,7 +244,7 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     For each checked signature type, choose where that signature block should appear when
-                    the form is displayed or signed.
+                    the form is displayed or signed. All signatures are captured electronically only.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -342,19 +341,14 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
                   placeholder="OPD, Radiology, Surgery"
                 />
               </FormField>
-              <FormField label="Language" htmlFor="language">
-                <Select value={form.language} onValueChange={(v) => setField('language', v)}>
-                  <SelectTrigger id="language" className="w-full">
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONSENT_LANGUAGE_OPTIONS.map((lang) => (
-                      <SelectItem key={lang} value={lang}>
-                        {lang}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <FormField label="Language" htmlFor="language" hint="Saved exactly as entered (e.g. English, Urdu).">
+                <Input
+                  id="language"
+                  value={form.language}
+                  onChange={(e) => setField('language', e.target.value)}
+                  placeholder="English"
+                  disabled={isSubmitting}
+                />
               </FormField>
               <FormField label="Version Number" htmlFor="versionNumber" hint="e.g. 1.0, 2.0">
                 <Input
@@ -388,23 +382,25 @@ export function ConsentFormDialog({ open, onOpenChange, record, auditUserName, o
                   <Input value={record?.createdBy || '—'} disabled className="bg-muted" />
                 </FormField>
                 <FormField label="Created Date">
-                  <Input value={formatAuditDate(record?.createdDate)} disabled className="bg-muted" />
+                  <Input value={formatAuditDate(record?.createdDate || record?.createdAt)} disabled className="bg-muted" />
                 </FormField>
                 <FormField label="Updated By">
-                  <Input value={record?.updatedBy || auditUserName || '—'} disabled className="bg-muted" />
+                  <Input value={record?.updatedBy || '—'} disabled className="bg-muted" />
                 </FormField>
                 <FormField label="Updated Date">
-                  <Input value={formatAuditDate(record?.updatedDate)} disabled className="bg-muted" />
+                  <Input value={formatAuditDate(record?.updatedDate || record?.updatedAt)} disabled className="bg-muted" />
                 </FormField>
               </div>
             </FormSection>
           )}
 
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit">{isEdit ? 'Save Changes' : 'Add Consent Form'}</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Consent Form'}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

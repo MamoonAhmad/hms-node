@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Eye, Edit, Trash2, History } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
@@ -12,82 +12,54 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useAuth } from '@/contexts/AuthContext';
 import { ConsentFormDialog } from '@/pages/administration/consent-forms/ConsentFormDialog';
 import { ConsentFormViewDialog } from '@/pages/administration/consent-forms/ConsentFormViewDialog';
-import { ConsentFormHistoryPanel } from '@/pages/administration/consent-forms/ConsentFormHistoryPanel';
-import {
-  appendConsentFormHistory,
-  createHistoryEntry,
-  diffConsentFormRecords,
-} from '@/pages/administration/consent-forms/consentFormHistory';
 import {
   CONSENT_LIST_TABS,
   CONSENT_LIST_TAB_OPTIONS,
-  emptyConsentForm,
-  ensureConsentFormSeedData,
-  filterConsentFormsByTab,
-  formatAuditDate,
-  formatConsentStatus,
   formatConsentType,
-  getStoredConsentForms,
-  setStoredConsentForms,
 } from '@/pages/administration/consent-forms/consentFormsConstants';
-
-function auditUserLabel(user) {
-  if (!user) return 'System';
-  return user.fullName || user.name || user.email || user.username || 'System';
-}
+import { consentFormApi } from '@/services/api';
 
 export function ConsentFormsPage() {
-  const { user } = useAuth();
-  const auditName = auditUserLabel(user);
   const [items, setItems] = useState([]);
+  const [tabCounts, setTabCounts] = useState({});
   const [listTab, setListTab] = useState(CONSENT_LIST_TABS.ALL);
   const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState(null);
   const [editRecord, setEditRecord] = useState(null);
   const [deleteRecord, setDeleteRecord] = useState(null);
-  const [historyRecord, setHistoryRecord] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const load = useCallback(() => {
-    setItems(ensureConsentFormSeedData());
-  }, []);
+  const fetchForms = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await consentFormApi.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: search || undefined,
+        tab: listTab,
+      });
+      setItems(response.data || []);
+      setTabCounts(response.tabCounts || {});
+      setPagination((prev) => ({ ...prev, ...response.pagination }));
+    } catch (err) {
+      setError(err.message);
+      setItems([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.page, pagination.limit, search, listTab]);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  const tabCounts = useMemo(() => {
-    const counts = {};
-    CONSENT_LIST_TAB_OPTIONS.forEach((tab) => {
-      counts[tab.value] = filterConsentFormsByTab(items, tab.value).length;
-    });
-    return counts;
-  }, [items]);
-
-  const filtered = useMemo(() => {
-    const scoped = filterConsentFormsByTab(items, listTab);
-    const q = search.toLowerCase().trim();
-    if (!q) return scoped;
-    return scoped.filter((row) => {
-      const haystack = [
-        row.consentTitle,
-        row.description,
-        row.department,
-        row.tags,
-        row.language,
-        formatConsentType(row.consentType),
-        formatConsentStatus(row.status),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [items, listTab, search]);
+    fetchForms();
+  }, [fetchForms]);
 
   const handleListTabChange = useCallback((tab) => {
     setListTab(tab);
@@ -101,95 +73,77 @@ export function ConsentFormsPage() {
       : `No ${tabLabel.toLowerCase()} found`;
   }, [listTab, search]);
 
-  const total = filtered.length;
-  const currentPage = Math.min(
-    Math.max(1, pagination.page),
-    Math.max(1, Math.ceil(total / pagination.limit)),
-  );
   const rows = useMemo(
     () =>
-      filtered
-        .slice((currentPage - 1) * pagination.limit, currentPage * pagination.limit)
-        .map((row, i) => ({ ...row, _srNo: (currentPage - 1) * pagination.limit + i + 1 })),
-    [filtered, currentPage, pagination.limit],
+      items.map((row, i) => ({
+        ...row,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [items, pagination.page, pagination.limit],
   );
 
   const handleSearch = useCallback((keyword) => {
     setSearch(keyword);
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
-  const handlePageChange = useCallback((page) => setPagination((p) => ({ ...p, page })), []);
-  const handlePageSizeChange = useCallback(
-    (limit) => setPagination((p) => ({ ...p, limit, page: 1 })),
-    [],
-  );
 
-  const handleSave = (formValues) => {
-    const now = new Date().toISOString();
-    const list = getStoredConsentForms();
+  const handlePageChange = useCallback((page) => {
+    setPagination((p) => ({ ...p, page }));
+  }, []);
 
-    if (editRecord?.id) {
-      const previous = list.find((row) => row.id === editRecord.id);
-      const changes = diffConsentFormRecords(previous, { ...previous, ...formValues });
-      const historyEntry = createHistoryEntry({
-        action: 'updated',
-        user: auditName,
-        at: now,
-        changes,
-      });
-      const next = list.map((row) =>
-        row.id === editRecord.id
-          ? {
-              ...row,
-              ...formValues,
-              updatedBy: auditName,
-              updatedDate: now,
-              history: appendConsentFormHistory(row.history, historyEntry),
-            }
-          : row,
-      );
-      setStoredConsentForms(next);
-      setItems(next);
-    } else {
-      const createdEntry = createHistoryEntry({
-        action: 'created',
-        user: auditName,
-        at: now,
-        changes: [],
-      });
-      const next = [
-        {
-          id: crypto.randomUUID(),
-          ...emptyConsentForm(),
-          ...formValues,
-          createdBy: auditName,
-          createdDate: now,
-          updatedBy: auditName,
-          updatedDate: now,
-          history: [createdEntry],
-        },
-        ...list,
-      ];
-      setStoredConsentForms(next);
-      setItems(next);
+  const handlePageSizeChange = useCallback((limit) => {
+    setPagination((p) => ({ ...p, limit, page: 1 }));
+  }, []);
+
+  const openEdit = async (record) => {
+    try {
+      const response = await consentFormApi.getById(record.id);
+      setEditRecord(response.data);
+      setDialogOpen(true);
+    } catch (err) {
+      alert(err.message || 'Failed to load consent form');
     }
-
-    setEditRecord(null);
-    setDialogOpen(false);
   };
 
-  const handleDeleteConfirm = () => {
+  const openView = async (record) => {
+    try {
+      const response = await consentFormApi.getById(record.id);
+      setViewRecord(response.data);
+    } catch (err) {
+      alert(err.message || 'Failed to load consent form');
+    }
+  };
+
+  const handleSave = async (formValues) => {
+    setIsSubmitting(true);
+    try {
+      if (editRecord?.id) {
+        await consentFormApi.update(editRecord.id, formValues);
+      } else {
+        await consentFormApi.create(formValues);
+      }
+      setEditRecord(null);
+      setDialogOpen(false);
+      fetchForms();
+    } catch (err) {
+      alert(err.message || 'Save failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
     if (!deleteRecord) return;
-    const next = getStoredConsentForms().filter((row) => row.id !== deleteRecord.id);
-    setStoredConsentForms(next);
-    setItems(next);
-    setDeleteRecord(null);
-  };
-
-  const statusVariant = (status) => {
-    if (status === 'active') return 'default';
-    if (status === 'inactive') return 'secondary';
-    return 'outline';
+    setIsSubmitting(true);
+    try {
+      await consentFormApi.delete(deleteRecord.id);
+      setDeleteRecord(null);
+      fetchForms();
+    } catch (err) {
+      alert(err.message || 'Delete failed');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -229,6 +183,12 @@ export function ConsentFormsPage() {
         </Tabs>
       </section>
 
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+          {error}
+        </div>
+      )}
+
       <DataTable
         columns={[
           {
@@ -239,86 +199,54 @@ export function ConsentFormsPage() {
             cellClassName: 'w-14 min-w-14 max-w-16 px-2 tabular-nums',
             render: (row) => row._srNo,
           },
-          { key: 'consentTitle', label: 'Consent Title' },
+          { key: 'consentTitle', label: 'Consent Title', cellClassName: 'font-medium' },
           {
             key: 'consentType',
-            label: 'Type',
+            label: 'Consent Type',
             render: (row) => formatConsentType(row.consentType),
-          },
-          { key: 'department', label: 'Department', render: (row) => row.department || '—' },
-          { key: 'language', label: 'Language', render: (row) => row.language || '—' },
-          {
-            key: 'status',
-            label: 'Status',
-            render: (row) => (
-              <Badge variant={statusVariant(row.status)}>{formatConsentStatus(row.status)}</Badge>
-            ),
-          },
-          { key: 'versionNumber', label: 'Version', render: (row) => row.versionNumber || '—' },
-          {
-            key: 'updatedBy',
-            label: 'Last updated by',
-            render: (row) => (
-              <div className="min-w-[140px] space-y-0.5 text-sm">
-                <p className="font-medium text-foreground">{row.updatedBy || row.createdBy || '—'}</p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {formatAuditDate(row.updatedDate || row.createdDate)}
-                </p>
-              </div>
-            ),
           },
         ]}
         data={rows}
-        total={total}
-        page={currentPage}
+        total={pagination.total}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         onSearch={handleSearch}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        isLoading={isLoading}
         getRowId={(row) => row.id}
         searchPlaceholder="Search consent forms…"
         emptyMessage={emptyMessageByTab}
         actions={(row) => (
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => setHistoryRecord(row)}
-              className="h-8 w-8 p-0"
-              title="History"
-            >
-              <History className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setViewRecord(row)}
-              className="h-8 w-8 p-0"
+              size="icon-sm"
+              onClick={() => openView(row)}
+              aria-label="View"
               title="View"
             >
               <Eye className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => {
-                setEditRecord(row);
-                setDialogOpen(true);
-              }}
-              className="h-8 w-8 p-0"
+              size="icon-sm"
+              onClick={() => openEdit(row)}
+              aria-label="Edit"
               title="Edit"
             >
               <Edit className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon-sm"
               onClick={() => setDeleteRecord(row)}
-              className="h-8 w-8 p-0"
+              className="text-destructive hover:text-destructive"
+              aria-label="Delete"
               title="Delete"
             >
-              <Trash2 className="h-4 w-4 text-destructive" />
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         )}
@@ -331,8 +259,8 @@ export function ConsentFormsPage() {
           if (!open) setEditRecord(null);
         }}
         record={editRecord}
-        auditUserName={auditName}
         onSave={handleSave}
+        isSubmitting={isSubmitting}
       />
 
       <ConsentFormViewDialog
@@ -341,15 +269,8 @@ export function ConsentFormsPage() {
         onOpenChange={(open) => !open && setViewRecord(null)}
         onEdit={(row) => {
           setViewRecord(null);
-          setEditRecord(row);
-          setDialogOpen(true);
+          openEdit(row);
         }}
-      />
-
-      <ConsentFormHistoryPanel
-        record={historyRecord}
-        open={!!historyRecord}
-        onClose={() => setHistoryRecord(null)}
       />
 
       <Dialog open={!!deleteRecord} onOpenChange={(open) => !open && setDeleteRecord(null)}>
@@ -363,11 +284,21 @@ export function ConsentFormsPage() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-3 sm:justify-end">
-            <Button type="button" variant="outline" onClick={() => setDeleteRecord(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteRecord(null)}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={handleDeleteConfirm}>
-              Delete
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

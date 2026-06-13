@@ -185,6 +185,45 @@ model UserChiefComplaintFavourite {
   @@map("user_chief_complaint_favourites")
 }
 
+model ConsentForm {
+  id                         String    @id @default(uuid())
+  consentTitle               String
+  consentType                String
+  description                String?
+  consentContent             String    @db.Text
+  isMandatory                Boolean   @default(false)
+  isSignatureRequired        Boolean   @default(true)
+  patientSignaturePlacement  String?
+  requiresWitnessSignature   Boolean   @default(false)
+  witnessSignaturePlacement  String?
+  requiresProviderSignature  Boolean   @default(false)
+  providerSignaturePlacement String?
+  effectiveDate              DateTime? @db.Date
+  expiryDate                 DateTime? @db.Date
+  status                     String    @default("draft")
+  department                 String?
+  language                   String?
+  versionNumber              String?
+  tags                       String?
+  attachmentName             String?
+  attachmentDataUrl          String?   @db.Text
+  deletedAt                  DateTime?
+  createdBy                  String
+  updatedBy                  String
+  deletedBy                  String?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+  creator                    User      @relation("CreatedConsentForms", fields: [createdBy], references: [id])
+  updater                    User      @relation("UpdatedConsentForms", fields: [updatedBy], references: [id])
+  deleter                    User?     @relation("DeletedConsentForms", fields: [deletedBy], references: [id])
+
+  @@index([consentTitle])
+  @@index([consentType])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("consent_forms")
+}
+
 model Provider {
   id                       String   @id @default(uuid())
   npi                      String   @unique
@@ -405,6 +444,9 @@ model User {
   chiefComplaintsUpdated     ChiefComplaint[]     @relation("UpdatedChiefComplaints")
   chiefComplaintsDeleted     ChiefComplaint[]     @relation("DeletedChiefComplaints")
   chiefComplaintFavourites   UserChiefComplaintFavourite[]
+  consentFormsCreated        ConsentForm[]        @relation("CreatedConsentForms")
+  consentFormsUpdated        ConsentForm[]        @relation("UpdatedConsentForms")
+  consentFormsDeleted        ConsentForm[]        @relation("DeletedConsentForms")
 
   @@map("users")
 }
