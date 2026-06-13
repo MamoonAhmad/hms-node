@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Eye, Pencil, Plus, Trash2, DoorOpen, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { MultiSelect } from '@/components/ui/multi-select';
 import {
   Select,
   SelectContent,
@@ -21,8 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { loadRooms, saveRooms, loadBeds, saveBeds } from '@/pages/patient-management/roomsBedsStorage';
-import { roomTypeApi } from '@/services/api';
+import { roomApi, roomTypeApi } from '@/services/api';
 
 const ROOM_LIST_TABS = {
   ALL: 'all',
@@ -37,19 +37,6 @@ const STATUSES = [
   { value: 'offline', label: 'Offline' },
 ];
 
-function roomsForListTab(rooms, listTab) {
-  switch (listTab) {
-    case ROOM_LIST_TABS.ACTIVE:
-      return rooms.filter((r) => r.status === 'active');
-    case ROOM_LIST_TABS.MAINTENANCE:
-      return rooms.filter((r) => r.status === 'maintenance');
-    case ROOM_LIST_TABS.OFFLINE:
-      return rooms.filter((r) => r.status === 'offline');
-    default:
-      return rooms;
-  }
-}
-
 function emptyMessageForTab(listTab) {
   switch (listTab) {
     case ROOM_LIST_TABS.ACTIVE:
@@ -63,40 +50,33 @@ function emptyMessageForTab(listTab) {
   }
 }
 
-const emptyForm = (defaultRoomType = 'med_surg') => ({
+const emptyForm = () => ({
   roomNumber: '',
   displayName: '',
   floor: '',
   unit: '',
-  roomType: defaultRoomType,
+  roomTypeIds: [],
   status: 'active',
   licensedBeds: '1',
   notes: '',
 });
 
 export function RoomsPage() {
-  const [rooms, setRooms] = useState([]);
+  const [items, setItems] = useState([]);
+  const [summary, setSummary] = useState({ totalRooms: 0, activeRooms: 0, licensedBedsSum: 0 });
   const [roomTypes, setRoomTypes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
+  const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
   const [search, setSearch] = useState('');
   const [listTab, setListTab] = useState(ROOM_LIST_TABS.ALL);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [mode, setMode] = useState('create'); // create | edit | view
-  const [form, setForm] = useState(emptyForm);
+  const [mode, setMode] = useState('create');
+  const [form, setForm] = useState(emptyForm());
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    setIsLoading(true);
-    const t = setTimeout(() => {
-      setRooms(loadRooms());
-      setIsLoading(false);
-    }, 120);
-    return () => clearTimeout(t);
-  }, []);
 
   useEffect(() => {
     roomTypeApi
@@ -105,133 +85,115 @@ export function RoomsPage() {
       .catch(() => setRoomTypes([]));
   }, []);
 
-  const defaultRoomType = roomTypes[0]?.code || 'med_surg';
+  const statusFilter = listTab === ROOM_LIST_TABS.ALL ? undefined : listTab;
 
-  const roomTypeLabel = (code) => {
-    const match = roomTypes.find((t) => t.code === code);
-    return match?.label || code || '—';
-  };
+  const fetchRooms = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await roomApi.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: search || undefined,
+        status: statusFilter,
+      });
+      setItems(response.data || []);
+      setPagination((prev) => ({ ...prev, ...response.pagination }));
+      if (response.summary) {
+        setSummary(response.summary);
+      }
+    } catch (err) {
+      setError(err.message);
+      setItems([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.page, pagination.limit, search, statusFilter]);
 
-  const bedCountsByRoom = useMemo(() => {
-    const beds = loadBeds();
-    const map = {};
-    beds.forEach((b) => {
-      if (!b.roomId) return;
-      map[b.roomId] = (map[b.roomId] || 0) + 1;
-    });
-    return map;
-  }, [rooms]);
+  useEffect(() => {
+    fetchRooms();
+  }, [fetchRooms]);
 
-  const filtered = useMemo(() => {
-    const scoped = roomsForListTab(rooms, listTab);
-    const q = search.toLowerCase().trim();
-    if (!q) return scoped;
-    return scoped.filter((r) => {
-      const blob = [
-        r.roomNumber,
-        r.displayName,
-        r.floor,
-        r.unit,
-        r.roomType,
-        r.status,
-        r.notes,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return blob.includes(q);
-    });
-  }, [rooms, search, listTab]);
+  const roomTypeOptions = useMemo(
+    () => roomTypes.map((t) => ({ value: t.id, label: t.label || t.code })),
+    [roomTypes],
+  );
 
-  const rows = useMemo(() => {
-    const total = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-    const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
-    const base = (currentPage - 1) * pagination.limit;
-    return filtered.slice(base, base + pagination.limit).map((row, i) => ({
-      ...row,
-      _srNo: base + i + 1,
-      _bedCount: bedCountsByRoom[row.id] ?? 0,
-    }));
-  }, [filtered, pagination, bedCountsByRoom]);
-
-  const total = filtered.length;
-  const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
-  const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
+  const rows = useMemo(
+    () =>
+      items.map((row, i) => ({
+        ...row,
+        _srNo: (pagination.page - 1) * pagination.limit + i + 1,
+      })),
+    [items, pagination.page, pagination.limit],
+  );
 
   const statusLabel = (v) => STATUSES.find((x) => x.value === v)?.label || v;
 
   const openCreate = () => {
     setSelected(null);
     setMode('create');
-    setForm(emptyForm(defaultRoomType));
-    setDialogOpen(true);
-  };
-
-  const openView = (row) => {
-    setSelected(row);
-    setMode('view');
     setForm({
-      roomNumber: row.roomNumber || '',
-      displayName: row.displayName || '',
-      floor: row.floor || '',
-      unit: row.unit || '',
-      roomType: row.roomType || defaultRoomType,
-      status: row.status || 'active',
-      licensedBeds: String(row.licensedBeds ?? 1),
-      notes: row.notes || '',
+      ...emptyForm(),
+      roomTypeIds: roomTypes[0]?.id ? [roomTypes[0].id] : [],
     });
     setDialogOpen(true);
   };
 
-  const openEdit = (row) => {
-    setSelected(row);
-    setMode('edit');
-    setForm({
-      roomNumber: row.roomNumber || '',
-      displayName: row.displayName || '',
-      floor: row.floor || '',
-      unit: row.unit || '',
-      roomType: row.roomType || defaultRoomType,
-      status: row.status || 'active',
-      licensedBeds: String(row.licensedBeds ?? 1),
-      notes: row.notes || '',
-    });
-    setDialogOpen(true);
+  const openRecord = async (row, nextMode) => {
+    try {
+      const response = await roomApi.getById(row.id);
+      const record = response.data;
+      setSelected(record);
+      setMode(nextMode);
+      setForm({
+        roomNumber: record.roomNumber || '',
+        displayName: record.displayName || '',
+        floor: record.floor || '',
+        unit: record.unit || '',
+        roomTypeIds: record.roomTypeIds || record.roomTypes?.map((t) => t.id) || [],
+        status: record.status || 'active',
+        licensedBeds: String(record.licensedBeds ?? 1),
+        notes: record.notes || '',
+      });
+      setDialogOpen(true);
+    } catch (err) {
+      alert(err.message || 'Failed to load room');
+    }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (mode === 'view') return;
+
+    if (!form.roomTypeIds.length) {
+      alert('Select at least one room type');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const licensed = Math.max(0, parseInt(form.licensedBeds, 10) || 0);
       const payload = {
         roomNumber: form.roomNumber.trim(),
-        displayName: form.displayName.trim(),
-        floor: form.floor.trim(),
-        unit: form.unit.trim(),
-        roomType: form.roomType,
+        displayName: form.displayName.trim() || null,
+        floor: form.floor.trim() || null,
+        unit: form.unit.trim() || null,
+        roomTypeIds: form.roomTypeIds,
         status: form.status,
-        licensedBeds: licensed,
-        notes: form.notes.trim(),
-        updatedAt: new Date().toISOString(),
+        licensedBeds: Math.max(0, parseInt(form.licensedBeds, 10) || 0),
+        notes: form.notes.trim() || null,
       };
 
       if (mode === 'edit' && selected?.id) {
-        setRooms((prev) => {
-          const next = prev.map((r) => (r.id === selected.id ? { ...r, ...payload } : r));
-          saveRooms(next);
-          return next;
-        });
-      } else if (mode === 'create') {
-        setRooms((prev) => {
-          const id = `r_${Date.now()}`;
-          const next = [{ id, ...payload, createdAt: new Date().toISOString() }, ...prev];
-          saveRooms(next);
-          return next;
-        });
+        await roomApi.update(selected.id, payload);
+      } else {
+        await roomApi.create(payload);
       }
       setDialogOpen(false);
+      setSelected(null);
+      fetchRooms();
+    } catch (err) {
+      alert(err.message || 'Save failed');
     } finally {
       setSubmitting(false);
     }
@@ -242,18 +204,16 @@ export function RoomsPage() {
     setDeleteOpen(true);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!selected?.id) return;
     setSubmitting(true);
     try {
-      setRooms((prev) => {
-        const next = prev.filter((r) => r.id !== selected.id);
-        saveRooms(next);
-        return next;
-      });
-      const beds = loadBeds().filter((b) => b.roomId !== selected.id);
-      saveBeds(beds);
+      await roomApi.delete(selected.id);
       setDeleteOpen(false);
+      setSelected(null);
+      fetchRooms();
+    } catch (err) {
+      alert(err.message || 'Delete failed');
     } finally {
       setSubmitting(false);
     }
@@ -270,14 +230,14 @@ export function RoomsPage() {
     { key: 'displayName', label: 'Display name', render: (row) => row.displayName || '—' },
     { key: 'floor', label: 'Floor', render: (row) => row.floor || '—' },
     { key: 'unit', label: 'Unit / wing', render: (row) => row.unit || '—' },
-    { key: 'roomType', label: 'Type', render: (row) => roomTypeLabel(row.roomType) },
+    { key: 'roomType', label: 'Type', render: (row) => row.roomTypeLabels || '—' },
     { key: 'status', label: 'Status', render: (row) => statusLabel(row.status) },
     {
       key: 'beds',
       label: 'Beds (in use)',
       render: (row) => (
         <span className="tabular-nums">
-          {row._bedCount} / {row.licensedBeds ?? 0}
+          {row.bedCount ?? 0} / {row.licensedBeds ?? 0}
         </span>
       ),
     },
@@ -304,25 +264,27 @@ export function RoomsPage() {
         </Button>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Layers className="h-4 w-4" />
             Total rooms
           </div>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">{rooms.length}</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.totalRooms}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="text-muted-foreground text-sm">Active rooms</div>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">
-            {rooms.filter((r) => r.status === 'active').length}
-          </p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.activeRooms}</p>
         </div>
         <div className="rounded-xl border bg-card p-4 shadow-sm">
           <div className="text-muted-foreground text-sm">Licensed beds (sum)</div>
-          <p className="mt-1 text-2xl font-semibold tabular-nums">
-            {rooms.reduce((acc, r) => acc + (Number(r.licensedBeds) || 0), 0)}
-          </p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.licensedBedsSum}</p>
         </div>
       </div>
 
@@ -346,8 +308,8 @@ export function RoomsPage() {
       <DataTable
         columns={columns}
         data={rows}
-        total={total}
-        page={currentPage}
+        total={pagination.total}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
@@ -362,10 +324,10 @@ export function RoomsPage() {
         emptyMessage={emptyMessageForTab(listTab)}
         actions={(row) => (
           <div className="flex justify-end gap-1">
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => openView(row)} aria-label="View">
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => openRecord(row, 'view')} aria-label="View">
               <Eye className="h-4 w-4" />
             </Button>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => openEdit(row)} aria-label="Edit">
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => openRecord(row, 'edit')} aria-label="Edit">
               <Pencil className="h-4 w-4" />
             </Button>
             <Button
@@ -402,7 +364,7 @@ export function RoomsPage() {
                   id="roomNumber"
                   value={form.roomNumber}
                   onChange={(e) => setForm((f) => ({ ...f, roomNumber: e.target.value }))}
-                  disabled={readOnly}
+                  disabled={readOnly || submitting}
                   required={!readOnly}
                   placeholder="e.g. 301"
                 />
@@ -413,7 +375,7 @@ export function RoomsPage() {
                   id="displayName"
                   value={form.displayName}
                   onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))}
-                  disabled={readOnly}
+                  disabled={readOnly || submitting}
                   placeholder="Optional friendly name"
                 />
               </div>
@@ -423,7 +385,7 @@ export function RoomsPage() {
                   id="floor"
                   value={form.floor}
                   onChange={(e) => setForm((f) => ({ ...f, floor: e.target.value }))}
-                  disabled={readOnly}
+                  disabled={readOnly || submitting}
                   placeholder="e.g. 3"
                 />
               </div>
@@ -433,35 +395,38 @@ export function RoomsPage() {
                   id="unit"
                   value={form.unit}
                   onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-                  disabled={readOnly}
+                  disabled={readOnly || submitting}
                   placeholder="e.g. East Wing"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Room type</Label>
-                <Select
-                  value={form.roomType}
-                  onValueChange={(v) => setForm((f) => ({ ...f, roomType: v }))}
-                  disabled={readOnly}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roomTypes.map((t) => (
-                      <SelectItem key={t.code} value={t.code}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="roomTypeIds">Room type</Label>
+                {readOnly ? (
+                  <Input
+                    value={selected?.roomTypeLabels || '—'}
+                    disabled
+                    readOnly
+                    className="bg-muted"
+                  />
+                ) : (
+                  <MultiSelect
+                    id="roomTypeIds"
+                    options={roomTypeOptions}
+                    value={form.roomTypeIds}
+                    onChange={(value) => setForm((f) => ({ ...f, roomTypeIds: value }))}
+                    placeholder={roomTypes.length ? 'Select room type(s)' : 'No room types available'}
+                    searchable
+                    searchPlaceholder="Search room types..."
+                    disabled={submitting || !roomTypes.length}
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Operational status</Label>
                 <Select
                   value={form.status}
                   onValueChange={(v) => setForm((f) => ({ ...f, status: v }))}
-                  disabled={readOnly}
+                  disabled={readOnly || submitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -475,7 +440,7 @@ export function RoomsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 sm:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="licensedBeds">Licensed bed capacity</Label>
                 <Input
                   id="licensedBeds"
@@ -483,7 +448,7 @@ export function RoomsPage() {
                   min={0}
                   value={form.licensedBeds}
                   onChange={(e) => setForm((f) => ({ ...f, licensedBeds: e.target.value }))}
-                  disabled={readOnly}
+                  disabled={readOnly || submitting}
                 />
               </div>
             </div>
@@ -494,16 +459,19 @@ export function RoomsPage() {
                 rows={3}
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                disabled={readOnly}
+                disabled={readOnly || submitting}
                 placeholder="Housekeeping, equipment, or census notes"
               />
             </div>
             {!readOnly && (
               <DialogFooter className="gap-2 sm:gap-0">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting || !form.roomNumber.trim()}>
+                <Button
+                  type="submit"
+                  disabled={submitting || !form.roomNumber.trim() || !form.roomTypeIds.length}
+                >
                   {submitting ? 'Saving…' : mode === 'create' ? 'Create room' : 'Save changes'}
                 </Button>
               </DialogFooter>
@@ -524,7 +492,7 @@ export function RoomsPage() {
           <DialogHeader>
             <DialogTitle>Delete room</DialogTitle>
             <DialogDescription>
-              Remove <span className="font-semibold">{selected?.roomNumber}</span> and unlink any beds
+              Remove <span className="font-semibold">{selected?.roomNumber}</span> and delete any beds
               in this room. This cannot be undone.
             </DialogDescription>
           </DialogHeader>

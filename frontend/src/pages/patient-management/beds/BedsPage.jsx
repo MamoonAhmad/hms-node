@@ -22,7 +22,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { loadRooms, loadBeds, saveBeds } from '@/pages/patient-management/roomsBedsStorage';
+import { loadBeds, saveBeds } from '@/pages/patient-management/roomsBedsStorage';
+import { roomApi } from '@/services/api';
 
 const BED_LIST_TABS = {
   ALL: 'all',
@@ -111,18 +112,29 @@ export function BedsPage() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
 
-  const refreshFromStorage = () => {
-    setRooms(loadRooms());
+  const refreshBeds = () => {
     setBeds(loadBeds());
+  };
+
+  const refreshRooms = async () => {
+    try {
+      const response = await roomApi.getActive();
+      setRooms(response.data || []);
+      return response.data || [];
+    } catch {
+      setRooms([]);
+      return [];
+    }
   };
 
   useEffect(() => {
     setIsLoading(true);
-    const t = setTimeout(() => {
-      refreshFromStorage();
+    const load = async () => {
+      await refreshRooms();
+      refreshBeds();
       setIsLoading(false);
-    }, 120);
-    return () => clearTimeout(t);
+    };
+    load();
   }, []);
 
   const roomLabel = (id) => {
@@ -163,19 +175,21 @@ export function BedsPage() {
 
   const statusLabel = (v) => BED_STATUSES.find((x) => x.value === v)?.label || v;
 
-  const openCreate = () => {
-    refreshFromStorage();
+  const openCreate = async () => {
+    const activeRooms = await refreshRooms();
+    refreshBeds();
     setSelected(null);
     setMode('create');
     setForm({
       ...emptyForm(),
-      roomId: rooms[0]?.id || '',
+      roomId: activeRooms[0]?.id || '',
     });
     setDialogOpen(true);
   };
 
-  const openView = (row) => {
-    refreshFromStorage();
+  const openView = async (row) => {
+    await refreshRooms();
+    refreshBeds();
     setSelected(row);
     setMode('view');
     setForm({
@@ -189,8 +203,9 @@ export function BedsPage() {
     setDialogOpen(true);
   };
 
-  const openEdit = (row) => {
-    refreshFromStorage();
+  const openEdit = async (row) => {
+    await refreshRooms();
+    refreshBeds();
     setSelected(row);
     setMode('edit');
     setForm({

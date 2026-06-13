@@ -344,11 +344,68 @@ model RoomType {
   creator   User      @relation("CreatedRoomTypes", fields: [createdBy], references: [id])
   updater   User      @relation("UpdatedRoomTypes", fields: [updatedBy], references: [id])
   deleter   User?     @relation("DeletedRoomTypes", fields: [deletedBy], references: [id])
+  rooms     RoomTypeOnRoom[]
 
   @@index([code])
   @@index([isActive])
   @@index([deletedAt])
   @@map("room_types")
+}
+
+model Room {
+  id           String           @id @default(uuid())
+  roomNumber   String
+  displayName  String?
+  floor        String?
+  unit         String?
+  status       String           @default("active")
+  licensedBeds Int              @default(1)
+  notes        String?
+  deletedAt    DateTime?
+  createdBy    String
+  updatedBy    String
+  deletedBy    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  creator      User             @relation("CreatedRooms", fields: [createdBy], references: [id])
+  updater      User             @relation("UpdatedRooms", fields: [updatedBy], references: [id])
+  deleter      User?            @relation("DeletedRooms", fields: [deletedBy], references: [id])
+  roomTypes    RoomTypeOnRoom[]
+  beds         Bed[]
+
+  @@index([roomNumber])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("rooms")
+}
+
+model RoomTypeOnRoom {
+  roomId     String
+  roomTypeId String
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomType   RoomType @relation(fields: [roomTypeId], references: [id], onDelete: Restrict)
+
+  @@id([roomId, roomTypeId])
+  @@map("room_type_on_room")
+}
+
+model Bed {
+  id          String    @id @default(uuid())
+  bedLabel    String
+  roomId      String
+  status      String    @default("available")
+  patientName String?
+  service     String?
+  notes       String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  room        Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("beds")
 }
 
 model Provider {
@@ -589,6 +646,9 @@ model User {
   roomTypesCreated           RoomType[]           @relation("CreatedRoomTypes")
   roomTypesUpdated           RoomType[]           @relation("UpdatedRoomTypes")
   roomTypesDeleted           RoomType[]           @relation("DeletedRoomTypes")
+  roomsCreated               Room[]               @relation("CreatedRooms")
+  roomsUpdated               Room[]               @relation("UpdatedRooms")
+  roomsDeleted               Room[]               @relation("DeletedRooms")
 
   @@map("users")
 }
