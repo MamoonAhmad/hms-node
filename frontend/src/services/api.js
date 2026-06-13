@@ -27,8 +27,8 @@ export { appointmentStatusApi } from './api/appointmentStatus.api.js';
 export { appointmentTypeApi } from './api/appointmentType.api.js';
 export { providerScheduleApi } from './api/providerSchedule.api.js';
 export { providerBlockHourApi } from './api/providerBlockHour.api.js';
-
 export { insuranceProviderApi } from './api/insuranceProvider.api.js';
+export { chiefComplaintApi } from './api/chiefComplaint.api.js';
 
 export const specialtyApi = {
   async getAll(params = {}) {

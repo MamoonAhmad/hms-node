@@ -16,6 +16,7 @@ export { departmentApi } from './department.api';
 export { providerApi } from './provider.api';
 export { providerScheduleApi } from './providerSchedule.api';
 export { providerBlockHourApi } from './providerBlockHour.api';
+export { chiefComplaintApi } from './chiefComplaint.api';
 
 // Re-export shared utilities
 export { API_BASE_URL, getAuthHeaders, handleResponse } from './client';

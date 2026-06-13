@@ -152,6 +152,39 @@ model InsuranceProvider {
   @@map("insurance_providers")
 }
 
+model ChiefComplaint {
+  id         String    @id @default(uuid())
+  name       String
+  code       String?
+  isActive   Boolean   @default(true)
+  sortOrder  Int       @default(0)
+  deletedAt  DateTime?
+  createdBy  String
+  updatedBy  String
+  deletedBy  String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  creator    User      @relation("CreatedChiefComplaints", fields: [createdBy], references: [id])
+  updater    User      @relation("UpdatedChiefComplaints", fields: [updatedBy], references: [id])
+  deleter    User?     @relation("DeletedChiefComplaints", fields: [deletedBy], references: [id])
+  favourites UserChiefComplaintFavourite[]
+
+  @@index([name])
+  @@index([deletedAt])
+  @@map("chief_complaints")
+}
+
+model UserChiefComplaintFavourite {
+  userId           String
+  chiefComplaintId String
+  createdAt        DateTime       @default(now())
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chiefComplaint   ChiefComplaint @relation(fields: [chiefComplaintId], references: [id], onDelete: Cascade)
+
+  @@id([userId, chiefComplaintId])
+  @@map("user_chief_complaint_favourites")
+}
+
 model Provider {
   id                       String   @id @default(uuid())
   npi                      String   @unique
@@ -368,6 +401,10 @@ model User {
   appointmentTypesUpdated    AppointmentType[]    @relation("UpdatedAppointmentTypes")
   appointmentTypesDeleted    AppointmentType[]    @relation("DeletedAppointmentTypes")
   insuranceProvidersDeleted  InsuranceProvider[]  @relation("DeletedInsuranceProviders")
+  chiefComplaintsCreated     ChiefComplaint[]     @relation("CreatedChiefComplaints")
+  chiefComplaintsUpdated     ChiefComplaint[]     @relation("UpdatedChiefComplaints")
+  chiefComplaintsDeleted     ChiefComplaint[]     @relation("DeletedChiefComplaints")
+  chiefComplaintFavourites   UserChiefComplaintFavourite[]
 
   @@map("users")
 }
