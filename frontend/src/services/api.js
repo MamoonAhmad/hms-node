@@ -28,64 +28,7 @@ export { appointmentTypeApi } from './api/appointmentType.api.js';
 export { providerScheduleApi } from './api/providerSchedule.api.js';
 export { providerBlockHourApi } from './api/providerBlockHour.api.js';
 
-export const insuranceProviderApi = {
-  // Get all insurance providers with pagination and filters
-  async getAll(params = {}) {
-    const searchParams = new URLSearchParams();
-
-    if (params.page) searchParams.set('page', params.page);
-    if (params.limit) searchParams.set('limit', params.limit);
-    if (params.search) searchParams.set('search', params.search);
-    if (params.isActive !== undefined) searchParams.set('isActive', params.isActive);
-
-    const response = await fetch(`${API_BASE_URL}/insurance-providers?${searchParams}`);
-    return handleResponse(response);
-  },
-
-  // Get all active insurance providers (for dropdowns)
-  async getActive() {
-    const response = await fetch(`${API_BASE_URL}/insurance-providers/active`);
-    return handleResponse(response);
-  },
-
-  // Get insurance provider by ID
-  async getById(id) {
-    const response = await fetch(`${API_BASE_URL}/insurance-providers/${id}`);
-    return handleResponse(response);
-  },
-
-  // Create a new insurance provider
-  async create(data) {
-    const response = await fetch(`${API_BASE_URL}/insurance-providers`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-
-  // Update an insurance provider
-  async update(id, data) {
-    const response = await fetch(`${API_BASE_URL}/insurance-providers/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-
-  // Delete an insurance provider
-  async delete(id) {
-    const response = await fetch(`${API_BASE_URL}/insurance-providers/${id}`, {
-      method: 'DELETE',
-    });
-    return handleResponse(response);
-  },
-};
+export { insuranceProviderApi } from './api/insuranceProvider.api.js';
 
 export const specialtyApi = {
   async getAll(params = {}) {

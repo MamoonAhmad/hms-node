@@ -24,17 +24,30 @@ const initialFormData = {
   isActive: true,
 };
 
+function auditUserLabel(user) {
+  if (!user) return '—';
+  return user.name || user.email || '—';
+}
+
+function formatAuditDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString();
+}
+
 export function InsuranceProviderFormDialog({
   open,
   onOpenChange,
   provider,
   onSubmit,
   isLoading,
+  mode = 'create',
 }) {
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
 
-  const isEditing = !!provider;
+  const isEditing = mode === 'edit';
+  const isViewing = mode === 'view';
+  const readOnly = isViewing;
 
   useEffect(() => {
     if (provider) {
@@ -57,6 +70,7 @@ export function InsuranceProviderFormDialog({
   }, [provider, open]);
 
   const handleChange = (field, value) => {
+    if (readOnly) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: null }));
@@ -66,8 +80,7 @@ export function InsuranceProviderFormDialog({
   const validate = () => {
     const newErrors = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
-    if (!formData.code.trim()) newErrors.code = 'Code is required';
+    if (!formData.name.trim()) newErrors.name = 'Payer name is required';
 
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
@@ -83,11 +96,12 @@ export function InsuranceProviderFormDialog({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (readOnly) return;
     if (!validate()) return;
 
     const submitData = {
       name: formData.name.trim(),
-      code: formData.code.trim().toUpperCase(),
+      code: formData.code.trim() ? formData.code.trim().toUpperCase() : null,
       phone: formData.phone.trim() || null,
       email: formData.email.trim() || null,
       address: formData.address.trim() || null,
@@ -101,42 +115,51 @@ export function InsuranceProviderFormDialog({
     onSubmit(submitData);
   };
 
+  const title =
+    isViewing ? 'View Payer' : isEditing ? 'Edit Payer' : 'Add Payer';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
-            {isEditing ? 'Edit Payer' : 'Add Payer'}
-          </DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {provider?.id && (
+            <div className="space-y-2">
+              <Label htmlFor="payerId">Payer ID</Label>
+              <Input id="payerId" value={provider.id} disabled readOnly />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">Payer Name *</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 placeholder="Blue Cross Blue Shield"
                 className={errors.name ? 'border-destructive' : ''}
+                disabled={readOnly || isLoading}
+                readOnly={readOnly}
               />
               {errors.name && (
                 <p className="text-xs text-destructive">{errors.name}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="code">Code *</Label>
+              <Label htmlFor="code">Code</Label>
               <Input
                 id="code"
                 value={formData.code}
                 onChange={(e) => handleChange('code', e.target.value)}
                 placeholder="BCBS"
-                className={`uppercase ${errors.code ? 'border-destructive' : ''}`}
+                className="uppercase"
+                disabled={readOnly || isLoading}
+                readOnly={readOnly}
               />
-              {errors.code && (
-                <p className="text-xs text-destructive">{errors.code}</p>
-              )}
             </div>
           </div>
 
@@ -148,6 +171,8 @@ export function InsuranceProviderFormDialog({
                 value={formData.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
                 placeholder="+1 (800) 555-0123"
+                disabled={readOnly || isLoading}
+                readOnly={readOnly}
               />
             </div>
             <div className="space-y-2">
@@ -159,6 +184,8 @@ export function InsuranceProviderFormDialog({
                 onChange={(e) => handleChange('email', e.target.value)}
                 placeholder="contact@insurance.com"
                 className={errors.email ? 'border-destructive' : ''}
+                disabled={readOnly || isLoading}
+                readOnly={readOnly}
               />
               {errors.email && (
                 <p className="text-xs text-destructive">{errors.email}</p>
@@ -174,6 +201,8 @@ export function InsuranceProviderFormDialog({
               onChange={(e) => handleChange('website', e.target.value)}
               placeholder="https://www.insurance.com"
               className={errors.website ? 'border-destructive' : ''}
+              disabled={readOnly || isLoading}
+              readOnly={readOnly}
             />
             {errors.website && (
               <p className="text-xs text-destructive">{errors.website}</p>
@@ -187,6 +216,8 @@ export function InsuranceProviderFormDialog({
               value={formData.address}
               onChange={(e) => handleChange('address', e.target.value)}
               placeholder="123 Insurance Ave, Suite 100"
+              disabled={readOnly || isLoading}
+              readOnly={readOnly}
             />
           </div>
 
@@ -198,6 +229,8 @@ export function InsuranceProviderFormDialog({
                 value={formData.city}
                 onChange={(e) => handleChange('city', e.target.value)}
                 placeholder="City"
+                disabled={readOnly || isLoading}
+                readOnly={readOnly}
               />
             </div>
             <div className="space-y-2">
@@ -208,6 +241,8 @@ export function InsuranceProviderFormDialog({
                 onChange={(e) => handleChange('state', e.target.value)}
                 placeholder="ST"
                 maxLength={50}
+                disabled={readOnly || isLoading}
+                readOnly={readOnly}
               />
             </div>
             <div className="space-y-2">
@@ -218,6 +253,8 @@ export function InsuranceProviderFormDialog({
                 onChange={(e) => handleChange('zip', e.target.value)}
                 placeholder="12345"
                 maxLength={20}
+                disabled={readOnly || isLoading}
+                readOnly={readOnly}
               />
             </div>
           </div>
@@ -227,23 +264,47 @@ export function InsuranceProviderFormDialog({
               id="isActive"
               checked={formData.isActive}
               onCheckedChange={(checked) => handleChange('isActive', checked)}
+              disabled={readOnly || isLoading}
             />
-            <Label htmlFor="isActive" className="cursor-pointer">
+            <Label htmlFor="isActive" className={readOnly ? '' : 'cursor-pointer'}>
               Active
             </Label>
           </div>
 
+          {readOnly && (
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-4">
+              <p className="mb-3 text-sm font-semibold text-foreground">Deletion audit</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">Deleted By</Label>
+                  <p className="text-sm font-medium">{auditUserLabel(provider?.deleter)}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground">Deleted At</Label>
+                  <p className="text-sm font-medium">{formatAuditDate(provider?.deletedAt)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <DialogFooter className="gap-3">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-              {isLoading ? 'Saving...' : isEditing ? 'Update' : 'Create'}
-            </Button>
+            {readOnly ? (
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                  {isLoading ? 'Saving...' : isEditing ? 'Save' : 'Save'}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
 }
-

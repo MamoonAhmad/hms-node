@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { DataTable } from '@/components/ui/data-table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -14,23 +23,16 @@ import { InsuranceProviderFormDialog } from '@/components/insurance/InsurancePro
 import { insuranceProviderApi } from '@/services/api';
 
 const COLUMNS = [
-  { key: 'name', label: 'Name', cellClassName: 'font-medium' },
   {
-    key: 'code',
-    label: 'Code',
-    render: (row) =>
-      row.code ? (
-        <span className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium">{row.code}</span>
-      ) : (
-        <span className="text-muted-foreground">-</span>
-      ),
+    key: 'id',
+    label: 'Payer ID',
+    cellClassName: 'font-mono text-xs',
+    render: (row) => row.id,
   },
-  { key: 'phone', label: 'Phone', render: (row) => row.phone || <span className="text-muted-foreground">-</span> },
-  { key: 'email', label: 'Email', render: (row) => row.email || <span className="text-muted-foreground">-</span> },
-  { key: 'patients', label: 'Patients', render: (row) => row._count?.patients ?? 0 },
+  { key: 'name', label: 'Payer Name', cellClassName: 'font-medium' },
   {
     key: 'status',
-    label: 'Status',
+    label: 'Payer Status',
     render: (row) =>
       row.isActive ? (
         <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
@@ -57,11 +59,27 @@ export function InsuranceProvidersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [search, setSearch] = useState('');
+  const [payerIdFilter, setPayerIdFilter] = useState('');
+  const [nameFilter, setNameFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('active');
+  const [debouncedPayerId, setDebouncedPayerId] = useState('');
+  const [debouncedName, setDebouncedName] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedPayerId(payerIdFilter), 400);
+    return () => clearTimeout(timer);
+  }, [payerIdFilter]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedName(nameFilter), 400);
+    return () => clearTimeout(timer);
+  }, [nameFilter]);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formMode, setFormMode] = useState('create');
 
   const fetchProviders = useCallback(async () => {
     setIsLoading(true);
@@ -70,8 +88,10 @@ export function InsuranceProvidersPage() {
       const params = {
         page: pagination.page,
         limit: pagination.limit,
+        isActive: statusFilter === 'active',
       };
-      if (search) params.search = search;
+      if (debouncedPayerId.trim()) params.payerId = debouncedPayerId.trim();
+      if (debouncedName.trim()) params.name = debouncedName.trim();
 
       const response = await insuranceProviderApi.getAll(params);
       setProviders(response.data);
@@ -81,16 +101,11 @@ export function InsuranceProvidersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search]);
+  }, [pagination.page, pagination.limit, debouncedPayerId, debouncedName, statusFilter]);
 
   useEffect(() => {
     fetchProviders();
   }, [fetchProviders]);
-
-  const handleSearch = useCallback((keyword) => {
-    setSearch(keyword);
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  }, []);
 
   const handlePageChange = useCallback((page) => {
     setPagination((prev) => ({ ...prev, page }));
@@ -100,15 +115,31 @@ export function InsuranceProvidersPage() {
     setPagination((prev) => ({ ...prev, limit, page: 1 }));
   }, []);
 
+  const handleFilterChange = (setter) => (value) => {
+    setter(value);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
   const handleCreate = () => {
     setSelectedProvider(null);
+    setFormMode('create');
     setIsFormOpen(true);
   };
 
-  const handleEdit = (provider) => {
-    setSelectedProvider(provider);
-    setIsFormOpen(true);
+  const openProvider = async (provider, mode) => {
+    try {
+      const response = await insuranceProviderApi.getById(provider.id);
+      setSelectedProvider(response.data);
+      setFormMode(mode);
+      setIsFormOpen(true);
+    } catch (err) {
+      alert(err.message || 'Failed to load payer');
+    }
   };
+
+  const handleView = (provider) => openProvider(provider, 'view');
+
+  const handleEdit = (provider) => openProvider(provider, 'edit');
 
   const handleDelete = (provider) => {
     setSelectedProvider(provider);
@@ -118,7 +149,7 @@ export function InsuranceProvidersPage() {
   const handleFormSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      if (selectedProvider) {
+      if (formMode === 'edit' && selectedProvider) {
         await insuranceProviderApi.update(selectedProvider.id, data);
       } else {
         await insuranceProviderApi.create(data);
@@ -149,13 +180,52 @@ export function InsuranceProvidersPage() {
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Payers</h1>
-          <p className="text-muted-foreground">Manage payer records</p>
+          <h1 className="text-2xl font-bold text-foreground">Payers Management</h1>
+          <p className="text-muted-foreground">Manage insurance payer records</p>
         </div>
         <Button onClick={handleCreate}>
-          <Plus className="h-4 w-4" />
+          <Plus className="h-4 w-4 mr-2" />
           Add Payer
         </Button>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="mb-3 text-sm font-medium text-foreground">Filters</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="payer-id-filter">Payer ID</Label>
+            <Input
+              id="payer-id-filter"
+              value={payerIdFilter}
+              onChange={(e) => handleFilterChange(setPayerIdFilter)(e.target.value)}
+              placeholder="Search by payer ID..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="payer-name-filter">Payer Name</Label>
+            <Input
+              id="payer-name-filter"
+              value={nameFilter}
+              onChange={(e) => handleFilterChange(setNameFilter)(e.target.value)}
+              placeholder="Search by payer name..."
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="payer-status-filter">Status</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => handleFilterChange(setStatusFilter)(value)}
+            >
+              <SelectTrigger id="payer-status-filter" aria-label="Filter by status">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -170,16 +240,17 @@ export function InsuranceProvidersPage() {
         total={pagination.total}
         page={pagination.page}
         pageSize={pagination.limit}
-        searchValue={search}
         isLoading={isLoading}
-        onSearch={handleSearch}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-        searchPlaceholder="Search by name or code..."
+        hideToolbar
         emptyMessage="No payers found"
         actions={(provider) => (
           <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon-sm" onClick={() => handleView(provider)} aria-label="View">
+              <Eye className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon-sm" onClick={() => handleEdit(provider)} aria-label="Edit">
               <Pencil className="h-4 w-4" />
             </Button>
@@ -202,28 +273,24 @@ export function InsuranceProvidersPage() {
         provider={selectedProvider}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
+        mode={formMode}
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[520px] max-w-lg">
           <DialogHeader>
-            <DialogTitle>Delete Insurance Provider</DialogTitle>
+            <DialogTitle>Delete Payer</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete{' '}
               <span className="font-semibold">{selectedProvider?.name}</span>?
-              {selectedProvider?._count?.patients > 0 && (
-                <span className="block mt-2 text-destructive">
-                  Warning: This provider has {selectedProvider._count.patients} patient(s) associated with it.
-                </span>
-              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
-              Cancel
+              No
             </Button>
             <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isSubmitting}>
-              {isSubmitting ? 'Deleting...' : 'Delete'}
+              {isSubmitting ? 'Deleting...' : 'Yes'}
             </Button>
           </DialogFooter>
         </DialogContent>

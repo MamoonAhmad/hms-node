@@ -8,6 +8,8 @@ export const insuranceProviderApi = {
     if (params.page) searchParams.set('page', params.page);
     if (params.limit) searchParams.set('limit', params.limit);
     if (params.search) searchParams.set('search', params.search);
+    if (params.payerId) searchParams.set('payerId', params.payerId);
+    if (params.name) searchParams.set('name', params.name);
     if (params.isActive !== undefined) searchParams.set('isActive', params.isActive);
 
     const response = await fetch(`${API_BASE_URL}/insurance-providers?${searchParams}`, {

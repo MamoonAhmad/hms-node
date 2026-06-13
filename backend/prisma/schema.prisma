@@ -131,8 +131,8 @@ model Patient {
 
 model InsuranceProvider {
   id           String    @id @default(uuid())
-  name         String    @unique
-  code         String?   @unique // Short code like "BCBS", "AETNA"
+  name         String
+  code         String? // Short code like "BCBS", "AETNA"
   phone        String?
   email        String?
   address      String?
@@ -141,10 +141,14 @@ model InsuranceProvider {
   zip          String?
   website      String?
   isActive     Boolean   @default(true)
+  deletedAt    DateTime?
+  deletedBy    String?
   patients     Patient[]
+  deleter      User?     @relation("DeletedInsuranceProviders", fields: [deletedBy], references: [id])
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  @@index([deletedAt])
   @@map("insurance_providers")
 }
 
@@ -363,6 +367,7 @@ model User {
   appointmentTypesCreated    AppointmentType[]    @relation("CreatedAppointmentTypes")
   appointmentTypesUpdated    AppointmentType[]    @relation("UpdatedAppointmentTypes")
   appointmentTypesDeleted    AppointmentType[]    @relation("DeletedAppointmentTypes")
+  insuranceProvidersDeleted  InsuranceProvider[]  @relation("DeletedInsuranceProviders")
 
   @@map("users")
 }

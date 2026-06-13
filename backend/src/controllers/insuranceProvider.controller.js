@@ -64,7 +64,7 @@ const insuranceProviderController = {
    */
   async findAll(req, res, next) {
     try {
-      const filters = pick(req.query, ['page', 'limit', 'search', 'isActive']);
+      const filters = pick(req.query, ['page', 'limit', 'search', 'payerId', 'name', 'isActive']);
       const result = await insuranceProviderService.findAll(filters);
       res.json({
         success: true,
@@ -206,7 +206,7 @@ const insuranceProviderController = {
         });
       }
 
-      await insuranceProviderService.delete(req.params.id);
+      await insuranceProviderService.delete(req.params.id, req.user.id);
       res.json({
         success: true,
         message: 'Insurance provider deleted successfully',
