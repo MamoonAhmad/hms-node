@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +17,7 @@ import {
   OUTPATIENT_PROVIDERS,
   DEPARTMENT_OPTIONS,
 } from '@/components/patients/patientRegistrationAppointmentConstants';
+import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 import { normalizeHexColor } from '@/lib/appointmentStatuses';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +33,12 @@ import { cn } from '@/lib/utils';
  * @param {{ id: string, name: string, color?: string }[]} [props.statusOptions]
  * @param {boolean} [props.hideReferralSection] — hide referral source dropdown
  * @param {boolean} [props.showReferringPhysicianSection] — show referring physician block (defaults to !hideReferralSection)
+ * @param {{ value: string, label: string }[]} [props.departmentOptions]
+ * @param {{ value: string, label: string, displayLabel?: string }[]} [props.providerOptions]
+ * @param {{ value: string, label: string }[]} [props.appointmentTypeOptions]
+ * @param {boolean} [props.readOnly]
+ * @param {Set<string>|string[]} [props.availableDates]
+ * @param {boolean} [props.availableDatesLoading]
  */
 export function PatientRegistrationAppointmentFields({
   formData,
@@ -42,6 +50,12 @@ export function PatientRegistrationAppointmentFields({
   statusOptions = [],
   hideReferralSection = false,
   showReferringPhysicianSection,
+  departmentOptions = null,
+  providerOptions = null,
+  appointmentTypeOptions = null,
+  readOnly = false,
+  availableDates = null,
+  availableDatesLoading = false,
 }) {
   const pid = (name) => (idPrefix ? `${idPrefix}-${name}` : name);
   const showReferralSource = !hideReferralSection;
@@ -50,16 +64,104 @@ export function PatientRegistrationAppointmentFields({
       ? showReferringPhysicianSection
       : !hideReferralSection;
 
+  const deptOptions = departmentOptions || DEPARTMENT_OPTIONS;
+  const provOptions =
+    providerOptions ||
+    OUTPATIENT_PROVIDERS.map((p) => ({ value: p.name, label: p.name }));
+  const typeOptions = appointmentTypeOptions || APPOINTMENT_VISIT_TYPE_OPTIONS;
+  const useProviderIds = Boolean(providerOptions);
+  const useDepartmentIds = Boolean(departmentOptions);
+  const providerValue = useProviderIds
+    ? formData.appointmentProviderId || ''
+    : formData.appointmentProvider || '';
+  const departmentValue = useDepartmentIds
+    ? formData.appointmentDepartmentId || ''
+    : formData.appointmentDepartment || '';
+
   const isGeneralType = isGeneralAppointmentVisitType(formData.appointmentVisitType);
+
+  const handleDepartmentChange = (value) => {
+    if (useDepartmentIds) {
+      onChange('appointmentDepartmentId', value);
+      const match = deptOptions.find((o) => o.value === value);
+      onChange('appointmentDepartment', match?.label || '');
+    } else {
+      onChange('appointmentDepartment', value);
+    }
+    onChange('appointmentProviderId', '');
+    onChange('appointmentProvider', '');
+  };
+
+  const handleProviderChange = (value) => {
+    if (useProviderIds) {
+      onChange('appointmentProviderId', value);
+      const match = provOptions.find((o) => o.value === value);
+      onChange('appointmentProvider', match?.label || '');
+    } else {
+      onChange('appointmentProvider', value);
+    }
+    onChange('appointmentDate', '');
+    onChange('appointmentTime', '');
+  };
 
   const handleVisitTypeChange = (value) => {
     onChange('appointmentVisitType', value);
+    onChange('appointmentTime', '');
     if (value === GENERAL_APPOINTMENT_VISIT_TYPE) {
       onChange('appointmentTime', '');
     } else {
       onChange('appointmentStartTime', '');
       onChange('appointmentEndTime', '');
     }
+  };
+
+  const availableDateList = useMemo(() => {
+    if (!availableDates) return [];
+    const list = availableDates instanceof Set ? [...availableDates] : [...(availableDates || [])];
+    return list.sort();
+  }, [availableDates]);
+
+  const useScheduledDatePicker = useProviderIds && Boolean(providerValue);
+  const appointmentTypeSelected = Boolean(formData.appointmentVisitType);
+  const dateFieldEnabled =
+    !readOnly &&
+    Boolean(providerValue) &&
+    (!useScheduledDatePicker || appointmentTypeSelected);
+  const noProviderAvailability =
+    useScheduledDatePicker &&
+    appointmentTypeSelected &&
+    !availableDatesLoading &&
+    availableDates !== null &&
+    availableDateList.length === 0;
+
+  const formatAvailableDateLabel = (dateStr) =>
+    new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+
+  const availableDateOptions = useMemo(() => {
+    const options = availableDateList.map((dateStr) => ({
+      value: dateStr,
+      label: formatAvailableDateLabel(dateStr),
+    }));
+    if (
+      formData.appointmentDate &&
+      !availableDateList.includes(formData.appointmentDate)
+    ) {
+      options.unshift({
+        value: formData.appointmentDate,
+        label: formatAvailableDateLabel(formData.appointmentDate),
+      });
+    }
+    return options;
+  }, [availableDateList, formData.appointmentDate]);
+
+  const handleAppointmentDateChange = (next) => {
+    onChange('appointmentDate', next);
+    onChange('appointmentTime', '');
   };
 
   return (
@@ -73,45 +175,77 @@ export function PatientRegistrationAppointmentFields({
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor={pid('appointmentDepartment')}>Department</Label>
-            <Select
-              value={formData.appointmentDepartment || ''}
-              onValueChange={(value) => onChange('appointmentDepartment', value)}
-            >
-              <SelectTrigger
-                id={pid('appointmentDepartment')}
-                className={`w-full ${errors.appointmentDepartment ? 'border-destructive' : ''}`}
+            {useDepartmentIds ? (
+              <SearchableSelect
+                value={departmentValue}
+                onValueChange={handleDepartmentChange}
+                options={deptOptions}
+                placeholder="Select department"
+                disabled={readOnly}
+                triggerClassName={errors.appointmentDepartment ? 'border-destructive' : ''}
+              />
+            ) : (
+              <Select
+                value={departmentValue}
+                onValueChange={handleDepartmentChange}
+                disabled={readOnly}
               >
-                <SelectValue placeholder="Select department" />
-              </SelectTrigger>
-              <SelectContent>
-                {DEPARTMENT_OPTIONS.map((dept) => (
-                  <SelectItem key={dept.value} value={dept.value}>
-                    {dept.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  id={pid('appointmentDepartment')}
+                  className={`w-full ${errors.appointmentDepartment ? 'border-destructive' : ''}`}
+                >
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {deptOptions.map((dept) => (
+                    <SelectItem key={dept.value} value={dept.value}>
+                      {dept.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {errors.appointmentDepartment && (
               <p className="text-xs text-destructive">{errors.appointmentDepartment}</p>
             )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor={pid('appointmentProvider')}>Provider</Label>
-            <Select
-              value={formData.appointmentProvider || ''}
-              onValueChange={(value) => onChange('appointmentProvider', value)}
-            >
-              <SelectTrigger id={pid('appointmentProvider')} className="w-full">
-                <SelectValue placeholder="Select provider" />
-              </SelectTrigger>
-              <SelectContent>
-                {OUTPATIENT_PROVIDERS.map((p) => (
-                  <SelectItem key={p.id} value={p.name}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor={pid('appointmentProvider')}>
+              Provider <span className="text-destructive">*</span>
+            </Label>
+            {useProviderIds ? (
+              <SearchableSelect
+                value={providerValue}
+                onValueChange={handleProviderChange}
+                options={provOptions}
+                placeholder="Search provider by name or NPI"
+                disabled={readOnly}
+                triggerClassName={errors.appointmentProvider ? 'border-destructive' : ''}
+              />
+            ) : (
+              <Select
+                value={providerValue}
+                onValueChange={handleProviderChange}
+                disabled={readOnly}
+              >
+                <SelectTrigger
+                  id={pid('appointmentProvider')}
+                  className={errors.appointmentProvider ? 'border-destructive' : ''}
+                >
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {provOptions.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {errors.appointmentProvider && (
+              <p className="text-xs text-destructive">{errors.appointmentProvider}</p>
+            )}
           </div>
         </div>
 
@@ -128,23 +262,11 @@ export function PatientRegistrationAppointmentFields({
           )}
         >
           <div className="space-y-2">
-            <Label htmlFor={pid('appointmentDate')}>Appointment Date</Label>
-            <Input
-              id={pid('appointmentDate')}
-              type="date"
-              value={formData.appointmentDate ?? ''}
-              onChange={(e) => onChange('appointmentDate', e.target.value)}
-              className={errors.appointmentDate ? 'border-destructive' : ''}
-            />
-            {errors.appointmentDate && (
-              <p className="text-xs text-destructive">{errors.appointmentDate}</p>
-            )}
-          </div>
-          <div className="space-y-2">
             <Label htmlFor={pid('appointmentVisitType')}>Appointment Type</Label>
             <Select
               value={formData.appointmentVisitType || ''}
               onValueChange={handleVisitTypeChange}
+              disabled={readOnly || (useProviderIds && !providerValue)}
             >
               <SelectTrigger
                 id={pid('appointmentVisitType')}
@@ -153,7 +275,7 @@ export function PatientRegistrationAppointmentFields({
                 <SelectValue placeholder="Select appointment type" />
               </SelectTrigger>
               <SelectContent>
-                {APPOINTMENT_VISIT_TYPE_OPTIONS.map((opt) => (
+                {typeOptions.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>
@@ -164,6 +286,61 @@ export function PatientRegistrationAppointmentFields({
               <p className="text-xs text-destructive">{errors.appointmentVisitType}</p>
             )}
           </div>
+          <div className="space-y-2">
+            <Label htmlFor={pid('appointmentDate')}>Appointment Date</Label>
+            {useScheduledDatePicker ? (
+              <Select
+                value={formData.appointmentDate || ''}
+                onValueChange={handleAppointmentDateChange}
+                disabled={!dateFieldEnabled || availableDatesLoading}
+              >
+                <SelectTrigger
+                  id={pid('appointmentDate')}
+                  className={cn('w-full', errors.appointmentDate ? 'border-destructive' : '')}
+                >
+                  <SelectValue
+                    placeholder={
+                      !appointmentTypeSelected
+                        ? 'Select appointment type first'
+                        : availableDatesLoading
+                          ? 'Loading available dates…'
+                          : 'Select available date'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableDateOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                id={pid('appointmentDate')}
+                type="date"
+                value={formData.appointmentDate ?? ''}
+                onChange={(e) => handleAppointmentDateChange(e.target.value)}
+                disabled={!dateFieldEnabled}
+                min={new Date().toISOString().split('T')[0]}
+                className={errors.appointmentDate ? 'border-destructive' : ''}
+              />
+            )}
+            {useScheduledDatePicker && !appointmentTypeSelected && providerValue && (
+              <p className="text-xs text-muted-foreground">
+                Select an appointment type to load available dates for this provider.
+              </p>
+            )}
+            {noProviderAvailability && (
+              <p className="text-xs text-muted-foreground">
+                No scheduled availability found for this provider and appointment type.
+              </p>
+            )}
+            {errors.appointmentDate && (
+              <p className="text-xs text-destructive">{errors.appointmentDate}</p>
+            )}
+          </div>
           {!isGeneralType && (
             <div className="space-y-2">
               <Label htmlFor={pid('appointmentTime')}>Appointment Time</Label>
@@ -171,6 +348,7 @@ export function PatientRegistrationAppointmentFields({
                 <Select
                   value={formData.appointmentTime || ''}
                   onValueChange={(value) => onChange('appointmentTime', value)}
+                  disabled={readOnly}
                 >
                   <SelectTrigger
                     id={pid('appointmentTime')}
@@ -215,6 +393,7 @@ export function PatientRegistrationAppointmentFields({
                   type="time"
                   value={formData.appointmentStartTime ?? ''}
                   onChange={(e) => onChange('appointmentStartTime', e.target.value)}
+                  disabled={readOnly}
                   className={cn('w-full', errors.appointmentStartTime ? 'border-destructive' : '')}
                 />
                 {errors.appointmentStartTime && (
@@ -228,6 +407,7 @@ export function PatientRegistrationAppointmentFields({
                   type="time"
                   value={formData.appointmentEndTime ?? ''}
                   onChange={(e) => onChange('appointmentEndTime', e.target.value)}
+                  disabled={readOnly}
                   className={cn('w-full', errors.appointmentEndTime ? 'border-destructive' : '')}
                 />
                 {errors.appointmentEndTime && (
@@ -242,6 +422,7 @@ export function PatientRegistrationAppointmentFields({
               <Select
                 value={formData.status || ''}
                 onValueChange={(value) => onChange('status', value)}
+                disabled={readOnly}
               >
                 <SelectTrigger id={pid('appointmentStatus')} className="w-full">
                   <SelectValue placeholder="Select appointment status" />
@@ -274,6 +455,7 @@ export function PatientRegistrationAppointmentFields({
             id={pid('appointmentReason')}
             value={formData.appointmentReason ?? ''}
             onChange={(e) => onChange('appointmentReason', e.target.value)}
+            disabled={readOnly}
             placeholder="e.g., Annual physical, cough, follow-up labs"
           />
         </div>
@@ -284,6 +466,7 @@ export function PatientRegistrationAppointmentFields({
             id={pid('appointmentNotes')}
             value={formData.appointmentNotes ?? ''}
             onChange={(e) => onChange('appointmentNotes', e.target.value)}
+            disabled={readOnly}
             rows={4}
             placeholder="Any special instructions, symptoms, or scheduling notes"
           />

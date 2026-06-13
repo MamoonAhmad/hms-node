@@ -1,27 +1,48 @@
 import { API_BASE_URL, getAuthHeaders, handleResponse } from './client';
 
+function buildSearchParams(params) {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.set(key, value);
+    }
+  });
+  return searchParams;
+}
+
 export const appointmentApi = {
-  // Get all appointments with pagination and filters
   async getAll(params = {}) {
-    const searchParams = new URLSearchParams();
-
-    if (params.page) searchParams.set('page', params.page);
-    if (params.limit) searchParams.set('limit', params.limit);
-    if (params.search) searchParams.set('search', params.search);
-    if (params.status) searchParams.set('status', params.status);
-    if (params.appointmentType) searchParams.set('appointmentType', params.appointmentType);
-    if (params.department) searchParams.set('department', params.department);
-    if (params.provider) searchParams.set('provider', params.provider);
-    if (params.date) searchParams.set('date', params.date);
-    if (params.patientId) searchParams.set('patientId', params.patientId);
-
+    const searchParams = buildSearchParams(params);
     const response = await fetch(`${API_BASE_URL}/appointments?${searchParams}`, {
       headers: getAuthHeaders(),
     });
     return handleResponse(response);
   },
 
-  // Get appointment by ID
+  async getStatusCounts(params = {}) {
+    const searchParams = buildSearchParams(params);
+    const response = await fetch(`${API_BASE_URL}/appointments/status-counts?${searchParams}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  async getAvailableDates(params = {}) {
+    const searchParams = buildSearchParams(params);
+    const response = await fetch(`${API_BASE_URL}/appointments/availability/dates?${searchParams}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  async getAvailableSlots(params = {}) {
+    const searchParams = buildSearchParams(params);
+    const response = await fetch(`${API_BASE_URL}/appointments/availability/slots?${searchParams}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
   async getById(id) {
     const response = await fetch(`${API_BASE_URL}/appointments/${id}`, {
       headers: getAuthHeaders(),
@@ -29,7 +50,13 @@ export const appointmentApi = {
     return handleResponse(response);
   },
 
-  // Get today's appointments
+  async getHistory(id) {
+    const response = await fetch(`${API_BASE_URL}/appointments/${id}/history`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
   async getToday() {
     const response = await fetch(`${API_BASE_URL}/appointments/today`, {
       headers: getAuthHeaders(),
@@ -37,7 +64,6 @@ export const appointmentApi = {
     return handleResponse(response);
   },
 
-  // Create a new appointment
   async create(data) {
     const response = await fetch(`${API_BASE_URL}/appointments`, {
       method: 'POST',
@@ -50,7 +76,6 @@ export const appointmentApi = {
     return handleResponse(response);
   },
 
-  // Update an appointment
   async update(id, data) {
     const response = await fetch(`${API_BASE_URL}/appointments/${id}`, {
       method: 'PUT',
@@ -63,7 +88,6 @@ export const appointmentApi = {
     return handleResponse(response);
   },
 
-  // Update appointment status
   async updateStatus(id, status) {
     const response = await fetch(`${API_BASE_URL}/appointments/${id}/status`, {
       method: 'PATCH',
@@ -76,7 +100,6 @@ export const appointmentApi = {
     return handleResponse(response);
   },
 
-  // Delete an appointment
   async delete(id) {
     const response = await fetch(`${API_BASE_URL}/appointments/${id}`, {
       method: 'DELETE',
@@ -85,4 +108,3 @@ export const appointmentApi = {
     return handleResponse(response);
   },
 };
-

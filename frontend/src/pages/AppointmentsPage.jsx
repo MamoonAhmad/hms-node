@@ -3,11 +3,10 @@ import {
   Plus,
   Search,
   Pencil,
-  Trash2,
+  Eye,
   ChevronLeft,
   ChevronRight,
   Clock,
-  Calendar as CalendarIcon,
   List,
   LayoutGrid,
   Users,
@@ -30,21 +29,31 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { AppointmentFormDialog } from '@/components/appointments/AppointmentFormDialog';
-import { DeleteAppointmentDialog } from '@/components/appointments/DeleteAppointmentDialog';
+import { AppointmentHistorySidebar } from '@/components/appointments/AppointmentHistorySidebar';
 import { AppointmentTimeline } from '@/components/appointments/AppointmentTimeline';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
-import {
-  buildAppointmentSubmitPayloadFromRegistration,
-  DEPARTMENT_OPTIONS,
-  OUTPATIENT_PROVIDERS,
-} from '@/components/patients/patientRegistrationAppointmentConstants';
+import { buildAppointmentSubmitPayloadFromRegistration } from '@/components/patients/patientRegistrationAppointmentConstants';
 import {
   getDefaultAppointmentStatusName,
   getAppointmentStatusesFallback,
   statusChipStyle,
 } from '@/lib/appointmentStatuses';
-import { appointmentApi, appointmentStatusApi, patientApi } from '@/services/api';
+import {
+  buildPatientSearchOption,
+  buildProviderSearchOption,
+  formatPatientDemographics,
+  formatPatientListName,
+  formatProviderListName,
+} from '@/lib/appointmentUtils';
+import {
+  appointmentApi,
+  appointmentStatusApi,
+  appointmentTypeApi,
+  departmentApi,
+  patientApi,
+  providerApi,
+} from '@/services/api';
 
 import { cn } from '@/lib/utils';
 
@@ -68,15 +77,15 @@ const SEGMENTED_ITEM_IDLE =
 
 const timelineRangeOptions = [
   { value: 'day', label: 'Day' },
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' },
 ];
-
-const appointmentTypes = ['New', 'Follow-up', 'Televisit'];
 
 export function AppointmentsPage() {
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [appointmentTypes, setAppointmentTypes] = useState([]);
+  const [statusCounts, setStatusCounts] = useState({ all: 0 });
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -100,19 +109,20 @@ export function AppointmentsPage() {
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [providerFilter, setProviderFilter] = useState('');
   const [patientFilter, setPatientFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState(() => {
-    // Default to today's date
-    return new Date().toISOString().split('T')[0];
-  });
+  const [dateFilter, setDateFilter] = useState(() => toDateKey(new Date()));
+  const [dateToFilter, setDateToFilter] = useState('');
 
   // Dialogs
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [formMode, setFormMode] = useState('create');
   const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
   const [patientFormFromAppointment, setPatientFormFromAppointment] = useState(false);
   const [pendingPatientId, setPendingPatientId] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // For pre-filling form from timeline click
   const [initialDate, setInitialDate] = useState('');
@@ -128,28 +138,74 @@ export function AppointmentsPage() {
     }
   }, []);
 
+  const fetchMasterData = useCallback(async () => {
+    try {
+      const [deptRes, provRes, typeRes] = await Promise.all([
+        departmentApi.getAll({ limit: 200 }),
+        providerApi.getAll({ limit: 500, isActive: true }),
+        appointmentTypeApi.getActive(),
+      ]);
+      setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
+      setProviders(Array.isArray(provRes.data) ? provRes.data : []);
+      setAppointmentTypes(Array.isArray(typeRes.data) ? typeRes.data : []);
+    } catch (err) {
+      console.error('Failed to fetch master data:', err);
+    }
+  }, []);
+
+  const buildFilterParams = useCallback(
+    (overrides = {}) => {
+      const params = {
+        search: search || undefined,
+        appointmentType: typeFilter || undefined,
+        departmentId: departmentFilter || undefined,
+        providerId: providerFilter || undefined,
+        patientId: patientFilter || undefined,
+        ...overrides,
+      };
+
+      if (viewMode === 'list') {
+        if (dateFilter) params.dateFrom = dateFilter;
+        if (dateToFilter) params.dateTo = dateToFilter;
+      } else if (timelineRange === 'day') {
+        params.date = dateFilter;
+        params.excludeHiddenTimeline = true;
+      }
+
+      return params;
+    },
+    [
+      search,
+      typeFilter,
+      departmentFilter,
+      providerFilter,
+      patientFilter,
+      dateFilter,
+      dateToFilter,
+      viewMode,
+      timelineRange,
+    ],
+  );
+
+  const fetchStatusCounts = useCallback(async () => {
+    try {
+      const response = await appointmentApi.getStatusCounts(buildFilterParams());
+      setStatusCounts(response.data || { all: 0 });
+    } catch (err) {
+      console.error('Failed to fetch status counts:', err);
+    }
+  }, [buildFilterParams]);
+
   const fetchAppointments = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const params = {
+        ...buildFilterParams(),
         page: pagination.page,
-        limit:
-          viewMode === 'timeline' && timelineRange !== 'day'
-            ? 500
-            : viewMode === 'timeline'
-              ? 100
-              : pagination.limit,
+        limit: viewMode === 'timeline' ? 200 : pagination.limit,
       };
-      if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
-      if (typeFilter) params.appointmentType = typeFilter;
-      if (departmentFilter) params.department = departmentFilter;
-      if (providerFilter) params.provider = providerFilter;
-      if (patientFilter) params.patientId = patientFilter;
-      if (dateFilter && (viewMode === 'list' || (viewMode === 'timeline' && timelineRange === 'day'))) {
-        params.date = dateFilter;
-      }
 
       const response = await appointmentApi.getAll(params);
       setAppointments(response.data);
@@ -159,7 +215,7 @@ export function AppointmentsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search, statusFilter, typeFilter, departmentFilter, providerFilter, patientFilter, dateFilter, viewMode, timelineRange]);
+  }, [pagination.page, pagination.limit, statusFilter, buildFilterParams, viewMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,11 +236,13 @@ export function AppointmentsPage() {
 
   useEffect(() => {
     fetchPatients();
-  }, [fetchPatients]);
+    fetchMasterData();
+  }, [fetchPatients, fetchMasterData]);
 
   useEffect(() => {
     fetchAppointments();
-  }, [fetchAppointments]);
+    fetchStatusCounts();
+  }, [fetchAppointments, fetchStatusCounts]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -224,6 +282,9 @@ export function AppointmentsPage() {
       case 'date':
         setDateFilter(actualValue);
         break;
+      case 'dateTo':
+        setDateToFilter(actualValue);
+        break;
     }
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
@@ -234,6 +295,7 @@ export function AppointmentsPage() {
 
   const handleCreate = () => {
     setSelectedAppointment(null);
+    setFormMode('create');
     setInitialDate('');
     setInitialTime('');
     setIsFormOpen(true);
@@ -287,17 +349,22 @@ export function AppointmentsPage() {
     setProviderFilter('');
     setPatientFilter('');
     setDateFilter(toDateKey(new Date()));
+    setDateToFilter('');
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
-  const patientFilterOptions = patients.map((patient) => ({
-    value: patient.id,
-    label: `${patient.firstName} ${patient.lastName} (${patient.mrn})`,
+  const patientFilterOptions = patients.map((patient) => buildPatientSearchOption(patient));
+
+  const departmentFilterOptions = departments.map((dept) => ({
+    value: dept.id,
+    label: dept.departmentName,
   }));
 
-  const providerFilterOptions = OUTPATIENT_PROVIDERS.map((p) => ({
-    value: p.name,
-    label: p.name,
+  const providerFilterOptions = providers.map((provider) => buildProviderSearchOption(provider));
+
+  const typeFilterOptions = appointmentTypes.map((type) => ({
+    value: type.name,
+    label: type.name,
   }));
 
   const hasActiveFilters =
@@ -310,21 +377,39 @@ export function AppointmentsPage() {
 
   const handleTimeSlotClick = (date, time) => {
     setSelectedAppointment(null);
+    setFormMode('create');
     setInitialDate(date);
     setInitialTime(time);
     setIsFormOpen(true);
   };
 
-  const handleEdit = (appointment) => {
+  const handleView = (appointment) => {
     setSelectedAppointment(appointment);
+    setFormMode('view');
     setInitialDate('');
     setInitialTime('');
     setIsFormOpen(true);
   };
 
-  const handleDelete = (appointment) => {
+  const handleEdit = (appointment) => {
     setSelectedAppointment(appointment);
-    setIsDeleteOpen(true);
+    setFormMode('edit');
+    setInitialDate('');
+    setInitialTime('');
+    setIsFormOpen(true);
+  };
+
+  const openHistory = async (appointment) => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      const res = await appointmentApi.getHistory(appointment.id);
+      setHistory(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   const handleFormSubmit = async (data) => {
@@ -336,20 +421,9 @@ export function AppointmentsPage() {
         await appointmentApi.create(data);
       }
       setIsFormOpen(false);
+      setFormMode('create');
       fetchAppointments();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDeleteConfirm = async () => {
-    setIsSubmitting(true);
-    try {
-      await appointmentApi.delete(selectedAppointment.id);
-      setIsDeleteOpen(false);
-      fetchAppointments();
+      fetchStatusCounts();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -361,6 +435,7 @@ export function AppointmentsPage() {
     try {
       await appointmentApi.updateStatus(appointmentId, newStatus);
       fetchAppointments();
+      fetchStatusCounts();
     } catch (err) {
       alert(err.message);
     }
@@ -450,8 +525,18 @@ export function AppointmentsPage() {
             value={dateFilter}
             onChange={(e) => handleFilterChange('date', e.target.value)}
             className={FILTER_CONTROL_CLASS}
-            aria-label="Appointment date"
+            aria-label={viewMode === 'list' ? 'Appointment date from' : 'Appointment date'}
           />
+
+          {viewMode === 'list' && (
+            <Input
+              type="date"
+              value={dateToFilter}
+              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+              className={FILTER_CONTROL_CLASS}
+              aria-label="Appointment date to"
+            />
+          )}
 
           <Select
             value={typeFilter || 'all'}
@@ -462,9 +547,9 @@ export function AppointmentsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
-              {appointmentTypes.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
+              {typeFilterOptions.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -473,7 +558,7 @@ export function AppointmentsPage() {
           <SearchableSelect
             value={departmentFilter || 'all'}
             onValueChange={(v) => handleFilterChange('department', v)}
-            options={[{ value: 'all', label: 'All departments' }, ...DEPARTMENT_OPTIONS]}
+            options={[{ value: 'all', label: 'All departments' }, ...departmentFilterOptions]}
             placeholder="All departments"
             triggerClassName={FILTER_CONTROL_CLASS}
           />
@@ -520,12 +605,13 @@ export function AppointmentsPage() {
                     !statusFilter ? SEGMENTED_ITEM_ACTIVE : SEGMENTED_ITEM_IDLE,
                   )}
                 >
-                  All
+                  All ({statusCounts.all || 0})
                 </Button>
                 {appointmentStatusCatalog.map((statusRow) => {
                   const status = statusRow.name;
                   const chipStyle = statusChipStyle(status, appointmentStatusCatalog);
                   const isActive = statusFilter === status;
+                  const count = statusCounts[status] || 0;
                   return (
                   <Button
                     key={statusRow.id || status}
@@ -539,7 +625,7 @@ export function AppointmentsPage() {
                     )}
                     style={isActive ? chipStyle : undefined}
                   >
-                    {status}
+                    {status} ({count})
                   </Button>
                   );
                 })}
@@ -590,8 +676,10 @@ export function AppointmentsPage() {
           selectedDate={dateFilter}
           rangeMode={timelineRange}
           onTimeSlotClick={handleTimeSlotClick}
-          onAppointmentClick={handleEdit}
+          onAppointmentClick={handleView}
           onDayClick={handleTimelineDayClick}
+          statusCatalog={appointmentStatusCatalog}
+          onStatusChange={handleStatusChange}
         />
       )}
 
@@ -601,12 +689,12 @@ export function AppointmentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date & Time</TableHead>
-                <TableHead>Patient</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead className="w-12">Sr. No.</TableHead>
+                <TableHead>Patient Information</TableHead>
+                <TableHead>Appointment Type</TableHead>
+                <TableHead>Appointment Status</TableHead>
+                <TableHead>Appointment Time</TableHead>
+                <TableHead>Provider Information</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -627,28 +715,17 @@ export function AppointmentsPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                appointments.map((appointment) => (
+                appointments.map((appointment, index) => (
                   <TableRow key={appointment.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">
-                            {formatDate(appointment.appointmentDate)}
-                          </div>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {formatTime(appointment.appointmentTime)}
-                          </div>
-                        </div>
-                      </div>
+                    <TableCell className="text-muted-foreground">
+                      {(pagination.page - 1) * pagination.limit + index + 1}
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">
-                        {appointment.patient?.firstName} {appointment.patient?.lastName}
+                        {formatPatientListName(appointment.patient)}
                       </div>
-                      <div className="text-xs text-muted-foreground font-mono">
-                        {appointment.patient?.mrn}
+                      <div className="text-xs text-muted-foreground">
+                        {formatPatientDemographics(appointment.patient)}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -657,21 +734,13 @@ export function AppointmentsPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {appointment.duration} min
-                    </TableCell>
-                    <TableCell>
-                      {appointment.provider || (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
                       <Select
                         value={appointment.status}
                         onValueChange={(value) =>
                           handleStatusChange(appointment.id, value)
                         }
                       >
-                        <SelectTrigger className="h-8 w-36">
+                        <SelectTrigger className="h-8 w-40">
                           <span
                             className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
                             style={statusChipStyle(appointment.status, appointmentStatusCatalog)}
@@ -693,22 +762,50 @@ export function AppointmentsPage() {
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    <TableCell>
+                      <div className="font-medium">
+                        {formatDate(appointment.appointmentDate)}
+                      </div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {formatTime(appointment.appointmentTime)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">
+                        {formatProviderListName(appointment.providerRef) ||
+                          appointment.provider ||
+                          '—'}
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono">
+                        {appointment.providerRef?.npi || '—'}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          onClick={() => handleView(appointment)}
+                          title="View"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => handleEdit(appointment)}
+                          title="Edit"
                         >
                           <Pencil className="h-4 w-4 icon-action-edit" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={() => handleDelete(appointment)}
-                          className="text-destructive hover:text-destructive"
+                          onClick={() => openHistory(appointment)}
+                          title="Timeline history"
                         >
-                          <Trash2 className="h-4 w-4 icon-action-delete" />
+                          <Clock className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -759,7 +856,10 @@ export function AppointmentsPage() {
         open={isFormOpen}
         onOpenChange={(open) => {
           setIsFormOpen(open);
-          if (!open) setPendingPatientId('');
+          if (!open) {
+            setPendingPatientId('');
+            setFormMode('create');
+          }
         }}
         appointment={selectedAppointment}
         patients={patients}
@@ -769,14 +869,15 @@ export function AppointmentsPage() {
         isLoading={isSubmitting}
         initialDate={initialDate}
         initialTime={initialTime}
+        mode={formMode}
+        onModeChange={setFormMode}
       />
 
-      <DeleteAppointmentDialog
-        open={isDeleteOpen}
-        onOpenChange={setIsDeleteOpen}
-        appointment={selectedAppointment}
-        onConfirm={handleDeleteConfirm}
-        isLoading={isSubmitting}
+      <AppointmentHistorySidebar
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        history={history}
+        isLoading={historyLoading}
       />
 
       <PatientFormDialog

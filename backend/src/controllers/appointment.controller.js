@@ -1,214 +1,80 @@
 const appointmentService = require('../services/appointment.service');
+const appointmentAvailabilityService = require('../services/appointmentAvailability.service');
 const pick = require('../utils/pick');
 
 const appointmentController = {
-  /**
-   * @swagger
-   * /api/appointments:
-   *   post:
-   *     summary: Create a new appointment
-   *     tags: [Appointments]
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             $ref: '#/components/schemas/CreateAppointment'
-   *     responses:
-   *       201:
-   *         description: Appointment created successfully
-   *       400:
-   *         description: Validation error
-   *       500:
-   *         description: Server error
-   */
   async create(req, res, next) {
     try {
-      const appointment = await appointmentService.create(req.body);
+      const appointment = await appointmentService.create(req.body, req.user);
       res.status(201).json({
         success: true,
         message: 'Appointment created successfully',
         data: appointment,
       });
     } catch (error) {
-      if (error?.statusCode === 400) {
-        return res.status(400).json({ success: false, message: error.message });
+      if (error?.statusCode === 400 || error?.statusCode === 409) {
+        return res.status(error.statusCode).json({ success: false, message: error.message });
       }
       next(error);
     }
   },
 
-  /**
-   * @swagger
-   * /api/appointments:
-   *   get:
-   *     summary: Get all appointments with pagination and filters
-   *     tags: [Appointments]
-   *     parameters:
-   *       - in: query
-   *         name: page
-   *         schema:
-   *           type: integer
-   *           default: 1
-   *       - in: query
-   *         name: limit
-   *         schema:
-   *           type: integer
-   *           default: 10
-   *       - in: query
-   *         name: search
-   *         schema:
-   *           type: string
-   *       - in: query
-   *         name: status
-   *         schema:
-   *           type: string
-   *           enum: [Scheduled, Checked-In, In Progress, Completed, Cancelled, No-Show, Rescheduled]
-   *       - in: query
-   *         name: appointmentType
-   *         schema:
-   *           type: string
-   *           enum: [New, Follow-up, Televisit]
-   *       - in: query
-   *         name: department
-   *         schema:
-   *           type: string
-   *       - in: query
-   *         name: date
-   *         schema:
-   *           type: string
-   *           format: date
-   *       - in: query
-   *         name: patientId
-   *         schema:
-   *           type: string
-   *           format: uuid
-   *     responses:
-   *       200:
-   *         description: List of appointments
-   */
   async findAll(req, res, next) {
     try {
-      const filters = pick(req.query, [
+      const filters = pick(req.validatedQuery || req.query, [
         'page',
         'limit',
         'search',
         'status',
         'appointmentType',
         'department',
+        'departmentId',
         'provider',
+        'providerId',
         'date',
+        'dateFrom',
+        'dateTo',
         'patientId',
+        'excludeHiddenTimeline',
       ]);
 
       const result = await appointmentService.findAll(filters);
-      res.json({
-        success: true,
-        ...result,
-      });
+      res.json({ success: true, ...result });
     } catch (error) {
       next(error);
     }
   },
 
-  /**
-   * @swagger
-   * /api/appointments/today:
-   *   get:
-   *     summary: Get today's appointments
-   *     tags: [Appointments]
-   *     responses:
-   *       200:
-   *         description: List of today's appointments
-   */
-  async getTodayAppointments(req, res, next) {
+  async getStatusCounts(req, res, next) {
     try {
-      const appointments = await appointmentService.getTodayAppointments();
-      res.json({
-        success: true,
-        data: appointments,
-      });
+      const filters = pick(req.validatedQuery || req.query, [
+        'search',
+        'appointmentType',
+        'department',
+        'departmentId',
+        'provider',
+        'providerId',
+        'date',
+        'dateFrom',
+        'dateTo',
+        'patientId',
+      ]);
+      const counts = await appointmentService.getStatusCounts(filters);
+      res.json({ success: true, data: counts });
     } catch (error) {
       next(error);
     }
   },
 
-  /**
-   * @swagger
-   * /api/appointments/{id}:
-   *   get:
-   *     summary: Get an appointment by ID
-   *     tags: [Appointments]
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: string
-   *     responses:
-   *       200:
-   *         description: Appointment details
-   *       404:
-   *         description: Appointment not found
-   */
-  async findById(req, res, next) {
+  async getAvailableDates(req, res, next) {
     try {
-      const appointment = await appointmentService.findById(req.params.id);
-      if (!appointment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Appointment not found',
-        });
-      }
-      res.json({
-        success: true,
-        data: appointment,
+      const query = req.validatedQuery || req.query;
+      const result = await appointmentAvailabilityService.getAvailableDates(query.providerId, {
+        appointmentType: query.appointmentType,
+        fromDate: query.fromDate,
+        daysAhead: query.daysAhead,
       });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  /**
-   * @swagger
-   * /api/appointments/{id}:
-   *   put:
-   *     summary: Update an appointment
-   *     tags: [Appointments]
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: string
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             $ref: '#/components/schemas/UpdateAppointment'
-   *     responses:
-   *       200:
-   *         description: Appointment updated successfully
-   *       404:
-   *         description: Appointment not found
-   */
-  async update(req, res, next) {
-    try {
-      const appointment = await appointmentService.findById(req.params.id);
-      if (!appointment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Appointment not found',
-        });
-      }
-
-      const updatedAppointment = await appointmentService.update(req.params.id, req.body);
-      res.json({
-        success: true,
-        message: 'Appointment updated successfully',
-        data: updatedAppointment,
-      });
+      res.json({ success: true, data: result });
     } catch (error) {
       if (error?.statusCode === 400) {
         return res.status(400).json({ success: false, message: error.message });
@@ -217,83 +83,109 @@ const appointmentController = {
     }
   },
 
-  /**
-   * @swagger
-   * /api/appointments/{id}:
-   *   delete:
-   *     summary: Delete an appointment
-   *     tags: [Appointments]
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: string
-   *     responses:
-   *       200:
-   *         description: Appointment deleted successfully
-   *       404:
-   *         description: Appointment not found
-   */
-  async delete(req, res, next) {
+  async getAvailableSlots(req, res, next) {
     try {
-      const appointment = await appointmentService.findById(req.params.id);
-      if (!appointment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Appointment not found',
-        });
+      const query = req.validatedQuery || req.query;
+      const dateStr =
+        typeof query.date === 'string' ? query.date.split('T')[0] : query.date.toISOString().split('T')[0];
+      const result = await appointmentAvailabilityService.getAvailableSlots(
+        query.providerId,
+        dateStr,
+        {
+          appointmentType: query.appointmentType,
+          excludeAppointmentId: query.excludeAppointmentId,
+        },
+      );
+      res.json({ success: true, data: result });
+    } catch (error) {
+      if (error?.statusCode === 400) {
+        return res.status(400).json({ success: false, message: error.message });
       }
+      next(error);
+    }
+  },
 
-      await appointmentService.delete(req.params.id);
-      res.json({
-        success: true,
-        message: 'Appointment deleted successfully',
-      });
+  async getTodayAppointments(req, res, next) {
+    try {
+      const appointments = await appointmentService.getTodayAppointments();
+      res.json({ success: true, data: appointments });
     } catch (error) {
       next(error);
     }
   },
 
-  /**
-   * @swagger
-   * /api/appointments/{id}/status:
-   *   patch:
-   *     summary: Update appointment status
-   *     tags: [Appointments]
-   *     parameters:
-   *       - in: path
-   *         name: id
-   *         required: true
-   *         schema:
-   *           type: string
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             properties:
-   *               status:
-   *                 type: string
-   *                 enum: [Scheduled, Checked-In, In Progress, Completed, Cancelled, No-Show, Rescheduled]
-   *     responses:
-   *       200:
-   *         description: Status updated successfully
-   */
+  async findById(req, res, next) {
+    try {
+      const appointment = await appointmentService.findById(req.params.id);
+      if (!appointment) {
+        return res.status(404).json({ success: false, message: 'Appointment not found' });
+      }
+      res.json({ success: true, data: appointment });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getHistory(req, res, next) {
+    try {
+      const appointment = await appointmentService.findById(req.params.id);
+      if (!appointment) {
+        return res.status(404).json({ success: false, message: 'Appointment not found' });
+      }
+      const history = await appointmentService.getHistory(req.params.id);
+      res.json({ success: true, data: history });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async update(req, res, next) {
+    try {
+      const appointment = await appointmentService.findById(req.params.id);
+      if (!appointment) {
+        return res.status(404).json({ success: false, message: 'Appointment not found' });
+      }
+
+      const updatedAppointment = await appointmentService.update(req.params.id, req.body, req.user);
+      res.json({
+        success: true,
+        message: 'Appointment updated successfully',
+        data: updatedAppointment,
+      });
+    } catch (error) {
+      if (error?.statusCode === 400 || error?.statusCode === 409) {
+        return res.status(error.statusCode).json({ success: false, message: error.message });
+      }
+      next(error);
+    }
+  },
+
+  async delete(req, res, next) {
+    try {
+      const appointment = await appointmentService.findById(req.params.id);
+      if (!appointment) {
+        return res.status(404).json({ success: false, message: 'Appointment not found' });
+      }
+
+      await appointmentService.delete(req.params.id);
+      res.json({ success: true, message: 'Appointment deleted successfully' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async updateStatus(req, res, next) {
     try {
       const appointment = await appointmentService.findById(req.params.id);
       if (!appointment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Appointment not found',
-        });
+        return res.status(404).json({ success: false, message: 'Appointment not found' });
       }
 
-      const updatedAppointment = await appointmentService.update(req.params.id, {
-        status: req.body.status,
-      });
+      const updatedAppointment = await appointmentService.update(
+        req.params.id,
+        { status: req.body.status },
+        req.user,
+      );
       res.json({
         success: true,
         message: 'Appointment status updated successfully',
@@ -309,5 +201,3 @@ const appointmentController = {
 };
 
 module.exports = appointmentController;
-
-

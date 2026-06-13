@@ -15,6 +15,12 @@ export const PREFERRED_CONTACT_METHOD_OPTIONS = [
   { value: 'email', label: 'Email' },
 ];
 
+export const GENDER_OPTIONS = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
+];
+
 export const GENDER_IDENTITY_OPTIONS = [
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },

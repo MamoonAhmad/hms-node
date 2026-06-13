@@ -1,6 +1,14 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PhoneNumberInput } from '@/components/ui/phone-number-input';
+import { GENDER_OPTIONS } from '@/components/patients/patientDemographicsConstants';
 
 function RequiredFieldLabel({ htmlFor, children }) {
   return (
@@ -76,6 +84,34 @@ export function PatientQuickRegistrationDemographics({
             <p className="text-xs text-destructive">{errors.dateOfBirth}</p>
           )}
         </div>
+        <div className="space-y-2">
+          <RequiredFieldLabel htmlFor="quick-gender">Gender</RequiredFieldLabel>
+          <Select
+            value={formData.gender || ''}
+            onValueChange={(value) => onChange('gender', value)}
+            disabled={isLoading}
+          >
+            <SelectTrigger
+              id="quick-gender"
+              className={`w-full ${errors.gender ? 'border-destructive' : ''}`}
+            >
+              <SelectValue placeholder="Select gender" />
+            </SelectTrigger>
+            <SelectContent>
+              {GENDER_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.gender && (
+            <p className="text-xs text-destructive">{errors.gender}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="quick-email">Email</Label>
           <Input

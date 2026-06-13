@@ -1,139 +1,120 @@
 const Joi = require('joi');
 
-// Valid appointment types
-const appointmentTypes = ['New', 'Follow-up', 'Televisit'];
-
-// Valid statuses are managed in the appointment_statuses catalogue
 const statusFieldSchema = Joi.string().trim().min(1).max(100);
+const timeFieldSchema = Joi.string().pattern(/^([01]\d|2[0-3]):([0-5]\d)$/);
 
-/**
- * Schema for creating an appointment
- */
 const createAppointmentSchema = Joi.object({
-  patientId: Joi.string().uuid().required()
-    .messages({
-      'string.guid': 'Invalid patient ID format',
-      'any.required': 'Patient ID is required',
-    }),
-  appointmentDate: Joi.date().iso().min('now').required()
-    .messages({
-      'date.min': 'Appointment date must be today or in the future',
-      'any.required': 'Appointment date is required',
-    }),
-  appointmentTime: Joi.string()
-    .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
-    .required()
-    .messages({
-      'string.pattern.base': 'Appointment time must be in HH:MM format',
-      'any.required': 'Appointment time is required',
-    }),
-  duration: Joi.number().integer().min(15).max(480).default(30)
-    .messages({
-      'number.min': 'Duration must be at least 15 minutes',
-      'number.max': 'Duration cannot exceed 8 hours (480 minutes)',
-    }),
-  appointmentType: Joi.string().valid(...appointmentTypes).required()
-    .messages({
-      'any.only': `Appointment type must be one of: ${appointmentTypes.join(', ')}`,
-      'any.required': 'Appointment type is required',
-    }),
+  patientId: Joi.string().uuid().required().messages({
+    'string.guid': 'Invalid patient ID format',
+    'any.required': 'Patient ID is required',
+  }),
+  appointmentDate: Joi.date().iso().required().messages({
+    'any.required': 'Appointment date is required',
+  }),
+  appointmentTime: timeFieldSchema.required().messages({
+    'string.pattern.base': 'Appointment time must be in HH:MM format',
+    'any.required': 'Appointment time is required',
+  }),
+  appointmentEndTime: timeFieldSchema.allow('', null),
+  duration: Joi.number().integer().min(5).max(480).default(30),
+  appointmentType: Joi.string().trim().min(1).max(100).required(),
   visitReason: Joi.string().trim().max(500).allow('', null),
   department: Joi.string().trim().max(100).allow('', null),
+  departmentId: Joi.string().uuid().allow('', null),
   provider: Joi.string().trim().max(200).allow('', null),
+  providerId: Joi.string().uuid().allow('', null).messages({
+    'string.guid': 'Invalid provider ID format',
+  }),
   status: statusFieldSchema.default('Scheduled'),
-  notes: Joi.string().trim().max(1000).allow('', null),
+  notes: Joi.string().trim().max(5000).allow('', null),
 });
 
-/**
- * Schema for updating an appointment
- */
 const updateAppointmentSchema = Joi.object({
-  patientId: Joi.string().uuid()
-    .messages({
-      'string.guid': 'Invalid patient ID format',
-    }),
-  appointmentDate: Joi.date().iso()
-    .messages({
-      'date.base': 'Invalid appointment date format',
-    }),
-  appointmentTime: Joi.string()
-    .pattern(/^([01]\d|2[0-3]):([0-5]\d)$/)
-    .messages({
-      'string.pattern.base': 'Appointment time must be in HH:MM format',
-    }),
-  duration: Joi.number().integer().min(15).max(480)
-    .messages({
-      'number.min': 'Duration must be at least 15 minutes',
-      'number.max': 'Duration cannot exceed 8 hours (480 minutes)',
-    }),
-  appointmentType: Joi.string().valid(...appointmentTypes)
-    .messages({
-      'any.only': `Appointment type must be one of: ${appointmentTypes.join(', ')}`,
-    }),
+  patientId: Joi.string().uuid(),
+  appointmentDate: Joi.date().iso(),
+  appointmentTime: timeFieldSchema,
+  appointmentEndTime: timeFieldSchema.allow('', null),
+  duration: Joi.number().integer().min(5).max(480),
+  appointmentType: Joi.string().trim().min(1).max(100),
   visitReason: Joi.string().trim().max(500).allow('', null),
   department: Joi.string().trim().max(100).allow('', null),
+  departmentId: Joi.string().uuid().allow('', null),
   provider: Joi.string().trim().max(200).allow('', null),
+  providerId: Joi.string().uuid().allow('', null),
   status: statusFieldSchema,
-  notes: Joi.string().trim().max(1000).allow('', null),
-}).min(1).messages({
-  'object.min': 'At least one field must be provided for update',
-});
+  notes: Joi.string().trim().max(5000).allow('', null),
+})
+  .min(1)
+  .messages({ 'object.min': 'At least one field must be provided for update' });
 
-/**
- * Schema for query parameters
- */
 const queryAppointmentSchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
-  limit: Joi.number().integer().min(1).max(100).default(10),
+  limit: Joi.number().integer().min(1).max(500).default(10),
   search: Joi.string().trim().max(100).allow(''),
   status: statusFieldSchema,
-  appointmentType: Joi.string().valid(...appointmentTypes),
+  appointmentType: Joi.string().trim().max(100),
   department: Joi.string().trim().max(100),
+  departmentId: Joi.string().uuid(),
+  provider: Joi.string().trim().max(200),
+  providerId: Joi.string().uuid(),
   date: Joi.date().iso(),
+  dateFrom: Joi.date().iso(),
+  dateTo: Joi.date().iso(),
   patientId: Joi.string().uuid(),
+  excludeHiddenTimeline: Joi.boolean().truthy('true').falsy('false'),
 });
 
-/**
- * Schema for appointment ID parameter
- */
+const statusCountsQuerySchema = queryAppointmentSchema.keys({ status: Joi.forbidden() });
+
+const availabilityDatesQuerySchema = Joi.object({
+  providerId: Joi.string().uuid().required(),
+  appointmentType: Joi.string().trim().max(100).allow(''),
+  fromDate: Joi.date().iso(),
+  daysAhead: Joi.number().integer().min(1).max(365).default(90),
+});
+
+const availabilitySlotsQuerySchema = Joi.object({
+  providerId: Joi.string().uuid().required(),
+  date: Joi.date().iso().required(),
+  appointmentType: Joi.string().trim().max(100).allow(''),
+  excludeAppointmentId: Joi.string().uuid(),
+});
+
+const updateStatusSchema = Joi.object({
+  status: statusFieldSchema.required(),
+});
+
 const appointmentIdSchema = Joi.object({
-  id: Joi.string().uuid().required()
-    .messages({
-      'string.guid': 'Invalid appointment ID format',
-      'any.required': 'Appointment ID is required',
-    }),
+  id: Joi.string().uuid().required(),
 });
 
-/**
- * Validation middleware factory
- */
-const validate = (schema, property = 'body') => {
-  return (req, res, next) => {
-    const { error, value } = schema.validate(req[property], {
-      abortEarly: false,
-      stripUnknown: true,
-    });
+const validate = (schema, property = 'body') => (req, res, next) => {
+  const { error, value } = schema.validate(req[property], {
+    abortEarly: false,
+    stripUnknown: true,
+  });
 
-    if (error) {
-      const errors = error.details.map((detail) => detail.message);
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors,
-      });
-    }
+  if (error) {
+    const errors = error.details.map((detail) => detail.message);
+    return res.status(400).json({ success: false, message: 'Validation failed', errors });
+  }
 
+  if (property === 'query') {
+    req.validatedQuery = value;
+  } else {
     req[property] = value;
-    next();
-  };
+  }
+  next();
 };
 
 module.exports = {
   createAppointmentSchema,
   updateAppointmentSchema,
   queryAppointmentSchema,
+  statusCountsQuerySchema,
+  availabilityDatesQuerySchema,
+  availabilitySlotsQuerySchema,
+  updateStatusSchema,
   appointmentIdSchema,
-  appointmentTypes,
   validate,
 };
-

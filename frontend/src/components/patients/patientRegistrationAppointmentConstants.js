@@ -150,7 +150,9 @@ export function formatAppointmentTimeSlot(value, slots = APPOINTMENT_TIME_SLOT_O
 const TIME_HH_MM_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 export function isGeneralAppointmentVisitType(value) {
-  return value === GENERAL_APPOINTMENT_VISIT_TYPE;
+  if (value === GENERAL_APPOINTMENT_VISIT_TYPE) return true;
+  if (typeof value === 'string' && value.trim().toLowerCase() === 'general') return true;
+  return false;
 }
 
 export function parseTimeToMinutes(timeStr) {
@@ -174,12 +176,13 @@ export function pickReferralPayloadFromFormData(formData) {
   return referral;
 }
 
-function validateAppointmentTimeValue(formData, newErrors) {
+function validateAppointmentTimeValue(formData, newErrors, slots) {
   if (!formData.appointmentTime) {
     newErrors.appointmentTime = 'Time is required';
     return;
   }
-  const isKnownSlot = APPOINTMENT_TIME_SLOT_OPTIONS.some((s) => s.value === formData.appointmentTime);
+  const slotList = slots || APPOINTMENT_TIME_SLOT_OPTIONS;
+  const isKnownSlot = slotList.some((s) => s.value === formData.appointmentTime);
   if (!isKnownSlot && !TIME_HH_MM_REGEX.test(formData.appointmentTime)) {
     newErrors.appointmentTime = 'Select a valid time slot';
   }
@@ -206,10 +209,16 @@ function validateGeneralAppointmentTimes(formData, newErrors) {
 }
 
 /** Validates appointment fields on patient registration forms; mutates `newErrors`. */
-export function validateRegistrationAppointmentFields(formData, newErrors) {
+export function validateRegistrationAppointmentFields(formData, newErrors, options = {}) {
+  const { requireProvider = false, timeSlotOptions } = options;
+
   if (!formData.appointmentDate) newErrors.appointmentDate = 'Date is required';
   if (!formData.appointmentVisitType) {
     newErrors.appointmentVisitType = 'Appointment type is required';
+  }
+
+  if (requireProvider && !formData.appointmentProviderId && !formData.appointmentProvider) {
+    newErrors.appointmentProvider = 'Provider is required';
   }
 
   const isGeneral = isGeneralAppointmentVisitType(formData.appointmentVisitType);
@@ -217,21 +226,27 @@ export function validateRegistrationAppointmentFields(formData, newErrors) {
   if (isGeneral) {
     validateGeneralAppointmentTimes(formData, newErrors);
   } else {
-    validateAppointmentTimeValue(formData, newErrors);
+    validateAppointmentTimeValue(formData, newErrors, timeSlotOptions);
   }
 }
 
 /** Build API appointment create payload from patient registration form data. */
 export function buildAppointmentSubmitPayloadFromRegistration(formData, patientId, { defaultStatus } = {}) {
-  const apiAppointmentType = VISIT_TYPE_TO_API_TYPE[formData.appointmentVisitType] || 'New';
+  const apiAppointmentType =
+    formData.appointmentTypeName ||
+    VISIT_TYPE_TO_API_TYPE[formData.appointmentVisitType] ||
+    formData.appointmentVisitType ||
+    'New';
   const referral = pickReferralPayloadFromFormData(formData);
   const isGeneral = isGeneralAppointmentVisitType(formData.appointmentVisitType);
 
   let appointmentTime = formData.appointmentTime;
+  let appointmentEndTime = null;
   let duration = 30;
 
   if (isGeneral && formData.appointmentStartTime) {
     appointmentTime = formData.appointmentStartTime;
+    appointmentEndTime = formData.appointmentEndTime || null;
     duration = computeAppointmentDurationMinutes(
       formData.appointmentStartTime,
       formData.appointmentEndTime,
@@ -248,11 +263,14 @@ export function buildAppointmentSubmitPayloadFromRegistration(formData, patientI
     patientId,
     appointmentDate: formData.appointmentDate,
     appointmentTime,
+    appointmentEndTime,
     duration,
     appointmentType: apiAppointmentType,
     visitReason: formData.appointmentReason?.trim() || null,
     department: formData.appointmentDepartment?.trim() || null,
+    departmentId: formData.appointmentDepartmentId || null,
     provider: formData.appointmentProvider?.trim() || null,
+    providerId: formData.appointmentProviderId || null,
     status: formData.status || defaultStatus || null,
     notes,
   };

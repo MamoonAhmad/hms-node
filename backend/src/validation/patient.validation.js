@@ -143,17 +143,19 @@ function isPatientMinorFromDob(dateOfBirth) {
 }
 
 function applyContactRules(value, helpers) {
+  if (value.registrationChannel === 'appointment') {
+    return value;
+  }
+
   const emergencyName = value.emergencyContactName?.trim();
   if (emergencyName) {
     if (!value.emergencyContactNumber?.trim()) {
-      return helpers.error('any.custom', {
-        message: 'Emergency contact phone is required when emergency contact name is provided',
-      });
+      return helpers.message('Emergency contact phone is required when emergency contact name is provided');
     }
     if (!value.emergencyContactRelationship) {
-      return helpers.error('any.custom', {
-        message: 'Emergency contact relationship is required when emergency contact name is provided',
-      });
+      return helpers.message(
+        'Emergency contact relationship is required when emergency contact name is provided',
+      );
     }
   }
 
@@ -161,19 +163,13 @@ function applyContactRules(value, helpers) {
     isPatientMinorFromDob(value.dateOfBirth) || value.patientIsMinor === true;
   if (requiresGuardian) {
     if (!value.legalGuardianName?.trim()) {
-      return helpers.error('any.custom', {
-        message: 'Legal guardian name is required for minor patients',
-      });
+      return helpers.message('Legal guardian name is required for minor patients');
     }
     if (!value.legalGuardianRelationship) {
-      return helpers.error('any.custom', {
-        message: 'Legal guardian relationship is required for minor patients',
-      });
+      return helpers.message('Legal guardian relationship is required for minor patients');
     }
     if (!value.legalGuardianPhone?.trim()) {
-      return helpers.error('any.custom', {
-        message: 'Legal guardian phone is required for minor patients',
-      });
+      return helpers.message('Legal guardian phone is required for minor patients');
     }
   }
 
@@ -185,24 +181,16 @@ function applyPreferredContactRules(value, helpers) {
   const phone = (v) => (v && String(v).trim() ? String(v).trim() : '');
 
   if (method === 'cell' && !phone(value.cellPhone) && !phone(value.contactNumber)) {
-    return helpers.error('any.custom', {
-      message: 'Cell phone is required when cell is the preferred contact method',
-    });
+    return helpers.message('Cell phone is required when cell is the preferred contact method');
   }
   if (method === 'home' && !phone(value.homePhone)) {
-    return helpers.error('any.custom', {
-      message: 'Home phone is required when home is the preferred contact method',
-    });
+    return helpers.message('Home phone is required when home is the preferred contact method');
   }
   if (method === 'work' && !phone(value.workPhone)) {
-    return helpers.error('any.custom', {
-      message: 'Work phone is required when work is the preferred contact method',
-    });
+    return helpers.message('Work phone is required when work is the preferred contact method');
   }
   if (method === 'email' && !value.email?.trim()) {
-    return helpers.error('any.custom', {
-      message: 'Email is required when email is the preferred contact method',
-    });
+    return helpers.message('Email is required when email is the preferred contact method');
   }
 
   return value;
@@ -215,9 +203,9 @@ function applyGovernmentIdRules(value, helpers) {
   const idType = value.governmentIdType || 'other';
   const minLen = GOVERNMENT_ID_MIN_LENGTH[idType] ?? GOVERNMENT_ID_MIN_LENGTH.other;
   if (idNumber.length < minLen) {
-    return helpers.error('any.custom', {
-      message: `Government ID number must be at least ${minLen} characters for the selected ID type`,
-    });
+    return helpers.message(
+      `Government ID number must be at least ${minLen} characters for the selected ID type`,
+    );
   }
   return value;
 }
@@ -256,6 +244,7 @@ const createPatientSchema = Joi.object({
     .messages({
       'any.only': 'Gender must be male, female, or other',
       'any.required': 'Gender is required',
+      'string.empty': 'Gender is required',
     }),
   contactNumber: Joi.string().trim().max(30).allow('', null),
   email: Joi.string().trim().email().allow('', null)
@@ -287,6 +276,7 @@ const createPatientSchema = Joi.object({
   referringPhysicianState: optionalString(50),
   referringPhysicianZip: optionalString(20),
   profilePhoto: Joi.string().trim().max(4_000_000).allow('', null),
+  registrationChannel: Joi.string().trim().max(50).allow('', null),
   ...demographicsFields,
   preferredContactMethod: demographicsFields.preferredContactMethod.required()
     .messages({
@@ -301,9 +291,7 @@ const createPatientSchema = Joi.object({
   .custom((value, helpers) => {
     const contactNumber = resolveContactNumber(value);
     if (!contactNumber) {
-      return helpers.error('any.custom', {
-        message: 'A contact number or email is required for the preferred contact method',
-      });
+      return helpers.message('A contact number or email is required for the preferred contact method');
     }
     return { ...value, contactNumber };
   });
@@ -388,9 +376,7 @@ const updatePatientSchema = Joi.object({
       contactNumber: value.contactNumber,
     });
     if (value.preferredContactMethod && !contactNumber) {
-      return helpers.error('any.custom', {
-        message: 'A contact number or email is required for the preferred contact method',
-      });
+      return helpers.message('A contact number or email is required for the preferred contact method');
     }
     if (contactNumber) {
       return { ...value, contactNumber };
@@ -451,7 +437,12 @@ const validate = (schema, property = 'body') => {
     });
 
     if (error) {
-      const errors = error.details.map((detail) => detail.message);
+      const errors = error.details.map((detail) => {
+        if (detail.type === 'any.custom' && detail.context?.message) {
+          return detail.context.message;
+        }
+        return detail.message;
+      });
       return res.status(400).json({
         success: false,
         message: 'Validation failed',

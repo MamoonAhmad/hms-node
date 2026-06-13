@@ -940,6 +940,7 @@ export function PatientFormContent({
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
     if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
+    if (!formData.gender) newErrors.gender = 'Gender is required';
     if (!formData.cellPhone?.trim()) {
       newErrors.cellPhone = 'Phone number is required';
     } else {

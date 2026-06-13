@@ -189,6 +189,7 @@ model Provider {
   updatedAt                DateTime @updatedAt
   schedules                ProviderSchedule[]
   blockHours               ProviderBlockHour[]
+  appointments             Appointment[]
 
   @@map("providers")
 }
@@ -240,6 +241,7 @@ model AppointmentType {
   deleter     User?     @relation("DeletedAppointmentTypes", fields: [deletedBy], references: [id])
 
   scheduleLinks ProviderScheduleAppointmentType[]
+  appointments  Appointment[]
 
   @@index([name])
   @@index([deletedAt])
@@ -268,23 +270,53 @@ model AppointmentStatus {
 }
 
 model Appointment {
-  id              String   @id @default(uuid())
-  appointmentDate DateTime @db.Date
-  appointmentTime String   // Store as HH:MM format
-  duration        Int      @default(30) // Duration in minutes
-  appointmentType String   // New, Follow-up, Televisit
-  visitReason     String?  // Chief Complaint
-  department      String?  // Department / Specialty
-  provider        String?  // Provider / Physician Assigned
-  status          String   @default("Scheduled") // Scheduled, Checked-In, In Progress, Completed, Cancelled, No-Show, Rescheduled
-  notes           String?
-  patientId       String
-  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  orders          Order[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String   @id @default(uuid())
+  encounterNumber   String   @unique
+  appointmentDate   DateTime @db.Date
+  appointmentTime   String
+  appointmentEndTime String?
+  duration             Int      @default(30)
+  appointmentTypeId    String
+  appointmentTypeRef   AppointmentType @relation(fields: [appointmentTypeId], references: [id], onDelete: Restrict)
+  visitReason          String?
+  department        String?
+  departmentId      String?
+  provider          String?
+  providerId        String?
+  status            String   @default("Scheduled")
+  notes             String?
+  patientId         String
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  providerRef       Provider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  departmentRef     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  orders            Order[]
+  history           AppointmentHistory[]
+  createdBy         String?
+  updatedBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
+  @@index([providerId])
+  @@index([departmentId])
+  @@index([appointmentTypeId])
+  @@index([appointmentDate])
+  @@index([status])
   @@map("appointments")
+}
+
+model AppointmentHistory {
+  id            String      @id @default(uuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  action        String
+  summary       String?
+  changes       Json?
+  changedBy     String?
+  changedByName String?
+  createdAt     DateTime    @default(now())
+
+  @@index([appointmentId])
+  @@map("appointment_history")
 }
 
 model Order {
@@ -478,6 +510,7 @@ model Department {
   locationId                 String?
   location                   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   providers                  Provider[]
+  appointments               Appointment[]
   createdAt                  DateTime  @default(now())
   updatedAt                  DateTime  @updatedAt
 

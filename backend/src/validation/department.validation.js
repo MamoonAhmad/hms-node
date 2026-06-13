@@ -74,7 +74,7 @@ const updateDepartmentSchema = Joi.object({
 
 const queryDepartmentSchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
-  limit: Joi.number().integer().min(1).max(100).default(10),
+  limit: Joi.number().integer().min(1).max(500).default(10),
   search: Joi.string().trim().max(100).allow(''),
   status: Joi.string().valid('active', 'inactive').allow('', null),
 });

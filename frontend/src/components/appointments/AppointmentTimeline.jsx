@@ -1,9 +1,20 @@
 import { useMemo, useState, useEffect } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { formatDob } from '@/pages/patient-dashboard/patientChartUtils';
+import { statusChipStyle } from '@/lib/appointmentStatuses';
+import { isHiddenFromTimeline } from '@/lib/appointmentUtils';
 import { cn } from '@/lib/utils';
 
-const HOUR_HEIGHT = 60;
-const START_HOUR = 0;
-const END_HOUR = 23;
+const HOUR_HEIGHT = 80;
+const MIN_CARD_HEIGHT = 8;
+const START_HOUR = 5;
+const END_HOUR = 17;
 
 const statusColors = {
   Scheduled: 'bg-primary hover:bg-primary/90 border-primary',
@@ -76,7 +87,103 @@ function getMonthGridDays(anchorDate) {
   });
 }
 
-function DayTimelineView({ appointments, selectedDate, onTimeSlotClick, onAppointmentClick }) {
+function getTimeInMinutes(timeString) {
+  const [h, minutes] = (timeString || '00:00').split(':').map(Number);
+  return h * 60 + (minutes || 0);
+}
+
+function getAppointmentEndMinutes(appointment) {
+  const start = getTimeInMinutes(appointment.appointmentTime);
+  const endFromField = appointment.appointmentEndTime
+    ? getTimeInMinutes(appointment.appointmentEndTime)
+    : null;
+  if (endFromField != null && endFromField > start) return endFromField;
+  return start + (appointment.duration || 30);
+}
+
+function appointmentsOverlap(apt1, apt2) {
+  const start1 = getTimeInMinutes(apt1.appointmentTime);
+  const end1 = getAppointmentEndMinutes(apt1);
+  const start2 = getTimeInMinutes(apt2.appointmentTime);
+  const end2 = getAppointmentEndMinutes(apt2);
+  // Touching boundaries (e.g. 9:30 end / 9:30 start) are not overlaps.
+  return start1 < end2 && start2 < end1;
+}
+
+function calculateAppointmentLayout(apts) {
+  if (!apts.length) return [];
+
+  const sorted = [...apts].sort(
+    (a, b) => getTimeInMinutes(a.appointmentTime) - getTimeInMinutes(b.appointmentTime),
+  );
+
+  const clusters = [];
+  const visited = new Set();
+
+  for (const apt of sorted) {
+    if (visited.has(apt.id)) continue;
+
+    const cluster = [];
+    const queue = [apt];
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (visited.has(current.id)) continue;
+      visited.add(current.id);
+      cluster.push(current);
+
+      for (const other of sorted) {
+        if (!visited.has(other.id) && appointmentsOverlap(current, other)) {
+          queue.push(other);
+        }
+      }
+    }
+
+    cluster.sort(
+      (a, b) => getTimeInMinutes(a.appointmentTime) - getTimeInMinutes(b.appointmentTime),
+    );
+    clusters.push(cluster);
+  }
+
+  const layout = [];
+
+  for (const cluster of clusters) {
+    const columns = [];
+
+    for (const apt of cluster) {
+      let placed = false;
+      for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+        const overlapsColumn = columns[colIndex].some((other) => appointmentsOverlap(apt, other));
+        if (!overlapsColumn) {
+          columns[colIndex].push(apt);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        columns.push([apt]);
+      }
+    }
+
+    const totalColumns = columns.length;
+    columns.forEach((columnAppointments, column) => {
+      columnAppointments.forEach((appointment) => {
+        layout.push({ appointment, column, totalColumns });
+      });
+    });
+  }
+
+  return layout;
+}
+
+function DayTimelineView({
+  appointments,
+  selectedDate,
+  onTimeSlotClick,
+  onAppointmentClick,
+  statusCatalog = [],
+  onStatusChange,
+}) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -90,69 +197,13 @@ function DayTimelineView({ appointments, selectedDate, onTimeSlotClick, onAppoin
     return result;
   }, []);
 
-  const getTimeInMinutes = (timeString) => {
-    const [h, minutes] = timeString.split(':').map(Number);
-    return h * 60 + minutes;
-  };
-
   const getAppointmentPosition = (appointment) => {
     const startMinutes = getTimeInMinutes(appointment.appointmentTime) - START_HOUR * 60;
     const top = (startMinutes / 60) * HOUR_HEIGHT;
-    const height = (appointment.duration / 60) * HOUR_HEIGHT;
+    const durationMinutes =
+      getAppointmentEndMinutes(appointment) - getTimeInMinutes(appointment.appointmentTime);
+    const height = (durationMinutes / 60) * HOUR_HEIGHT;
     return { top, height };
-  };
-
-  const appointmentsOverlap = (apt1, apt2) => {
-    const start1 = getTimeInMinutes(apt1.appointmentTime);
-    const end1 = start1 + (apt1.duration || 30);
-    const start2 = getTimeInMinutes(apt2.appointmentTime);
-    const end2 = start2 + (apt2.duration || 30);
-    return start1 < end2 && start2 < end1;
-  };
-
-  const calculateAppointmentLayout = (apts) => {
-    if (!apts.length) return [];
-    const sorted = [...apts].sort(
-      (a, b) => getTimeInMinutes(a.appointmentTime) - getTimeInMinutes(b.appointmentTime),
-    );
-    const layoutMap = new Map();
-
-    sorted.forEach((apt) => {
-      const overlapping = sorted.filter(
-        (other) => other.id !== apt.id && appointmentsOverlap(apt, other),
-      );
-      const usedColumns = new Set();
-      overlapping.forEach((other) => {
-        const otherLayout = layoutMap.get(other.id);
-        if (otherLayout !== undefined) usedColumns.add(otherLayout.column);
-      });
-      let column = 0;
-      while (usedColumns.has(column)) column++;
-      layoutMap.set(apt.id, { column, totalColumns: overlapping.length + 1 });
-    });
-
-    sorted.forEach((apt) => {
-      const overlapping = sorted.filter(
-        (other) => other.id !== apt.id && appointmentsOverlap(apt, other),
-      );
-      let maxColumns = layoutMap.get(apt.id).totalColumns;
-      let maxColumnIndex = layoutMap.get(apt.id).column;
-      overlapping.forEach((other) => {
-        const otherLayout = layoutMap.get(other.id);
-        if (otherLayout) {
-          maxColumns = Math.max(maxColumns, otherLayout.totalColumns);
-          maxColumnIndex = Math.max(maxColumnIndex, otherLayout.column);
-        }
-      });
-      const finalTotalColumns = Math.max(maxColumns, maxColumnIndex + 1);
-      layoutMap.get(apt.id).totalColumns = finalTotalColumns;
-      overlapping.forEach((other) => {
-        const otherLayout = layoutMap.get(other.id);
-        if (otherLayout) otherLayout.totalColumns = finalTotalColumns;
-      });
-    });
-
-    return sorted.map((apt) => ({ appointment: apt, ...layoutMap.get(apt.id) }));
   };
 
   const formatHour = (hour) => {
@@ -165,7 +216,9 @@ function DayTimelineView({ appointments, selectedDate, onTimeSlotClick, onAppoin
     if (!appointments || !selectedDate) return [];
     const dateStr =
       selectedDate instanceof Date ? toDateKey(selectedDate) : selectedDate;
-    return appointments.filter((apt) => getAppointmentDateKey(apt) === dateStr);
+    return appointments.filter(
+      (apt) => getAppointmentDateKey(apt) === dateStr && !isHiddenFromTimeline(apt.status),
+    );
   }, [appointments, selectedDate]);
 
   const appointmentLayout = useMemo(
@@ -231,38 +284,60 @@ function DayTimelineView({ appointments, selectedDate, onTimeSlotClick, onAppoin
         {appointmentLayout.map(({ appointment, column, totalColumns }) => {
           const { top, height } = getAppointmentPosition(appointment);
           const GAP = 4;
-          const widthPercent = 100 / totalColumns;
-          const leftPercent = column * widthPercent;
+          const columnWidth = 100 / totalColumns;
+          const cardHeight = Math.max(height - 1, MIN_CARD_HEIGHT);
+          const isCompact = cardHeight < 44;
+          const cardStyle = statusChipStyle(appointment.status, statusCatalog);
 
           return (
             <div
               key={appointment.id}
               className={cn(
-                'absolute z-10 cursor-pointer overflow-hidden rounded-md border-l-4 px-2 py-1 text-sm text-white shadow-sm transition-all',
-                statusColors[appointment.status] || 'bg-primary',
+                'absolute z-10 overflow-hidden rounded-md border-l-4 shadow-sm transition-all',
+                isCompact ? 'px-1 py-0.5 text-xs' : 'px-2 py-1 text-sm',
               )}
               style={{
                 top: `${top}px`,
-                height: `${Math.max(height, 30)}px`,
-                minHeight: '30px',
-                width: `calc(${widthPercent}% - ${GAP * 2}px)`,
-                left: `calc(${leftPercent}% + ${GAP}px)`,
+                height: `${cardHeight}px`,
+                width: `calc(${columnWidth}% - ${GAP}px)`,
+                left: `calc(${column * columnWidth}% + ${GAP / 2}px)`,
+                backgroundColor: cardStyle.backgroundColor,
+                color: cardStyle.color,
+                borderLeftColor: cardStyle.borderColor,
               }}
-              onClick={(e) => {
-                e.stopPropagation();
-                onAppointmentClick?.(appointment);
-              }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="truncate font-medium">
-                {appointment.patient?.firstName} {appointment.patient?.lastName}
-              </div>
-              {height > 40 && (
-                <div className="truncate text-xs opacity-90">
-                  {appointment.appointmentTime} • {appointment.duration} min
+              <button
+                type="button"
+                className="w-full text-left leading-tight"
+                onClick={() => onAppointmentClick?.(appointment)}
+                title={`${appointment.patient?.firstName || ''} ${appointment.patient?.lastName || ''} · ${appointment.appointmentTime}`}
+              >
+                <div className="truncate font-medium">
+                  {appointment.patient?.firstName} {appointment.patient?.lastName}
                 </div>
-              )}
-              {height > 60 && appointment.visitReason && (
-                <div className="truncate text-xs opacity-75">{appointment.visitReason}</div>
+                {!isCompact && appointment.patient?.dateOfBirth && (
+                  <div className="truncate text-xs opacity-90">
+                    DOB: {formatDob(appointment.patient.dateOfBirth)}
+                  </div>
+                )}
+              </button>
+              {!isCompact && cardHeight > 56 && onStatusChange && (
+                <Select
+                  value={appointment.status}
+                  onValueChange={(value) => onStatusChange(appointment.id, value)}
+                >
+                  <SelectTrigger className="mt-1 h-6 border-0 bg-black/10 text-xs text-inherit">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {statusCatalog.map((statusRow) => (
+                      <SelectItem key={statusRow.id || statusRow.name} value={statusRow.name}>
+                        {statusRow.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
             </div>
           );
@@ -442,15 +517,18 @@ function MonthTimelineView({ appointments, selectedDate, onAppointmentClick, onD
   );
 }
 
-function TimelineLegend() {
+function TimelineLegend({ statusCatalog = [] }) {
   return (
     <div className="flex flex-wrap gap-3 border-t px-4 py-3">
-      {Object.entries(statusColors).map(([status, colorClass]) => (
-        <div key={status} className="flex items-center gap-1.5">
-          <div className={cn('h-3 w-3 rounded-sm', colorClass.split(' ')[0])} />
-          <span className="text-xs text-muted-foreground">{status}</span>
-        </div>
-      ))}
+      {statusCatalog.map((statusRow) => {
+        const chip = statusChipStyle(statusRow.name, statusCatalog);
+        return (
+          <div key={statusRow.id || statusRow.name} className="flex items-center gap-1.5">
+            <div className="h-3 w-3 rounded-sm border" style={{ backgroundColor: chip.backgroundColor }} />
+            <span className="text-xs text-muted-foreground">{statusRow.name}</span>
+          </div>
+        );
+      })}
       <div className="ml-4 flex items-center gap-1.5">
         <div className="h-0.5 w-4 rounded bg-red-500" />
         <span className="text-xs text-muted-foreground">Current time</span>
@@ -466,6 +544,8 @@ export function AppointmentTimeline({
   onTimeSlotClick,
   onAppointmentClick,
   onDayClick,
+  statusCatalog = [],
+  onStatusChange,
 }) {
   const headerLabel = useMemo(() => {
     if (!selectedDate) return 'Select a date';
@@ -524,6 +604,8 @@ export function AppointmentTimeline({
           selectedDate={selectedDate}
           onTimeSlotClick={onTimeSlotClick}
           onAppointmentClick={onAppointmentClick}
+          statusCatalog={statusCatalog}
+          onStatusChange={onStatusChange}
         />
       )}
       {rangeMode === 'week' && (
@@ -543,7 +625,7 @@ export function AppointmentTimeline({
         />
       )}
 
-      {rangeMode === 'day' && <TimelineLegend />}
+      {rangeMode === 'day' && <TimelineLegend statusCatalog={statusCatalog} />}
     </div>
   );
 }
