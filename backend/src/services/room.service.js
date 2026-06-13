@@ -327,7 +327,10 @@ const roomService = {
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.bed.deleteMany({ where: { roomId: id } });
+      await tx.bed.updateMany({
+        where: { roomId: id, deletedAt: null },
+        data: { deletedAt: new Date(), patientId: null },
+      });
       await tx.roomTypeOnRoom.deleteMany({ where: { roomId: id } });
       await tx.room.update({
         where: { id },

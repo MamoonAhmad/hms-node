@@ -188,6 +188,7 @@ const bedService = {
         patientId,
         service: emptyToNull(data.service),
         notes: emptyToNull(data.notes),
+        deletedAt: null,
       },
       include: listInclude,
     });
@@ -344,7 +345,14 @@ const bedService = {
       throw err;
     }
 
-    await prisma.bed.delete({ where: { id } });
+    await prisma.bed.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        patientId: null,
+      },
+    });
+
     return { success: true };
   },
 
