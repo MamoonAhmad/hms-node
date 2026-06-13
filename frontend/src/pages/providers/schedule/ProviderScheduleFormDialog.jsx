@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronDown } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -19,125 +18,84 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
-import { providerSchedulesStore, normalizeAppointmentTypes } from './providerSchedulesMock';
+import { appointmentTypeApi, locationApi, providerScheduleApi } from '@/services/api';
+import {
+  DAYS_OPTIONS,
+  scheduleToForm,
+} from '@/lib/providerScheduleUtils';
 
 const emptyForm = () => ({
   providerId: '',
   specialty: '',
   subSpecialty: '',
   days: [],
-  sameTimeForAllDays: true,
   startTime: '09:00',
   endTime: '17:00',
   slotDuration: 30,
-  appointmentType: [],
+  appointmentTypeIds: [],
   maxAppointmentsPerSlot: 1,
   overBooking: 0,
-  locations: [],
-  teleconsultationAllowed: false,
+  locationIds: [],
   effectiveStartDate: new Date().toISOString().split('T')[0],
   effectiveEndDate: '',
+  endOnEffectiveDate: false,
   status: 'Active',
+  teleconsultationAllowed: false,
 });
 
-export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSubmit, isLoading }) {
-  const [providers, setProviders] = useState([]);
+export function ProviderScheduleFormDialog({
+  open,
+  onOpenChange,
+  schedule,
+  providers = [],
+  readOnly = false,
+  onSubmit,
+  isLoading,
+}) {
   const [locationsOptions, setLocationsOptions] = useState([]);
-  const [daysOptions, setDaysOptions] = useState([]);
-  const [slotDurations, setSlotDurations] = useState([]);
   const [appointmentTypes, setAppointmentTypes] = useState([]);
-  const [providerSearch, setProviderSearch] = useState('');
-  const [providerOpen, setProviderOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState(null);
-  const providerRef = useRef(null);
-
   const [formData, setFormData] = useState(emptyForm());
   const [errors, setErrors] = useState({});
 
-  const isEditing = !!schedule;
-
-  useEffect(() => {
-    if (open) {
-      setProviderOpen(false);
-      providerSchedulesStore.getDaysOptions().then(setDaysOptions);
-      providerSchedulesStore.getSlotDurations().then(setSlotDurations);
-      providerSchedulesStore.getAppointmentTypes().then(setAppointmentTypes);
-      providerSchedulesStore.getLocations().then(setLocationsOptions);
-      if (schedule) {
-        setFormData({
-          providerId: String(schedule.providerId),
-          specialty: schedule.specialty || '',
-          subSpecialty: schedule.subSpecialty || '',
-          days: schedule.days || [],
-          sameTimeForAllDays: schedule.sameTimeForAllDays !== false,
-          startTime: schedule.startTime || '09:00',
-          endTime: schedule.endTime || '17:00',
-          slotDuration: schedule.slotDuration || 30,
-          appointmentType: normalizeAppointmentTypes(schedule.appointmentType),
-          maxAppointmentsPerSlot: schedule.maxAppointmentsPerSlot ?? 1,
-          overBooking: schedule.overBooking ?? 0,
-          locations: schedule.locations || [],
-          teleconsultationAllowed: !!schedule.teleconsultationAllowed,
-          effectiveStartDate: schedule.effectiveStartDate || new Date().toISOString().split('T')[0],
-          effectiveEndDate: schedule.effectiveEndDate || '',
-          status: schedule.status || 'Active',
-        });
-        const prov = providers.find((p) => p.id === schedule.providerId) || {
-          id: schedule.providerId,
-          name: schedule.providerName,
-        };
-        setSelectedProvider(prov);
-        setProviderSearch(schedule.providerName || '');
-      } else {
-        setFormData(emptyForm());
-        setSelectedProvider(null);
-        setProviderSearch('');
-      }
-      setErrors({});
-    }
-  }, [open, schedule]);
+  const isEditing = !!schedule && !readOnly;
 
   useEffect(() => {
     if (!open) return;
-    providerSchedulesStore.getProviders(false).then(setProviders);
-  }, [open]);
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (!open) return;
-      providerSchedulesStore.getProviders(false).then((list) => {
-        const q = (providerSearch || '').toLowerCase();
-        const filtered = q
-          ? list.filter(
-              (p) =>
-                (p.name || '').toLowerCase().includes(q) ||
-                (p.specialty || '').toLowerCase().includes(q)
-            )
-          : list;
-        setProviders(filtered);
-      });
-    }, 200);
-    return () => clearTimeout(t);
-  }, [open, providerSearch]);
+    appointmentTypeApi.getActive().then((res) => {
+      setAppointmentTypes(
+        (res.data || []).map((t) => ({ value: t.id, label: t.name })),
+      );
+    }).catch(() => setAppointmentTypes([]));
 
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (providerRef.current && !providerRef.current.contains(e.target)) setProviderOpen(false);
+    locationApi.getActive().then((res) => {
+      setLocationsOptions(
+        (res.data || []).map((l) => ({ value: l.id, label: l.name })),
+      );
+    }).catch(() => setLocationsOptions([]));
+
+    if (schedule) {
+      setFormData(scheduleToForm(schedule) || emptyForm());
+    } else {
+      setFormData(emptyForm());
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    setErrors({});
+  }, [open, schedule]);
 
-  const handleProviderSelect = (p) => {
-    setSelectedProvider(p);
+  const activeProviders = providers.filter((p) => p.isActive !== false);
+  const providerOptions = (readOnly || isEditing ? providers : activeProviders).map((p) => ({
+    value: p.id,
+    label: p.name,
+  }));
+
+  const handleProviderChange = (providerId) => {
+    const provider = providers.find((p) => p.id === providerId);
     setFormData((prev) => ({
       ...prev,
-      providerId: String(p.id),
-      specialty: p.specialty || '',
-      subSpecialty: p.subSpecialty || '',
+      providerId,
+      specialty: provider?.specialty || '',
+      subSpecialty: provider?.subSpecialty || '',
     }));
-    setProviderSearch(p.name || '');
-    setProviderOpen(false);
     if (errors.providerId) setErrors((prev) => ({ ...prev, providerId: null }));
   };
 
@@ -147,120 +105,115 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
     if (!formData.days?.length) newErrors.days = 'At least one day is required';
     if (!formData.startTime) newErrors.startTime = 'Start time is required';
     if (!formData.endTime) newErrors.endTime = 'End time is required';
-    const startM = parseInt(formData.startTime?.replace(':', '') || '0', 10);
-    const endM = parseInt(formData.endTime?.replace(':', '') || '0', 10);
+
+    const startParts = (formData.startTime || '').split(':').map(Number);
+    const endParts = (formData.endTime || '').split(':').map(Number);
+    const startM = startParts[0] * 60 + (startParts[1] || 0);
+    const endM = endParts[0] * 60 + (endParts[1] || 0);
     if (formData.startTime && formData.endTime && startM >= endM) {
-      newErrors.endTime = 'End time must be after start time';
+      newErrors.endTime = 'End time must be later than start time';
     }
-    if (!formData.slotDuration) newErrors.slotDuration = 'Slot duration is required';
-    if (!formData.appointmentType?.length) {
-      newErrors.appointmentType = 'Select at least one appointment type';
+
+    const slotDuration = Number(formData.slotDuration);
+    if (!slotDuration || !Number.isInteger(slotDuration) || slotDuration < 1) {
+      newErrors.slotDuration = 'Slot duration is required';
     }
-    const max = formData.maxAppointmentsPerSlot;
-    if (max == null || max < 1 || !Number.isInteger(Number(max))) {
+
+    if (!formData.appointmentTypeIds?.length) {
+      newErrors.appointmentTypeIds = 'Select at least one appointment type';
+    }
+
+    const max = Number(formData.maxAppointmentsPerSlot);
+    if (!Number.isInteger(max) || max < 1) {
       newErrors.maxAppointmentsPerSlot = 'Must be a positive integer';
     }
-    const ob = formData.overBooking;
-    if (ob == null || ob < 0 || !Number.isInteger(Number(ob))) {
+
+    const ob = Number(formData.overBooking);
+    if (!Number.isInteger(ob) || ob < 0) {
       newErrors.overBooking = 'Must be a non-negative integer';
     }
-    if (!formData.effectiveStartDate) newErrors.effectiveStartDate = 'Effective start date is required';
-    if (formData.effectiveEndDate && formData.effectiveStartDate && formData.effectiveEndDate < formData.effectiveStartDate) {
-      newErrors.effectiveEndDate = 'End date must be on or after start date';
+
+    if (!formData.effectiveStartDate) {
+      newErrors.effectiveStartDate = 'Effective start date is required';
     }
+
+    if (formData.endOnEffectiveDate && !formData.effectiveEndDate) {
+      newErrors.effectiveEndDate = 'Effective end date is required when End Schedule is selected';
+    }
+
+    if (
+      formData.effectiveEndDate &&
+      formData.effectiveStartDate &&
+      formData.effectiveEndDate <= formData.effectiveStartDate
+    ) {
+      newErrors.effectiveEndDate = 'Effective end date must be after effective start date';
+    }
+
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return false;
 
-    const overlap = await providerSchedulesStore.checkOverlap({
-      providerId: formData.providerId,
-      startTime: formData.startTime,
-      endTime: formData.endTime,
-      days: formData.days,
-      effectiveStartDate: formData.effectiveStartDate,
-      effectiveEndDate: formData.effectiveEndDate || null,
-      excludeScheduleId: isEditing ? schedule.id : null,
-    });
-    if (overlap) {
-      setErrors((prev) => ({ ...prev, overlap: 'This would overlap with an existing schedule for this provider.' }));
-      return false;
+    try {
+      const overlapRes = await providerScheduleApi.checkOverlap({
+        providerId: formData.providerId,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        days: formData.days,
+        effectiveStartDate: formData.effectiveStartDate,
+        effectiveEndDate: formData.effectiveEndDate || null,
+        excludeScheduleId: isEditing ? schedule.id : undefined,
+      });
+      if (overlapRes.data?.overlap) {
+        setErrors((prev) => ({
+          ...prev,
+          overlap: 'This would overlap with an existing schedule for this provider.',
+        }));
+        return false;
+      }
+    } catch {
+      /* overlap check failure should not block if network issue — server validates on save */
     }
+
     return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (readOnly) return;
     if (!(await validate())) return;
-    const payload = {
-      ...formData,
-      days: formData.days,
-      effectiveEndDate: formData.effectiveEndDate || null,
-      overBooking: Number(formData.overBooking) || 0,
-      locations: formData.locations || [],
-    };
-    onSubmit(payload);
+    onSubmit(formData);
   };
 
-  const daysMultiSelectOptions = daysOptions.map((d) => ({ value: d.value, label: d.label }));
-  const locationMultiSelectOptions = locationsOptions.map((l) => ({ value: l.value, label: l.label }));
-  const appointmentTypeOptions = appointmentTypes;
+  const disabled = readOnly;
+
+  const title = readOnly ? 'View Schedule' : isEditing ? 'Edit Schedule' : 'Add Schedule';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="min-w-[800px] max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Schedule' : 'Add Schedule'}</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Provider */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Provider</h3>
             <div className="space-y-2">
               <Label>Provider *</Label>
-              <div className="relative" ref={providerRef}>
-                <div className="relative">
-                  <Input
-                    value={providerSearch}
-                    onChange={(e) => {
-                      setProviderSearch(e.target.value);
-                      setProviderOpen(true);
-                      if (!e.target.value) {
-                        setSelectedProvider(null);
-                        setFormData((prev) => ({ ...prev, providerId: '', specialty: '', subSpecialty: '' }));
-                      }
-                    }}
-                    onClick={() => setProviderOpen(true)}
-                    placeholder="Select provider..."
-                    className={errors.providerId ? 'border-destructive pr-9' : 'pr-9'}
-                    readOnly={false}
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setProviderOpen((v) => !v)}
-                    aria-label="Toggle provider list"
-                  >
-                    <ChevronDown className={`h-4 w-4 transition-transform ${providerOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-                {providerOpen && (
-                  <ul className="absolute z-10 mt-1 w-full rounded-md border bg-popover py-1 shadow-md max-h-48 overflow-auto">
-                    {providers.length === 0 ? (
-                      <li className="px-3 py-2 text-sm text-muted-foreground">No providers found</li>
-                    ) : (
-                      providers.map((p) => (
-                        <li
-                          key={p.id}
-                          role="button"
-                          className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
-                          onClick={() => handleProviderSelect(p)}
-                        >
-                          {p.name} {p.specialty ? `(${p.specialty})` : ''}
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                )}
-              </div>
+              <Select
+                value={formData.providerId || undefined}
+                onValueChange={handleProviderChange}
+                disabled={disabled}
+              >
+                <SelectTrigger className={errors.providerId ? 'border-destructive' : ''}>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providerOptions.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {errors.providerId && <p className="text-xs text-destructive">{errors.providerId}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -271,8 +224,11 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                   value={formData.effectiveStartDate}
                   onChange={(e) => setFormData((prev) => ({ ...prev, effectiveStartDate: e.target.value }))}
                   className={errors.effectiveStartDate ? 'border-destructive' : ''}
+                  disabled={disabled}
                 />
-                {errors.effectiveStartDate && <p className="text-xs text-destructive">{errors.effectiveStartDate}</p>}
+                {errors.effectiveStartDate && (
+                  <p className="text-xs text-destructive">{errors.effectiveStartDate}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Effective End Date</Label>
@@ -281,13 +237,29 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                   value={formData.effectiveEndDate}
                   onChange={(e) => setFormData((prev) => ({ ...prev, effectiveEndDate: e.target.value }))}
                   className={errors.effectiveEndDate ? 'border-destructive' : ''}
+                  disabled={disabled}
                 />
-                {errors.effectiveEndDate && <p className="text-xs text-destructive">{errors.effectiveEndDate}</p>}
+                {errors.effectiveEndDate && (
+                  <p className="text-xs text-destructive">{errors.effectiveEndDate}</p>
+                )}
               </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="endOnEffectiveDate"
+                checked={formData.endOnEffectiveDate}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, endOnEffectiveDate: !!checked }))
+                }
+                disabled={disabled}
+              />
+              <Label htmlFor="endOnEffectiveDate" className="font-normal cursor-pointer">
+                End schedule on effective end date
+              </Label>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Specialty *</Label>
+                <Label>Specialty</Label>
                 <Input value={formData.specialty} readOnly disabled className="bg-muted" />
               </div>
               <div className="space-y-2">
@@ -297,13 +269,12 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
             </div>
           </div>
 
-          {/* Availability */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Availability</h3>
             <div className="space-y-2">
               <Label>Days *</Label>
               <MultiSelect
-                options={daysMultiSelectOptions}
+                options={DAYS_OPTIONS}
                 value={formData.days}
                 onChange={(v) => {
                   setFormData((prev) => ({ ...prev, days: v }));
@@ -311,8 +282,9 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                 }}
                 placeholder="Select days"
                 showSelectAll
-                selectAllLabel="Select all days"
+                selectAllLabel="All days"
                 className={errors.days ? 'border-destructive' : ''}
+                disabled={disabled}
               />
               {errors.days && <p className="text-xs text-destructive">{errors.days}</p>}
             </div>
@@ -324,6 +296,7 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                   value={formData.startTime}
                   onChange={(e) => setFormData((prev) => ({ ...prev, startTime: e.target.value }))}
                   className={errors.startTime ? 'border-destructive' : ''}
+                  disabled={disabled}
                 />
                 {errors.startTime && <p className="text-xs text-destructive">{errors.startTime}</p>}
               </div>
@@ -334,48 +307,49 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                   value={formData.endTime}
                   onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value }))}
                   className={errors.endTime ? 'border-destructive' : ''}
+                  disabled={disabled}
                 />
                 {errors.endTime && <p className="text-xs text-destructive">{errors.endTime}</p>}
               </div>
             </div>
             <div className="space-y-2">
               <Label>Slot Duration (minutes) *</Label>
-              <Select
-                value={String(formData.slotDuration)}
-                onValueChange={(v) => setFormData((prev) => ({ ...prev, slotDuration: Number(v) }))}
-              >
-                <SelectTrigger className={errors.slotDuration ? 'border-destructive' : ''}>
-                  <SelectValue placeholder="Select duration" />
-                </SelectTrigger>
-                <SelectContent>
-                  {slotDurations.map((m) => (
-                    <SelectItem key={m} value={String(m)}>{m} mins</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                type="number"
+                min={1}
+                value={formData.slotDuration}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, slotDuration: parseInt(e.target.value, 10) || '' }))
+                }
+                className={errors.slotDuration ? 'border-destructive' : ''}
+                disabled={disabled}
+              />
+              {errors.slotDuration && <p className="text-xs text-destructive">{errors.slotDuration}</p>}
             </div>
           </div>
 
-          {/* Appointment Details */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Appointment Details</h3>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Appointment Type *</Label>
+                <Label>Appointment Type(s) *</Label>
                 <MultiSelect
-                  options={appointmentTypeOptions}
-                  value={formData.appointmentType}
+                  options={appointmentTypes}
+                  value={formData.appointmentTypeIds}
                   onChange={(v) => {
-                    setFormData((prev) => ({ ...prev, appointmentType: v }));
-                    if (errors.appointmentType) setErrors((prev) => ({ ...prev, appointmentType: null }));
+                    setFormData((prev) => ({ ...prev, appointmentTypeIds: v }));
+                    if (errors.appointmentTypeIds) setErrors((prev) => ({ ...prev, appointmentTypeIds: null }));
                   }}
                   placeholder="Select appointment type(s)"
                   searchable
                   showSelectAll
                   selectAllLabel="Select all appointment types"
-                  className={errors.appointmentType ? 'border-destructive' : ''}
+                  className={errors.appointmentTypeIds ? 'border-destructive' : ''}
+                  disabled={disabled}
                 />
-                {errors.appointmentType && <p className="text-xs text-destructive">{errors.appointmentType}</p>}
+                {errors.appointmentTypeIds && (
+                  <p className="text-xs text-destructive">{errors.appointmentTypeIds}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Max Appointments per Slot *</Label>
@@ -383,15 +357,23 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                   type="number"
                   min={1}
                   value={formData.maxAppointmentsPerSlot}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, maxAppointmentsPerSlot: parseInt(e.target.value, 10) || 1 }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      maxAppointmentsPerSlot: parseInt(e.target.value, 10) || 1,
+                    }))
+                  }
                   className={errors.maxAppointmentsPerSlot ? 'border-destructive' : ''}
+                  disabled={disabled}
                 />
-                {errors.maxAppointmentsPerSlot && <p className="text-xs text-destructive">{errors.maxAppointmentsPerSlot}</p>}
+                {errors.maxAppointmentsPerSlot && (
+                  <p className="text-xs text-destructive">{errors.maxAppointmentsPerSlot}</p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Over booking</Label>
+                <Label>Over Booking</Label>
                 <Input
                   type="number"
                   min={0}
@@ -400,33 +382,26 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
                     setFormData((prev) => ({ ...prev, overBooking: parseInt(e.target.value, 10) || 0 }))
                   }
                   className={errors.overBooking ? 'border-destructive' : ''}
+                  disabled={disabled}
                 />
                 {errors.overBooking && <p className="text-xs text-destructive">{errors.overBooking}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Location</Label>
+                <Label>Location(s)</Label>
                 <MultiSelect
-                  options={locationMultiSelectOptions}
-                  value={formData.locations}
-                  onChange={(v) => setFormData((prev) => ({ ...prev, locations: v }))}
+                  options={locationsOptions}
+                  value={formData.locationIds}
+                  onChange={(v) => setFormData((prev) => ({ ...prev, locationIds: v }))}
                   placeholder="Select location(s)"
                   searchable
                   showSelectAll
                   selectAllLabel="Select all locations"
+                  disabled={disabled}
                 />
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="teleconsultation"
-                checked={formData.teleconsultationAllowed}
-                onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, teleconsultationAllowed: !!checked }))}
-              />
-              <Label htmlFor="teleconsultation" className="font-normal cursor-pointer">Teleconsultation allowed</Label>
-            </div>
           </div>
 
-          {/* Schedule Status */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Schedule Status</h3>
             <div className="space-y-2">
@@ -434,6 +409,7 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
               <Select
                 value={formData.status}
                 onValueChange={(v) => setFormData((prev) => ({ ...prev, status: v }))}
+                disabled={disabled}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -446,17 +422,17 @@ export function ProviderScheduleFormDialog({ open, onOpenChange, schedule, onSub
             </div>
           </div>
 
-          {errors.overlap && (
-            <p className="text-sm text-destructive">{errors.overlap}</p>
-          )}
+          {errors.overlap && <p className="text-sm text-destructive">{errors.overlap}</p>}
 
           <DialogFooter className="gap-2 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Saving...' : isEditing ? 'Update Schedule' : 'Add Schedule'}
-            </Button>
+            {!readOnly && (
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? 'Saving...' : isEditing ? 'Update Schedule' : 'Add Schedule'}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

@@ -6,7 +6,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { formatAppointmentTypes } from './providerSchedulesMock';
+import { formatAppointmentTypes } from '@/lib/providerScheduleUtils';
 
 function formatTimeSlot(start, end) {
   if (!start || !end) return '-';

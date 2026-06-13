@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Plus, Pencil, Eye, Power, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -10,28 +9,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { providerSchedulesStore, formatAppointmentTypes, normalizeAppointmentTypes } from './providerSchedulesMock';
+import { providerApi, providerScheduleApi, specialtyApi } from '@/services/api';
+import {
+  DAYS_FILTER_OPTIONS,
+  formatAppointmentTypes,
+  formatLocations,
+  formatTimeSlot,
+  buildSchedulePayload,
+} from '@/lib/providerScheduleUtils';
 import { ProviderScheduleFormDialog } from './ProviderScheduleFormDialog';
-import { ViewScheduleDialog } from './ViewScheduleDialog';
-
-const DAYS_OPTIONS = [
-  { value: 'Mon', label: 'Mon' },
-  { value: 'Tue', label: 'Tue' },
-  { value: 'Wed', label: 'Wed' },
-  { value: 'Thu', label: 'Thu' },
-  { value: 'Fri', label: 'Fri' },
-  { value: 'Sat', label: 'Sat' },
-  { value: 'Sun', label: 'Sun' },
-];
-
-function formatTimeSlot(start, end) {
-  if (!start || !end) return '-';
-  return `${start} – ${end}`;
-}
 
 const SCHEDULE_COLUMNS = [
   { key: 'providerName', label: 'Provider Name', cellClassName: 'font-medium' },
@@ -44,7 +41,12 @@ const SCHEDULE_COLUMNS = [
     label: 'Appointment Type',
     render: (row) => formatAppointmentTypes(row.appointmentType),
   },
-  { key: 'overBooking', label: 'Over booking', render: (row) => (row.overBooking ?? 0) },
+  { key: 'overBooking', label: 'Over Booking', render: (row) => row.overBooking ?? 0 },
+  {
+    key: 'locations',
+    label: 'Locations',
+    render: (row) => formatLocations(row.locations),
+  },
   {
     key: 'status',
     label: 'Status',
@@ -56,60 +58,55 @@ const SCHEDULE_COLUMNS = [
   },
 ];
 
-function DeleteConfirmDialog({ open, onOpenChange, schedule, onConfirm, isLoading }) {
-  if (!schedule) return null;
-  return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center ${open ? '' : 'hidden'}`}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div className="fixed inset-0 bg-black/50" onClick={() => onOpenChange(false)} />
-      <div className="relative z-50 rounded-lg border bg-background p-6 shadow-lg max-w-sm w-full mx-4">
-        <h3 className="text-lg font-semibold">Delete Schedule</h3>
-        <p className="text-sm text-muted-foreground mt-2">
-          Are you sure you want to delete the schedule for <strong>{schedule.providerName}</strong>? This action can be undone later.
-        </p>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button variant="destructive" onClick={() => onConfirm(schedule)} disabled={isLoading}>
-            {isLoading ? 'Deleting...' : 'Delete'}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function ProviderSchedulesPage() {
   const [schedules, setSchedules] = useState([]);
   const [providers, setProviders] = useState([]);
+  const [specialties, setSpecialties] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [filters, setFilters] = useState({
     providerIds: [],
-    specialty: '',
+    specialtyId: '',
     days: [],
     status: '',
     dateFrom: '',
     dateTo: '',
   });
   const [search, setSearch] = useState('');
-  const [pagination, setPagination] = useState({ page: 1, limit: 10 });
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
+  const [formMode, setFormMode] = useState(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchSchedules = useCallback(() => {
+  const fetchSchedules = useCallback(async () => {
     setIsLoading(true);
-    providerSchedulesStore.getSchedules(filters).then((data) => {
-      setSchedules(data);
+    try {
+      const response = await providerScheduleApi.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: search.trim() || undefined,
+        providerIds: filters.providerIds.length ? filters.providerIds : undefined,
+        specialtyId: filters.specialtyId || undefined,
+        days: filters.days.length ? filters.days : undefined,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        status: filters.status || undefined,
+      });
+      setSchedules(response.data || []);
+      setPagination((prev) => ({
+        ...prev,
+        total: response.pagination?.total ?? 0,
+        totalPages: response.pagination?.totalPages ?? 0,
+      }));
+    } catch (err) {
+      setMessage({ type: 'error', text: err.message || 'Failed to load schedules' });
+      setSchedules([]);
+    } finally {
       setIsLoading(false);
-    }).catch(() => setIsLoading(false));
-  }, [filters]);
+    }
+  }, [filters, pagination.page, pagination.limit, search]);
 
   useEffect(() => {
     fetchSchedules();
@@ -117,57 +114,39 @@ export function ProviderSchedulesPage() {
 
   useEffect(() => {
     setPagination((p) => ({ ...p, page: 1 }));
-  }, [filters]);
+  }, [filters, search]);
 
   useEffect(() => {
-    providerSchedulesStore.getProviders(false).then(setProviders);
+    providerApi.getAll({ limit: 500 }).then((res) => {
+      const rows = res.data || [];
+      setProviders(
+        rows.map((p) => ({
+          id: p.id,
+          name: [p.firstName, p.lastName].filter(Boolean).join(' '),
+          specialty: p.specialty?.name || '',
+          subSpecialty: p.subSpecialty?.name || '',
+          specialtyId: p.specialty?.id,
+          subSpecialtyId: p.subSpecialty?.id,
+          isActive: p.isActive,
+        })),
+      );
+    }).catch(() => setProviders([]));
+
+    specialtyApi.getActive().then((res) => setSpecialties(res.data || [])).catch(() => setSpecialties([]));
   }, []);
 
   const providerOptions = useMemo(
-    () => providers.map((p) => ({ value: String(p.id), label: p.name })),
+    () => providers.map((p) => ({ value: p.id, label: p.name })),
     [providers],
   );
 
-  const filteredBySearch = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return schedules;
-    return schedules.filter((row) => {
-      const providerName = (row.providerName || '').toLowerCase();
-      const specialty = (row.specialty || '').toLowerCase();
-      const subSpecialty = (row.subSpecialty || '').toLowerCase();
-      const days = (row.days || []).join(' ').toLowerCase();
-      const appointmentType = normalizeAppointmentTypes(row.appointmentType).join(' ').toLowerCase();
-      const overBooking = String(row.overBooking ?? '').toLowerCase();
-      const status = (row.displayStatus || row.status || '').toLowerCase();
-      return (
-        providerName.includes(q) ||
-        specialty.includes(q) ||
-        subSpecialty.includes(q) ||
-        days.includes(q) ||
-        appointmentType.includes(q) ||
-        overBooking.includes(q) ||
-        status.includes(q)
-      );
-    });
-  }, [schedules, search]);
-
-  const total = filteredBySearch.length;
-  const currentPage = Math.min(
-    Math.max(1, pagination.page),
-    Math.max(1, Math.ceil(total / pagination.limit))
-  );
-  const paginatedSchedules = useMemo(
-    () =>
-      filteredBySearch.slice(
-        (currentPage - 1) * pagination.limit,
-        currentPage * pagination.limit
-      ),
-    [filteredBySearch, currentPage, pagination.limit]
+  const specialtyOptions = useMemo(
+    () => specialties.map((s) => ({ value: s.id, label: s.name })),
+    [specialties],
   );
 
   const handleSearch = useCallback((keyword) => {
     setSearch(keyword);
-    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   const handlePageChange = useCallback((page) => {
@@ -178,26 +157,21 @@ export function ProviderSchedulesPage() {
     setPagination((p) => ({ ...p, limit, page: 1 }));
   }, []);
 
-  const handleAddSchedule = () => {
+  const openForm = (mode, schedule = null) => {
+    setSelectedSchedule(schedule);
+    setFormMode(mode);
+  };
+
+  const closeForm = () => {
+    setFormMode(null);
     setSelectedSchedule(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEdit = (schedule) => {
-    setSelectedSchedule(schedule);
-    setIsFormOpen(true);
-  };
-
-  const handleView = (schedule) => {
-    setSelectedSchedule(schedule);
-    setIsViewOpen(true);
   };
 
   const handleToggleStatus = async (schedule) => {
     setIsSubmitting(true);
     setMessage({ type: '', text: '' });
     try {
-      await providerSchedulesStore.toggleScheduleStatus(schedule.id);
+      await providerScheduleApi.toggleStatus(schedule.id);
       setMessage({ type: 'success', text: 'Schedule status updated' });
       fetchSchedules();
     } catch (err) {
@@ -207,16 +181,12 @@ export function ProviderSchedulesPage() {
     }
   };
 
-  const handleDeleteClick = (schedule) => {
-    setSelectedSchedule(schedule);
-    setIsDeleteOpen(true);
-  };
-
-  const handleDeleteConfirm = async (schedule) => {
+  const handleDeleteConfirm = async () => {
+    if (!selectedSchedule) return;
     setIsDeleting(true);
     setMessage({ type: '', text: '' });
     try {
-      await providerSchedulesStore.deleteSchedule(schedule.id);
+      await providerScheduleApi.delete(selectedSchedule.id);
       setMessage({ type: 'success', text: 'Schedule deleted' });
       setIsDeleteOpen(false);
       setSelectedSchedule(null);
@@ -228,19 +198,19 @@ export function ProviderSchedulesPage() {
     }
   };
 
-  const handleFormSubmit = async (data) => {
+  const handleFormSubmit = async (formData) => {
     setIsSubmitting(true);
     setMessage({ type: '', text: '' });
     try {
-      if (selectedSchedule) {
-        await providerSchedulesStore.updateSchedule(selectedSchedule.id, data);
+      const payload = buildSchedulePayload(formData);
+      if (formMode === 'edit' && selectedSchedule) {
+        await providerScheduleApi.update(selectedSchedule.id, payload);
         setMessage({ type: 'success', text: 'Schedule updated' });
       } else {
-        await providerSchedulesStore.createSchedule(data);
+        await providerScheduleApi.create(payload);
         setMessage({ type: 'success', text: 'Schedule added' });
       }
-      setIsFormOpen(false);
-      setSelectedSchedule(null);
+      closeForm();
       fetchSchedules();
     } catch (err) {
       setMessage({ type: 'error', text: err.message || 'Failed to save schedule' });
@@ -256,7 +226,7 @@ export function ProviderSchedulesPage() {
           <h1 className="text-2xl font-bold text-foreground">Provider Schedules</h1>
           <p className="text-muted-foreground">Configure provider availability for appointment booking</p>
         </div>
-        <Button onClick={handleAddSchedule}>
+        <Button onClick={() => openForm('create')}>
           <Plus className="h-4 w-4 mr-2" />
           Add Schedule
         </Button>
@@ -274,7 +244,6 @@ export function ProviderSchedulesPage() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="rounded-lg border bg-card p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <div className="space-y-2">
@@ -292,17 +261,29 @@ export function ProviderSchedulesPage() {
           </div>
           <div className="space-y-2">
             <Label>Specialty</Label>
-            <Input
-              className="w-full"
-              placeholder="Filter by specialty"
-              value={filters.specialty}
-              onChange={(e) => setFilters((prev) => ({ ...prev, specialty: e.target.value }))}
-            />
+            <Select
+              value={filters.specialtyId || 'all'}
+              onValueChange={(v) =>
+                setFilters((prev) => ({ ...prev, specialtyId: v === 'all' ? '' : v }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All specialties" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All specialties</SelectItem>
+                {specialtyOptions.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label>Days</Label>
             <MultiSelect
-              options={DAYS_OPTIONS}
+              options={DAYS_FILTER_OPTIONS}
               value={filters.days}
               onChange={(v) => setFilters((prev) => ({ ...prev, days: v }))}
               placeholder="All days"
@@ -343,12 +324,11 @@ export function ProviderSchedulesPage() {
         </div>
       </div>
 
-      {/* Listing */}
       <DataTable
         columns={SCHEDULE_COLUMNS}
-        data={paginatedSchedules}
-        total={total}
-        page={currentPage}
+        data={schedules}
+        total={pagination.total}
+        page={pagination.page}
         pageSize={pagination.limit}
         searchValue={search}
         isLoading={isLoading}
@@ -356,20 +336,52 @@ export function ProviderSchedulesPage() {
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.id}
-          searchPlaceholder="Search by provider, specialty, days, type, status..."
+        searchPlaceholder="Search by provider, specialty, days, type, locations, status..."
         emptyMessage="No schedules found. Click Add Schedule to create one."
         actions={(row) => (
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleView(row)} title="View" aria-label="View">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => openForm('view', row)}
+              title="View"
+              aria-label="View"
+            >
               <Eye className="h-4 w-4 icon-action-view" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(row)} title="Edit" aria-label="Edit">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => openForm('edit', row)}
+              title="Edit"
+              aria-label="Edit"
+            >
               <Pencil className="h-4 w-4 icon-action-edit" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleToggleStatus(row)} disabled={isSubmitting} title={row.status === 'Active' ? 'Deactivate' : 'Activate'} aria-label={row.status === 'Active' ? 'Deactivate' : 'Activate'}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => handleToggleStatus(row)}
+              disabled={isSubmitting}
+              title={row.status === 'Active' ? 'Deactivate' : 'Activate'}
+              aria-label={row.status === 'Active' ? 'Deactivate' : 'Activate'}
+            >
               <Power className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(row)} title="Delete" aria-label="Delete">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              onClick={() => {
+                setSelectedSchedule(row);
+                setIsDeleteOpen(true);
+              }}
+              title="Delete"
+              aria-label="Delete"
+            >
               <Trash2 className="h-4 w-4 icon-action-delete" />
             </Button>
           </div>
@@ -377,24 +389,36 @@ export function ProviderSchedulesPage() {
       />
 
       <ProviderScheduleFormDialog
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        open={formMode === 'create' || formMode === 'edit' || formMode === 'view'}
+        readOnly={formMode === 'view'}
+        onOpenChange={(open) => {
+          if (!open) closeForm();
+        }}
         schedule={selectedSchedule}
+        providers={providers}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
       />
-      <ViewScheduleDialog
-        open={isViewOpen}
-        onOpenChange={setIsViewOpen}
-        schedule={selectedSchedule}
-      />
-      <DeleteConfirmDialog
-        open={isDeleteOpen}
-        onOpenChange={setIsDeleteOpen}
-        schedule={selectedSchedule}
-        onConfirm={handleDeleteConfirm}
-        isLoading={isDeleting}
-      />
+
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Schedule</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Do you want to delete the schedule for{' '}
+            <strong>{selectedSchedule?.providerName}</strong>?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={isDeleting}>
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

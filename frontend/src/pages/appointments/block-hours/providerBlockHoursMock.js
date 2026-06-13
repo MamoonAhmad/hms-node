@@ -1,5 +1,6 @@
 // Mock data for Provider Block Hours (replace with API when backend is ready)
-import { providerSchedulesStore } from '@/pages/providers/schedule/providerSchedulesMock';
+import { providerApi, providerScheduleApi, locationApi } from '@/services/api';
+import { DAYS_OPTIONS } from '@/lib/providerScheduleUtils';
 
 let nextBlockId = 500;
 
@@ -64,21 +65,30 @@ function blockOverlaps(existing, candidate) {
 }
 
 async function isWithinProviderSchedule(candidate) {
-  const schedules = await providerSchedulesStore.getSchedules({ providerId: candidate.providerId });
+  const response = await providerScheduleApi.getAll({
+    providerIds: [String(candidate.providerId)],
+    limit: 500,
+  });
+  const schedules = response.data || [];
   const activeSchedules = schedules.filter((s) => (s.displayStatus || s.status) === 'Active');
   if (activeSchedules.length === 0) return false;
 
-  // For each selected day, there must exist at least one schedule that:
-  // - includes that day
-  // - has a date range overlapping block date range
-  // - fully contains the block's time range
   const startMin = timeToMinutes(candidate.startTime);
   const endMin = timeToMinutes(candidate.endTime);
 
   return (candidate.days || []).every((day) => {
     const match = activeSchedules.find((s) => {
       if (!(s.days || []).includes(day)) return false;
-      if (!dateRangeOverlaps(s.effectiveStartDate, s.effectiveEndDate, candidate.effectiveStartDate, candidate.effectiveEndDate)) return false;
+      if (
+        !dateRangeOverlaps(
+          s.effectiveStartDate,
+          s.effectiveEndDate,
+          candidate.effectiveStartDate,
+          candidate.effectiveEndDate,
+        )
+      ) {
+        return false;
+      }
       const schedStart = timeToMinutes(s.startTime);
       const schedEnd = timeToMinutes(s.endTime);
       return schedStart <= startMin && schedEnd >= endMin;
@@ -87,17 +97,35 @@ async function isWithinProviderSchedule(candidate) {
   });
 }
 
+async function fetchProviders(activeOnly = false) {
+  const response = await providerApi.getAll({
+    limit: 500,
+    isActive: activeOnly ? true : undefined,
+  });
+  return (response.data || []).map((p) => ({
+    id: p.id,
+    firstName: p.firstName,
+    lastName: p.lastName,
+    name: [p.firstName, p.lastName].filter(Boolean).join(' '),
+    specialty: p.specialty?.name || '',
+    subSpecialty: p.subSpecialty?.name || '',
+    status: p.isActive ? 'Active' : 'Inactive',
+  }));
+}
+
 export const providerBlockHoursStore = {
   getProviders(activeOnly = false) {
-    return providerSchedulesStore.getProviders(activeOnly);
+    return fetchProviders(activeOnly);
   },
 
   getDaysOptions() {
-    return providerSchedulesStore.getDaysOptions();
+    return Promise.resolve(DAYS_OPTIONS);
   },
 
   getLocations() {
-    return providerSchedulesStore.getLocations();
+    return locationApi.getActive().then((res) =>
+      (res.data || []).map((l) => ({ value: l.id, label: l.name })),
+    );
   },
 
   getBlocks(filters = {}) {
@@ -139,8 +167,8 @@ export const providerBlockHoursStore = {
   },
 
   async createBlock(data) {
-    const providerList = await providerSchedulesStore.getProviders(false);
-    const provider = providerList.find((p) => Number(p.id) === Number(data.providerId));
+    const providerList = await fetchProviders(false);
+    const provider = providerList.find((p) => String(p.id) === String(data.providerId));
     if (!provider) return Promise.reject(new Error('Provider not found'));
     if (provider.status !== 'Active') return Promise.reject(new Error('Only active providers can be blocked'));
 
@@ -167,8 +195,8 @@ export const providerBlockHoursStore = {
     const idx = blocks.findIndex((b) => b.id === Number(id) && !b.deleted);
     if (idx === -1) return Promise.reject(new Error('Block not found'));
     const providerId = data.providerId !== undefined ? data.providerId : blocks[idx].providerId;
-    const providerList = await providerSchedulesStore.getProviders(false);
-    const provider = providerList.find((p) => Number(p.id) === Number(providerId));
+    const providerList = await fetchProviders(false);
+    const provider = providerList.find((p) => String(p.id) === String(providerId));
 
     blocks[idx] = {
       ...blocks[idx],

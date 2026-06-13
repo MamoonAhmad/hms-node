@@ -153,6 +153,7 @@ export const appointmentApi = {
 
 export { appointmentStatusApi } from './api/appointmentStatus.api.js';
 export { appointmentTypeApi } from './api/appointmentType.api.js';
+export { providerScheduleApi } from './api/providerSchedule.api.js';
 
 export const insuranceProviderApi = {
   // Get all insurance providers with pagination and filters

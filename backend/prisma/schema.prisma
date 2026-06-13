@@ -187,6 +187,7 @@ model Provider {
   isActive                 Boolean  @default(true)
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
+  schedules                ProviderSchedule[]
 
   @@map("providers")
 }
@@ -236,6 +237,8 @@ model AppointmentType {
   creator     User      @relation("CreatedAppointmentTypes", fields: [createdBy], references: [id])
   updater     User      @relation("UpdatedAppointmentTypes", fields: [updatedBy], references: [id])
   deleter     User?     @relation("DeletedAppointmentTypes", fields: [deletedBy], references: [id])
+
+  scheduleLinks ProviderScheduleAppointmentType[]
 
   @@index([name])
   @@index([deletedAt])
@@ -367,8 +370,58 @@ model Location {
   creator   User     @relation("CreatedLocations", fields: [createdBy], references: [id])
   updater   User     @relation("UpdatedLocations", fields: [updatedBy], references: [id])
   departments Department[]
+  scheduleLinks ProviderScheduleLocation[]
 
   @@map("locations")
+}
+
+model ProviderSchedule {
+  id                     String   @id @default(uuid())
+  providerId             String
+  provider               Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  days                   String[]
+  startTime              String
+  endTime                String
+  slotDuration           Int
+  maxAppointmentsPerSlot Int      @default(1)
+  overBooking            Int      @default(0)
+  effectiveStartDate     DateTime @db.Date
+  effectiveEndDate       DateTime? @db.Date
+  endOnEffectiveDate     Boolean  @default(false)
+  status                 String   @default("Active")
+  teleconsultationAllowed Boolean @default(false)
+  deletedAt              DateTime?
+  createdBy              String?
+  updatedBy              String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  locations              ProviderScheduleLocation[]
+  appointmentTypes       ProviderScheduleAppointmentType[]
+
+  @@index([providerId])
+  @@index([deletedAt])
+  @@index([effectiveStartDate])
+  @@map("provider_schedules")
+}
+
+model ProviderScheduleLocation {
+  scheduleId String
+  locationId String
+  schedule   ProviderSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  location   Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@id([scheduleId, locationId])
+  @@map("provider_schedule_locations")
+}
+
+model ProviderScheduleAppointmentType {
+  scheduleId        String
+  appointmentTypeId String
+  schedule          ProviderSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  appointmentType   AppointmentType  @relation(fields: [appointmentTypeId], references: [id], onDelete: Cascade)
+
+  @@id([scheduleId, appointmentTypeId])
+  @@map("provider_schedule_appointment_types")
 }
 
 model Department {
