@@ -118,6 +118,7 @@ export { procedureCategoryApi } from './api/procedureCategory.api.js';
 export { procedureApi } from './api/procedure.api.js';
 export { hcpcsCodeApi } from './api/hcpcsCode.api.js';
 export { diagnosisCodeApi } from './api/diagnosisCode.api.js';
+export { roomTypeApi } from './api/roomType.api.js';
 
 // Charge Master API
 export const chargeMasterApi = {

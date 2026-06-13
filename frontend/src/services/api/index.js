@@ -22,6 +22,7 @@ export { procedureCategoryApi } from './procedureCategory.api';
 export { procedureApi } from './procedure.api';
 export { hcpcsCodeApi } from './hcpcsCode.api';
 export { diagnosisCodeApi } from './diagnosisCode.api';
+export { roomTypeApi } from './roomType.api';
 
 // Re-export shared utilities
 export { API_BASE_URL, getAuthHeaders, handleResponse } from './client';

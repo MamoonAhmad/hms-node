@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { loadRooms, saveRooms, loadBeds, saveBeds } from '@/pages/patient-management/roomsBedsStorage';
+import { roomTypeApi } from '@/services/api';
 
 const ROOM_LIST_TABS = {
   ALL: 'all',
@@ -29,15 +30,6 @@ const ROOM_LIST_TABS = {
   MAINTENANCE: 'maintenance',
   OFFLINE: 'offline',
 };
-
-const ROOM_TYPES = [
-  { value: 'med_surg', label: 'Medical / Surgical' },
-  { value: 'icu', label: 'ICU' },
-  { value: 'or', label: 'OR / Procedure' },
-  { value: 'ed', label: 'ED / Observation' },
-  { value: 'isolation', label: 'Isolation' },
-  { value: 'other', label: 'Other' },
-];
 
 const STATUSES = [
   { value: 'active', label: 'Active' },
@@ -71,12 +63,12 @@ function emptyMessageForTab(listTab) {
   }
 }
 
-const emptyForm = () => ({
+const emptyForm = (defaultRoomType = 'med_surg') => ({
   roomNumber: '',
   displayName: '',
   floor: '',
   unit: '',
-  roomType: 'med_surg',
+  roomType: defaultRoomType,
   status: 'active',
   licensedBeds: '1',
   notes: '',
@@ -84,6 +76,7 @@ const emptyForm = () => ({
 
 export function RoomsPage() {
   const [rooms, setRooms] = useState([]);
+  const [roomTypes, setRoomTypes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
   const [search, setSearch] = useState('');
@@ -104,6 +97,20 @@ export function RoomsPage() {
     }, 120);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    roomTypeApi
+      .getActive()
+      .then((response) => setRoomTypes(response.data || []))
+      .catch(() => setRoomTypes([]));
+  }, []);
+
+  const defaultRoomType = roomTypes[0]?.code || 'med_surg';
+
+  const roomTypeLabel = (code) => {
+    const match = roomTypes.find((t) => t.code === code);
+    return match?.label || code || '—';
+  };
 
   const bedCountsByRoom = useMemo(() => {
     const beds = loadBeds();
@@ -152,13 +159,12 @@ export function RoomsPage() {
   const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
   const currentPage = Math.min(Math.max(1, pagination.page), totalPages);
 
-  const roomTypeLabel = (v) => ROOM_TYPES.find((x) => x.value === v)?.label || v;
   const statusLabel = (v) => STATUSES.find((x) => x.value === v)?.label || v;
 
   const openCreate = () => {
     setSelected(null);
     setMode('create');
-    setForm(emptyForm());
+    setForm(emptyForm(defaultRoomType));
     setDialogOpen(true);
   };
 
@@ -170,7 +176,7 @@ export function RoomsPage() {
       displayName: row.displayName || '',
       floor: row.floor || '',
       unit: row.unit || '',
-      roomType: row.roomType || 'med_surg',
+      roomType: row.roomType || defaultRoomType,
       status: row.status || 'active',
       licensedBeds: String(row.licensedBeds ?? 1),
       notes: row.notes || '',
@@ -186,7 +192,7 @@ export function RoomsPage() {
       displayName: row.displayName || '',
       floor: row.floor || '',
       unit: row.unit || '',
-      roomType: row.roomType || 'med_surg',
+      roomType: row.roomType || defaultRoomType,
       status: row.status || 'active',
       licensedBeds: String(row.licensedBeds ?? 1),
       notes: row.notes || '',
@@ -442,8 +448,8 @@ export function RoomsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROOM_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
+                    {roomTypes.map((t) => (
+                      <SelectItem key={t.code} value={t.code}>
                         {t.label}
                       </SelectItem>
                     ))}

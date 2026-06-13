@@ -27,6 +27,7 @@ const procedureCategoryRoutes = require('./procedureCategory.routes');
 const procedureRoutes = require('./procedure.routes');
 const hcpcsCodeRoutes = require('./hcpcsCode.routes');
 const diagnosisCodeRoutes = require('./diagnosisCode.routes');
+const roomTypeRoutes = require('./roomType.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -44,6 +45,7 @@ router.use('/procedure-categories', auth, procedureCategoryRoutes);
 router.use('/procedures', auth, procedureRoutes);
 router.use('/hcpcs-codes', auth, hcpcsCodeRoutes);
 router.use('/diagnosis-codes', auth, diagnosisCodeRoutes);
+router.use('/room-types', auth, roomTypeRoutes);
 router.use('/insurance-providers', auth, insuranceProviderRoutes);
 router.use('/providers', auth, providerRoutes);
 router.use('/specialties', auth, specialtyRoutes);
