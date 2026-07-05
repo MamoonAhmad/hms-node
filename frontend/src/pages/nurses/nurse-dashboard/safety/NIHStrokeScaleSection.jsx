@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ScreeningSaveBar } from '@/pages/patient-dashboard/intake/ScreeningSaveBar';
 
 const NIH_STROKE_ITEMS = [
   { id: '1a', label: '1a. Level of Consciousness', options: ['0 - Alert', '1 - Not alert; arousable by minor stimulation', '2 - Repeated stimulation to attend', '3 - Reflex only or unresponsive'] },
@@ -118,6 +119,12 @@ export function NIHStrokeScaleSection() {
             Scores reflect what the patient does, not what the clinician thinks the patient can do. Do not coach the patient (except where indicated).
           </p>
         </div>
+        <ScreeningSaveBar
+          screeningType="nih_stroke"
+          score={totalScore}
+          maxScore={42}
+          answers={answers}
+        />
       </CardContent>
     </Card>
   );

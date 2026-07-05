@@ -149,6 +149,9 @@ model Patient {
   problems              PatientProblem[]
   allergies             PatientAllergy[]
   eligibilityChecks     InsuranceEligibility[]
+  intakeSections        PatientIntakeSection[]
+  intakeCompletions     PatientIntakeCompletion[]
+  screeningScores       PatientScreeningScore[]
 
   @@index([registrationStatus])
   @@index([assignedToId])
@@ -284,6 +287,65 @@ model InsuranceEligibility {
   @@index([patientId])
   @@index([status])
   @@map("insurance_eligibility_verifications")
+}
+
+model PatientIntakeSection {
+  id            String   @id @default(uuid())
+  patientId     String
+  appointmentId String?
+  sectionKey    String
+  data          Json
+  isAddendum    Boolean  @default(false)
+  parentId      String?
+  createdBy     String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([appointmentId])
+  @@index([sectionKey])
+  @@map("patient_intake_sections")
+}
+
+model PatientIntakeCompletion {
+  id                    String    @id @default(uuid())
+  patientId             String
+  appointmentId         String?
+  completed             Boolean   @default(false)
+  certificationAccepted Boolean   @default(false)
+  intakeNotes           String?   @db.Text
+  signedById            String?
+  signedByName          String?
+  signedAt              DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  patient               Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([appointmentId])
+  @@map("patient_intake_completions")
+}
+
+model PatientScreeningScore {
+  id            String   @id @default(uuid())
+  patientId     String
+  appointmentId String?
+  screeningType String
+  score         Int?
+  maxScore      Int?
+  answers       Json
+  notes         String?
+  createdBy     String?
+  createdByName String?
+  createdAt     DateTime @default(now())
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([appointmentId])
+  @@index([screeningType])
+  @@map("patient_screening_scores")
 }
 
 model InsuranceProvider {

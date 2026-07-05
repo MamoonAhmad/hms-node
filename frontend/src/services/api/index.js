@@ -27,6 +27,7 @@ export { roomApi } from './room.api';
 export { bedApi } from './bed.api';
 export { trackingBoardApi } from './trackingBoard.api';
 export { encountersWorkListApi } from './encountersWorkList.api';
+export { intakeApi } from './intake.api';
 
 // Re-export shared utilities
 export { API_BASE_URL, getAuthHeaders, handleResponse } from './client';

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { ScreeningSaveBar } from '@/pages/patient-dashboard/intake/ScreeningSaveBar';
 
 const FOOD_INSECURITY_OPTIONS = [
   'OFTEN TRUE',
@@ -116,6 +117,10 @@ export function HungerScreeningSection() {
             </div>
           </div>
         </div>
+        <ScreeningSaveBar
+          screeningType="hunger"
+          answers={{ ...foodAnswers, whoAnswered }}
+        />
       </CardContent>
     </Card>
   );

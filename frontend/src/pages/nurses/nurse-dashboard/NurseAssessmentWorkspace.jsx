@@ -57,6 +57,8 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { IntakeNurseAssessmentPanel } from '@/pages/patient-dashboard/intake/IntakeNurseAssessmentPanel';
+import { IntakePatientScreeningPanel } from '@/pages/patient-dashboard/intake/IntakePatientScreeningPanel';
 
 const noteTypes = [
   'Triage Note',
@@ -196,13 +198,17 @@ export function NurseAssessmentWorkspace({ embedded = false, idPrefix = embedded
   return (
     <div className={embedded ? 'space-y-4' : 'space-y-6'}>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={cn('grid w-full grid-cols-3', embedded ? 'max-w-full' : 'max-w-2xl')}>
+        <TabsList className={cn('grid w-full', embedded ? 'grid-cols-2 max-w-xl' : 'grid-cols-3 max-w-2xl')}>
           <TabsTrigger value="nurse-assessment">Nurse Assessment</TabsTrigger>
           <TabsTrigger value="patient-screening">Patient Screening</TabsTrigger>
-          <TabsTrigger value="assessment-review">Assessment Review</TabsTrigger>
+          {!embedded && <TabsTrigger value="assessment-review">Assessment Review</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="nurse-assessment" className="mt-6 space-y-6">
+          {embedded ? (
+            <IntakeNurseAssessmentPanel />
+          ) : (
+            <>
           <div id="assessment-vitals">
             <VitalsSection />
           </div>
@@ -282,9 +288,14 @@ export function NurseAssessmentWorkspace({ embedded = false, idPrefix = embedded
               Save Nurse Assessment
             </Button>
           </div>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="patient-screening" className="mt-6">
+          {embedded ? (
+            <IntakePatientScreeningPanel />
+          ) : (
           <Accordion
             type="multiple"
             value={openAccordions}
@@ -307,8 +318,10 @@ export function NurseAssessmentWorkspace({ embedded = false, idPrefix = embedded
               </AccordionItem>
             ))}
           </Accordion>
+          )}
         </TabsContent>
 
+        {!embedded && (
         <TabsContent value="assessment-review" className="mt-6">
           <div className="rounded-lg border bg-card">
             <Table>
@@ -354,6 +367,7 @@ export function NurseAssessmentWorkspace({ embedded = false, idPrefix = embedded
             </Table>
           </div>
         </TabsContent>
+        )}
       </Tabs>
 
       {/* Assessment View Modal (read-only) */}

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ScreeningSaveBar } from '@/pages/patient-dashboard/intake/ScreeningSaveBar';
 
 const GAD7_RESPONSE_OPTIONS = [
   { value: '0', label: 'Not at all', score: 0 },
@@ -122,6 +123,12 @@ export function GAD7Section() {
             {severity.label}
           </Badge>
         </div>
+        <ScreeningSaveBar
+          screeningType="gad7"
+          score={totalScore}
+          maxScore={21}
+          answers={{ ...answers, functionalImpact }}
+        />
       </CardContent>
     </Card>
   );

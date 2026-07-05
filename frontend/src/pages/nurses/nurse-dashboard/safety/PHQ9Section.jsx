@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScreeningSaveBar } from '@/pages/patient-dashboard/intake/ScreeningSaveBar';
 
 // Button labels as in screenshot; scores per user: Not at all=1, Several days=2, More than half=3, Nearly every day=4
 const PHQ9_RESPONSE_OPTIONS = [
@@ -137,6 +138,13 @@ export function PHQ9Section() {
             {severity.label}
           </Badge>
         </div>
+        <ScreeningSaveBar
+          screeningType="phq9"
+          score={totalScore}
+          maxScore={27}
+          answers={answers}
+          notes={interpretation}
+        />
       </CardContent>
     </Card>
   );

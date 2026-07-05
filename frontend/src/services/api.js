@@ -123,6 +123,7 @@ export { roomApi } from './api/room.api.js';
 export { bedApi } from './api/bed.api.js';
 export { trackingBoardApi } from './api/trackingBoard.api.js';
 export { encountersWorkListApi } from './api/encountersWorkList.api.js';
+export { intakeApi } from './api/intake.api.js';
 
 // Charge Master API
 export const chargeMasterApi = {

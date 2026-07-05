@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { ScreeningSaveBar } from '@/pages/patient-dashboard/intake/ScreeningSaveBar';
 
 const WONG_BAKER_FACES = [
   { value: 0, label: 'No Hurt' },
@@ -86,6 +87,12 @@ export function PainAssessmentSection() {
             Sources: Wong-Baker FACES® (Wong’s Essentials of Pediatric Nursing); 0–10 scale (Pain: Clinical Manual, McCaffery M et al). Pain Assessment Scales provided by the National Initiative on Pain Control™ (NIPC™).
           </p>
         </div>
+        <ScreeningSaveBar
+          screeningType="pain"
+          score={numericVal ?? wongBaker}
+          maxScore={10}
+          answers={{ wongBaker, numericPain: numericVal }}
+        />
       </CardContent>
     </Card>
   );

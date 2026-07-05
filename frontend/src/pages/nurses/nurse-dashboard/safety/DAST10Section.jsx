@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ScreeningSaveBar } from '@/pages/patient-dashboard/intake/ScreeningSaveBar';
 
 const DAST10_QUESTIONS = [
   { id: 1, text: 'Have you used drugs other than those required for medical reasons?' },
@@ -98,6 +99,13 @@ export function DAST10Section() {
             {interpretation.label}
           </Badge>
         </div>
+        <ScreeningSaveBar
+          screeningType="dast10"
+          score={totalScore}
+          maxScore={10}
+          answers={answers}
+          notes={interpretation.action}
+        />
       </CardContent>
     </Card>
   );

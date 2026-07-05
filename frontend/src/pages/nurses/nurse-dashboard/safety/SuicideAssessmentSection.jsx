@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ScreeningSaveBar } from '@/pages/patient-dashboard/intake/ScreeningSaveBar';
 
 const suicideQuestions = [
   {
@@ -90,6 +91,7 @@ export function SuicideAssessmentSection() {
             </div>
           ) : null
         )}
+        <ScreeningSaveBar screeningType="suicide" answers={suicideAnswers} />
       </CardContent>
     </Card>
   );

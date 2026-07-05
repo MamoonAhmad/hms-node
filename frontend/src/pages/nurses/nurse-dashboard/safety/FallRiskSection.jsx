@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ScreeningSaveBar } from '@/pages/patient-dashboard/intake/ScreeningSaveBar';
 
 const fallRiskQuestions = [
   { id: 'presented-due-to-fall', label: 'Presented due to fall (syncope, seizure, LOC)', yesPoints: 20 },
@@ -73,6 +74,12 @@ export function FallRiskSection() {
             <Input id="fall-score" value={fallRiskScore} readOnly className="ml-2 bg-muted w-auto px-3" />
           </div>
         </div>
+        <ScreeningSaveBar
+          screeningType="fall_risk"
+          score={fallRiskScore}
+          maxScore={100}
+          answers={fallAnswers}
+        />
       </CardContent>
     </Card>
   );

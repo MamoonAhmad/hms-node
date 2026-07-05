@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { usePatientChart } from './PatientChartContext';
+import { ScreeningScoresSection } from './ScreeningScoresSection';
 import { formatPatientName } from './patientChartUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -524,6 +525,8 @@ export function SOAPNotesTab({ onDirtyChange }) {
           </div>
         </CardContent>
       </Card>
+
+      <ScreeningScoresSection />
 
       {/* S – Subjective */}
       <Card>
