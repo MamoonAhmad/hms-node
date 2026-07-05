@@ -16,6 +16,7 @@ import { PatientChartEncounterBar } from './components/PatientChartEncounterBar'
 import { PatientChartStoryboard } from './components/PatientChartStoryboard';
 import { PatientSummaryTab } from './PatientSummaryTab';
 import { PatientIntakeTab } from './PatientIntakeTab';
+import { PatientProblemsTab } from './PatientProblemsTab';
 import { SOAPNotesTab } from './SOAPNotesTab';
 import { PatientCheckoutTab } from './PatientCheckoutTab';
 import { PatientProfileTab } from './PatientProfileTab';
@@ -26,6 +27,7 @@ import { PatientResultsTab } from './PatientResultsTab';
 const TAB_DEFS = [
   { id: 'patient-summary', label: 'Summary' },
   { id: 'intake', label: 'Intake' },
+  { id: 'problems', label: 'Problems' },
   { id: 'notes', label: 'SOAP Notes', dirtyKey: true },
   { id: 'orders', label: 'Orders', countKey: 'pendingOrders' },
   { id: 'prescriptions', label: 'Rx' },
@@ -136,6 +138,10 @@ function PatientDashboardContent() {
 
               <TabsContent value="intake" className="mt-0 focus-visible:outline-none">
                 <PatientIntakeTab />
+              </TabsContent>
+
+              <TabsContent value="problems" className="mt-0 focus-visible:outline-none">
+                <PatientProblemsTab />
               </TabsContent>
 
               <TabsContent value="notes" className="mt-0 focus-visible:outline-none">

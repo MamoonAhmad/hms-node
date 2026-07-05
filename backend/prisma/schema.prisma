@@ -236,21 +236,30 @@ model PatientConsentSignature {
 }
 
 model PatientProblem {
-  id             String    @id @default(uuid())
+  id             String         @id @default(uuid())
   patientId      String
+  diagnosisId    String?
   problemCode    String?
   description    String
-  status         String    @default("Active")
+  status         String         @default("Active")
   clinicalStatus String?
   verification   String?
-  onsetDate      DateTime? @db.Date
-  resolvedDate   DateTime? @db.Date
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  patient        Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  onsetDate      DateTime?      @db.Date
+  resolvedDate   DateTime?      @db.Date
+  notes          String?
+  isDeleted      Boolean        @default(false)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  patient        Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  diagnosis      DiagnosisCode? @relation(fields: [diagnosisId], references: [id], onDelete: SetNull)
+  creator        User?          @relation("CreatedPatientProblems", fields: [createdBy], references: [id], onDelete: SetNull)
+  updater        User?          @relation("UpdatedPatientProblems", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@index([patientId])
   @@index([status])
+  @@index([isDeleted])
   @@map("patient_problems")
 }
 
@@ -542,6 +551,7 @@ model DiagnosisCode {
   creator       User      @relation("CreatedDiagnosisCodes", fields: [createdBy], references: [id])
   updater       User      @relation("UpdatedDiagnosisCodes", fields: [updatedBy], references: [id])
   deleter       User?     @relation("DeletedDiagnosisCodes", fields: [deletedBy], references: [id])
+  patientProblems PatientProblem[]
 
   @@index([code])
   @@index([effectiveDate])
@@ -888,6 +898,8 @@ model User {
   patientsDeleted            Patient[]            @relation("DeletedPatients")
   assignedPatients           Patient[]            @relation("AssignedPatients")
   patientConsentSignatures   PatientConsentSignature[] @relation("PatientConsentSignatures")
+  patientProblemsCreated     PatientProblem[]          @relation("CreatedPatientProblems")
+  patientProblemsUpdated     PatientProblem[]          @relation("UpdatedPatientProblems")
 
   @@map("users")
 }

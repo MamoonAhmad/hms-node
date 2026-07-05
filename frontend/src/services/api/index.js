@@ -28,6 +28,7 @@ export { bedApi } from './bed.api';
 export { trackingBoardApi } from './trackingBoard.api';
 export { encountersWorkListApi } from './encountersWorkList.api';
 export { intakeApi } from './intake.api';
+export { patientProblemApi } from './patientProblem.api';
 
 // Re-export shared utilities
 export { API_BASE_URL, getAuthHeaders, handleResponse } from './client';

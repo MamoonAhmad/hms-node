@@ -160,7 +160,7 @@ const patientSummaryService = {
 
     const [problems, allergies, eligibilityRows, orders] = await Promise.all([
       prisma.patientProblem.findMany({
-        where: { patientId: patient.id },
+        where: { patientId: patient.id, isDeleted: false },
         orderBy: [{ status: 'asc' }, { onsetDate: 'desc' }],
       }),
       prisma.patientAllergy.findMany({

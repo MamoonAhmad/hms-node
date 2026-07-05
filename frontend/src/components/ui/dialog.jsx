@@ -69,7 +69,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="ring-offset-background focus:ring-ring absolute top-3.5 right-3.5 z-20 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+            className="ring-offset-background focus:ring-ring absolute top-4 right-4 z-20 rounded-sm p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
             <XIcon />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
@@ -87,7 +87,7 @@ function DialogHeader({
     <div
       data-slot="dialog-header"
       className={cn(
-        "flex flex-col gap-1 border-b border-border bg-card px-5 py-3.5 pr-12 text-center sm:text-left",
+        "flex flex-col gap-1.5 border-b border-border bg-card px-6 py-4 pr-14 text-center sm:text-left sm:px-8",
         className
       )}
       {...props} />
@@ -101,7 +101,7 @@ function DialogBody({
   return (
     <div
       data-slot="dialog-body"
-      className={cn("ehr-dialog-body bg-muted/25 px-5 py-5 sm:px-6", className)}
+      className={cn("ehr-dialog-body bg-muted/25 px-6 py-6 sm:px-8", className)}
       {...props}
     />
   );
@@ -115,7 +115,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 border-t border-border/70 bg-muted/40 px-5 py-3.5 sm:flex-row sm:justify-end",
+        "flex flex-col-reverse gap-2 border-t border-border/70 bg-muted/40 px-6 py-4 sm:flex-row sm:justify-end sm:px-8",
         className
       )}
       {...props} />

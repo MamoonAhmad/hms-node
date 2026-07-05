@@ -314,11 +314,16 @@ body {
 }
 
 [data-slot="dialog-content"] > form,
-[data-slot="dialog-content"] > .ehr-dialog-body {
-  @apply bg-background px-5 py-5 sm:px-6;
+[data-slot="dialog-content"] > [data-slot="dialog-body"],
+[data-slot="dialog-content"]
+  > :not([data-slot="dialog-header"]):not([data-slot="dialog-footer"]):not([data-slot="dialog-body"]) {
+  @apply bg-muted/25 px-6 py-6 sm:px-8;
 }
 [data-slot="dialog-content"]:has([data-slot="dialog-header"]) {
   @apply gap-0 p-0;
+}
+[data-slot="dialog-content"]:not(:has([data-slot="dialog-header"])) {
+  @apply gap-4 p-6 sm:p-8;
 }
 [data-slot="dialog-content"]:has([data-slot="dialog-header"]) [data-slot="dialog-close"] {
   @apply text-muted-foreground hover:bg-muted hover:text-foreground;
