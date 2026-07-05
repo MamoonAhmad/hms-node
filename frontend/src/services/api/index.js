@@ -29,6 +29,7 @@ export { trackingBoardApi } from './trackingBoard.api';
 export { encountersWorkListApi } from './encountersWorkList.api';
 export { intakeApi } from './intake.api';
 export { patientProblemApi } from './patientProblem.api';
+export { clinicalNoteApi } from './clinicalNote.api';
 
 // Re-export shared utilities
 export { API_BASE_URL, getAuthHeaders, handleResponse } from './client';

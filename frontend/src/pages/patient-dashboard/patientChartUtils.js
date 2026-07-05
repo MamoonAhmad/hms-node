@@ -112,8 +112,14 @@ export function apiOrderToRow(order) {
     },
     dateTime: order.orderDateTime,
     status: order.status,
-    site: order.site || '',
-    orderedBy: order.orderedBy,
+    siteId: order.siteId || '',
+    siteName: order.siteName || order.site || '',
+    site: order.siteId || order.siteName || order.site || '',
+    orderedBy: order.orderedByUserName || order.orderedBy,
+    orderedByUserId: order.orderedByUserId,
+    sourceType: order.sourceType,
+    customOrderSetId: order.customOrderSetId,
+    customOrderSetName: order.customOrderSetName,
     _persisted: true,
   };
 }

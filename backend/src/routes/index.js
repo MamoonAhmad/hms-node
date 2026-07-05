@@ -33,6 +33,7 @@ const bedRoutes = require('./bed.routes');
 const trackingBoardRoutes = require('./trackingBoard.routes');
 const encountersWorkListRoutes = require('./encountersWorkList.routes');
 const intakeRoutes = require('./intake.routes');
+const customOrderSetRoutes = require('./customOrderSet.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -66,6 +67,7 @@ router.use('/departments', auth, departmentRoutes);
 router.use('/permissions', auth, permissionRoutes);
 router.use('/roles', auth, roleRoutes);
 router.use('/orders', auth, orderRoutes);
+router.use('/custom-order-sets', auth, customOrderSetRoutes);
 router.use('/facility-config', auth, facilityConfigRoutes);
 
 module.exports = router;

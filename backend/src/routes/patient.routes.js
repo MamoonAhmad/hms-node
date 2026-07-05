@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const patientController = require('../controllers/patient.controller');
 const patientProblemRoutes = require('./patientProblem.routes');
+const clinicalNoteRoutes = require('./clinicalNote.routes');
 const {
   createPatientSchema,
   updatePatientSchema,
@@ -199,6 +200,7 @@ router.get(
 );
 
 router.use('/:id/problems', validate(patientIdSchema, 'params'), patientProblemRoutes);
+router.use('/:id/clinical-notes', validate(patientIdSchema, 'params'), clinicalNoteRoutes);
 
 // Get patient by ID
 router.get('/:id', validate(patientIdSchema, 'params'), patientController.findById);

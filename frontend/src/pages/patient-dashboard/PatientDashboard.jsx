@@ -17,7 +17,7 @@ import { PatientChartStoryboard } from './components/PatientChartStoryboard';
 import { PatientSummaryTab } from './PatientSummaryTab';
 import { PatientIntakeTab } from './PatientIntakeTab';
 import { PatientProblemsTab } from './PatientProblemsTab';
-import { SOAPNotesTab } from './SOAPNotesTab';
+import { ClinicalNotesTab } from './ClinicalNotesTab';
 import { PatientCheckoutTab } from './PatientCheckoutTab';
 import { PatientProfileTab } from './PatientProfileTab';
 import { PatientOrderEntryTab } from './PatientOrderEntryTab';
@@ -28,7 +28,7 @@ const TAB_DEFS = [
   { id: 'patient-summary', label: 'Summary' },
   { id: 'intake', label: 'Intake' },
   { id: 'problems', label: 'Problems' },
-  { id: 'notes', label: 'SOAP Notes', dirtyKey: true },
+  { id: 'notes', label: 'Notes', dirtyKey: true },
   { id: 'orders', label: 'Orders', countKey: 'pendingOrders' },
   { id: 'prescriptions', label: 'Rx' },
   { id: 'results', label: 'Results', countKey: 'pendingResults' },
@@ -144,8 +144,8 @@ function PatientDashboardContent() {
                 <PatientProblemsTab />
               </TabsContent>
 
-              <TabsContent value="notes" className="mt-0 focus-visible:outline-none">
-                <SOAPNotesTab onDirtyChange={setNotesDirty} />
+              <TabsContent value="notes" className="mt-0 max-w-none focus-visible:outline-none">
+                <ClinicalNotesTab onDirtyChange={setNotesDirty} />
               </TabsContent>
 
               <TabsContent value="orders" className="mt-0 focus-visible:outline-none">
@@ -177,7 +177,7 @@ function PatientDashboardContent() {
           <DialogHeader>
             <DialogTitle>Unsaved changes</DialogTitle>
             <DialogDescription>
-              You have unsaved SOAP note changes. Leave without saving?
+              You have unsaved note changes. Leave without saving?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">

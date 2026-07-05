@@ -125,6 +125,7 @@ export { trackingBoardApi } from './api/trackingBoard.api.js';
 export { encountersWorkListApi } from './api/encountersWorkList.api.js';
 export { intakeApi } from './api/intake.api.js';
 export { patientProblemApi } from './api/patientProblem.api.js';
+export { clinicalNoteApi } from './api/clinicalNote.api.js';
 
 // Charge Master API
 export const chargeMasterApi = {
@@ -886,6 +887,20 @@ export const facilityConfigApi = {
 
 // Patient orders (persisted, routed by facility config)
 export const orderApi = {
+  async searchProcedures({ q, category }) {
+    const searchParams = new URLSearchParams({ q });
+    if (category) searchParams.set('category', category);
+    const response = await fetch(`${API_BASE_URL}/orders/search-procedures?${searchParams}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+  async getSites() {
+    const response = await fetch(`${API_BASE_URL}/orders/sites`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
   async createOrders({ patientId, appointmentId, locationId, orders, orderedBy }) {
     const response = await fetch(`${API_BASE_URL}/orders`, {
       method: 'POST',
@@ -903,6 +918,35 @@ export const orderApi = {
     });
     return handleResponse(response);
   },
+  async updateOrder(id, payload) {
+    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+  async updateOrders(orders) {
+    const response = await fetch(`${API_BASE_URL}/orders/batch`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ orders }),
+    });
+    return handleResponse(response);
+  },
+  async deleteOrder(id) {
+    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
   async getOrders(params = {}) {
     const searchParams = new URLSearchParams();
     if (params.patientId) searchParams.set('patientId', params.patientId);
@@ -912,6 +956,63 @@ export const orderApi = {
     if (params.page) searchParams.set('page', params.page);
     if (params.limit) searchParams.set('limit', params.limit);
     const response = await fetch(`${API_BASE_URL}/orders?${searchParams}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+};
+
+export const customOrderSetApi = {
+  async list(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.page) searchParams.set('page', params.page);
+    if (params.limit) searchParams.set('limit', params.limit);
+    if (params.status) searchParams.set('status', params.status);
+    const response = await fetch(`${API_BASE_URL}/custom-order-sets?${searchParams}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+  async search({ q, departmentId, locationId }) {
+    const searchParams = new URLSearchParams({ q });
+    if (departmentId) searchParams.set('departmentId', departmentId);
+    if (locationId) searchParams.set('locationId', locationId);
+    const response = await fetch(`${API_BASE_URL}/custom-order-sets/search?${searchParams}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+  async getById(id) {
+    const response = await fetch(`${API_BASE_URL}/custom-order-sets/${id}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+  async create(payload) {
+    const response = await fetch(`${API_BASE_URL}/custom-order-sets`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+  async update(id, payload) {
+    const response = await fetch(`${API_BASE_URL}/custom-order-sets/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse(response);
+  },
+  async delete(id) {
+    const response = await fetch(`${API_BASE_URL}/custom-order-sets/${id}`, {
+      method: 'DELETE',
       headers: getAuthHeaders(),
     });
     return handleResponse(response);
