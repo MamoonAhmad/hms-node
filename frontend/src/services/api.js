@@ -121,6 +121,8 @@ export { diagnosisCodeApi } from './api/diagnosisCode.api.js';
 export { roomTypeApi } from './api/roomType.api.js';
 export { roomApi } from './api/room.api.js';
 export { bedApi } from './api/bed.api.js';
+export { trackingBoardApi } from './api/trackingBoard.api.js';
+export { encountersWorkListApi } from './api/encountersWorkList.api.js';
 
 // Charge Master API
 export const chargeMasterApi = {

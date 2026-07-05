@@ -62,7 +62,9 @@ const orderService = {
   },
 
   async findAll(filters = {}) {
-    const { patientId, appointmentId, category, destination, page = 1, limit = 50 } = filters;
+    const { patientId, appointmentId, category, destination } = filters;
+    const page = parseInt(filters.page, 10) || 1;
+    const limit = parseInt(filters.limit, 10) || 50;
     const where = {};
     if (patientId) where.patientId = patientId;
     if (appointmentId) where.appointmentId = appointmentId;
@@ -90,10 +92,10 @@ const orderService = {
     return {
       data,
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit) || 1,
       },
     };
   },

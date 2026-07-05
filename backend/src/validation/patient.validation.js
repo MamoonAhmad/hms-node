@@ -439,6 +439,11 @@ const patientMrnSchema = Joi.object({
     }),
 });
 
+const patientSummaryQuerySchema = Joi.object({
+  encounterId: Joi.string().uuid().allow('', null),
+  mrn: Joi.string().trim().max(100).allow('', null),
+});
+
 /**
  * Validation middleware factory
  * @param {Joi.Schema} schema - Joi schema to validate against
@@ -477,5 +482,6 @@ module.exports = {
   checkDuplicatesSchema,
   patientIdSchema,
   patientMrnSchema,
+  patientSummaryQuerySchema,
   validate,
 };

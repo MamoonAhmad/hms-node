@@ -1,4 +1,5 @@
 const patientService = require('../services/patient.service');
+const patientSummaryService = require('../services/patientSummary.service');
 const pick = require('../utils/pick');
 
 const patientController = {
@@ -150,6 +151,19 @@ const patientController = {
     } catch (error) {
       if (error?.statusCode === 404) {
         return res.status(404).json({ success: false, message: error.message });
+      }
+      next(error);
+    }
+  },
+
+  async getSummary(req, res, next) {
+    try {
+      const filters = pick(req.query, ['encounterId', 'mrn']);
+      const data = await patientSummaryService.getSummary(req.params.id, filters);
+      res.json({ success: true, data });
+    } catch (error) {
+      if (error?.statusCode === 404 || error?.statusCode === 400) {
+        return res.status(error.statusCode).json({ success: false, message: error.message });
       }
       next(error);
     }

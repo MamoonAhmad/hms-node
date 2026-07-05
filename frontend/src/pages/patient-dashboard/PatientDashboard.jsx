@@ -131,7 +131,7 @@ function PatientDashboardContent() {
           <div className="min-w-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
               <TabsContent value="patient-summary" className="mt-0 focus-visible:outline-none">
-                <PatientSummaryTab onNavigateTab={requestTabChange} />
+                <PatientSummaryTab />
               </TabsContent>
 
               <TabsContent value="intake" className="mt-0 focus-visible:outline-none">

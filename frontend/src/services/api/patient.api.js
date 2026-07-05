@@ -56,6 +56,18 @@ export const patientApi = {
     return handleResponse(response);
   },
 
+  async getSummary(id, params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.encounterId) searchParams.set('encounterId', params.encounterId);
+    if (params.mrn) searchParams.set('mrn', params.mrn);
+    const query = searchParams.toString();
+    const response = await fetch(
+      `${API_BASE_URL}/patients/${id}/summary${query ? `?${query}` : ''}`,
+      { headers: getAuthHeaders() },
+    );
+    return handleResponse(response);
+  },
+
   // Create a new patient
   async create(data) {
     const response = await fetch(`${API_BASE_URL}/patients`, {

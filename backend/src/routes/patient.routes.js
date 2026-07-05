@@ -8,6 +8,7 @@ const {
   checkDuplicatesSchema,
   patientIdSchema,
   patientMrnSchema,
+  patientSummaryQuerySchema,
   validate,
 } = require('../validation/patient.validation');
 
@@ -189,6 +190,12 @@ router.post('/check-duplicates', validate(checkDuplicatesSchema, 'body'), patien
 router.get('/', validate(queryPatientSchema, 'query'), patientController.findAll);
 router.get('/mrn/:mrn', validate(patientMrnSchema, 'params'), patientController.findByMrn);
 router.post('/:id/assign-me', validate(patientIdSchema, 'params'), patientController.assignToMe);
+router.get(
+  '/:id/summary',
+  validate(patientIdSchema, 'params'),
+  validate(patientSummaryQuerySchema, 'query'),
+  patientController.getSummary,
+);
 
 // Get patient by ID
 router.get('/:id', validate(patientIdSchema, 'params'), patientController.findById);

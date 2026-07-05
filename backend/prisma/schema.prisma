@@ -128,6 +128,7 @@ model Patient {
   primaryCareProviderId             String?
   assignedToId                      String?
   consentFormSigned                 Boolean            @default(false)
+  noKnownDrugAllergies              Boolean            @default(false)
   deletedAt                         DateTime?
   createdBy                         String?
   updatedBy                         String?
@@ -145,6 +146,9 @@ model Patient {
   insurances            PatientInsurance[]
   documents             PatientDocument[]
   consentSignatures     PatientConsentSignature[]
+  problems              PatientProblem[]
+  allergies             PatientAllergy[]
+  eligibilityChecks     InsuranceEligibility[]
 
   @@index([registrationStatus])
   @@index([assignedToId])
@@ -226,6 +230,60 @@ model PatientConsentSignature {
   @@unique([patientId, consentFormId])
   @@index([patientId])
   @@map("patient_consent_signatures")
+}
+
+model PatientProblem {
+  id             String    @id @default(uuid())
+  patientId      String
+  problemCode    String?
+  description    String
+  status         String    @default("Active")
+  clinicalStatus String?
+  verification   String?
+  onsetDate      DateTime? @db.Date
+  resolvedDate   DateTime? @db.Date
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  patient        Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([status])
+  @@map("patient_problems")
+}
+
+model PatientAllergy {
+  id           String    @id @default(uuid())
+  patientId    String
+  allergenName String
+  reaction     String?
+  severity     String?
+  onsetDate    DateTime? @db.Date
+  status       String    @default("Active")
+  comment      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  patient      Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([status])
+  @@map("patient_allergies")
+}
+
+model InsuranceEligibility {
+  id         String    @id @default(uuid())
+  patientId  String
+  status     String
+  verifiedAt DateTime?
+  payerName  String?
+  memberId   String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  patient    Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([status])
+  @@map("insurance_eligibility_verifications")
 }
 
 model InsuranceProvider {
@@ -705,6 +763,7 @@ model Order {
   destination   String       @default("onsite")
   site          String?
   orderedBy     String?
+  priority      String?      @default("Routine")
   orderDateTime DateTime     @default(now())
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt

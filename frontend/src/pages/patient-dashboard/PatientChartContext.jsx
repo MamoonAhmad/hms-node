@@ -6,33 +6,103 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { appointmentApi, patientApi } from '@/services/api';
+import { orderApi } from '@/services/api.js';
 import {
   mapAppointmentToEncounter,
   pickActiveAppointment,
 } from './patientChartUtils';
 import { getSampleChartData, SAMPLE_PATIENT_ID } from './patientDashboardSample';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const PatientChartContext = createContext(null);
+
+function mapLiveAppointment(row) {
+  return {
+    ...row,
+    appointmentType: row.appointmentType || row.appointmentTypeRef?.name || null,
+  };
+}
 
 export function PatientChartProvider({ children }) {
   const { patientId: routePatientId } = useParams();
-  const patientId = routePatientId || SAMPLE_PATIENT_ID;
-  const isSampleChart = true;
+  const [searchParams] = useSearchParams();
+  const queryAppointmentId = searchParams.get('appointmentId');
+
+  const isSampleChart = !routePatientId || routePatientId === SAMPLE_PATIENT_ID;
+  const patientId = isSampleChart ? SAMPLE_PATIENT_ID : routePatientId;
 
   const [chartData, setChartData] = useState(() => getSampleChartData());
   const [appointmentId, setAppointmentId] = useState(
-    () => getSampleChartData().defaultAppointmentId,
+    () => queryAppointmentId || getSampleChartData().defaultAppointmentId,
   );
   const [notesDirty, setNotesDirty] = useState(false);
   const [visitStatus, setVisitStatus] = useState(null);
+  const [loading, setLoading] = useState(!isSampleChart);
+  const [error, setError] = useState(null);
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
 
-  const refreshChart = useCallback(() => {
-    const data = getSampleChartData();
-    setChartData(data);
-    setAppointmentId(data.defaultAppointmentId);
-    setVisitStatus(null);
+  const loadLiveChart = useCallback(async (id, preferredAppointmentId) => {
+    if (!id || !UUID_RE.test(id)) {
+      setError('Invalid patient ID');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const [patientRes, appointmentRes] = await Promise.all([
+        patientApi.getById(id),
+        appointmentApi.getAll({ patientId: id, limit: 100 }),
+      ]);
+
+      const patient = patientRes.data;
+      const appointments = (appointmentRes.data || []).map(mapLiveAppointment);
+      const active =
+        (preferredAppointmentId &&
+          appointments.find((a) => a.id === preferredAppointmentId)) ||
+        pickActiveAppointment(appointments);
+
+      let orders = [];
+      if (active?.id) {
+        const orderRes = await orderApi.getOrders({ patientId: id, appointmentId: active.id, limit: 100 });
+        orders = orderRes.data || [];
+      } else {
+        const orderRes = await orderApi.getOrders({ patientId: id, limit: 100 });
+        orders = orderRes.data || [];
+      }
+
+      setChartData({ patient, appointments, orders });
+      setAppointmentId(active?.id || appointments[0]?.id || null);
+      setVisitStatus(null);
+      setSummaryRefreshKey((k) => k + 1);
+    } catch (err) {
+      setError(err.message || 'Failed to load patient chart');
+      setChartData({ patient: null, appointments: [], orders: [] });
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (isSampleChart) return;
+    loadLiveChart(routePatientId, queryAppointmentId);
+  }, [isSampleChart, routePatientId, queryAppointmentId, loadLiveChart]);
+
+  const refreshChart = useCallback(async () => {
+    if (isSampleChart) {
+      const data = getSampleChartData();
+      setChartData(data);
+      setAppointmentId(data.defaultAppointmentId);
+      setVisitStatus(null);
+      setSummaryRefreshKey((k) => k + 1);
+      return;
+    }
+    await loadLiveChart(routePatientId, appointmentId);
+  }, [isSampleChart, loadLiveChart, routePatientId, appointmentId]);
 
   const { patient, appointments, orders } = chartData;
 
@@ -98,10 +168,13 @@ export function PatientChartProvider({ children }) {
           ...prev,
           orders: typeof updater === 'function' ? updater(prev.orders) : updater,
         }));
+        setSummaryRefreshKey((k) => k + 1);
       },
-      loading: false,
-      error: null,
+      loading,
+      error,
       refreshChart,
+      refreshSummary: () => setSummaryRefreshKey((k) => k + 1),
+      summaryRefreshKey,
       selectPatient: () => {},
       tabCounts,
       notesDirty,
@@ -109,7 +182,7 @@ export function PatientChartProvider({ children }) {
       advanceVisitStatus,
       hasPatient: Boolean(patient),
       isSampleChart,
-      resolvingDefaultPatient: false,
+      resolvingDefaultPatient: loading && !patient,
     }),
     [
       patientId,
@@ -119,7 +192,10 @@ export function PatientChartProvider({ children }) {
       appointmentId,
       encounter,
       orders,
+      loading,
+      error,
       refreshChart,
+      summaryRefreshKey,
       tabCounts,
       notesDirty,
       advanceVisitStatus,
