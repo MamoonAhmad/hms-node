@@ -98,6 +98,11 @@ const patientManagementItems = [
     icon: Activity,
   },
   {
+    name: "Encounters Work List",
+    href: "/encounters-work-list",
+    icon: ListChecks,
+  },
+  {
     name: "Patient Dashboard",
     href: "/patient-dashboard",
     icon: ClipboardList,

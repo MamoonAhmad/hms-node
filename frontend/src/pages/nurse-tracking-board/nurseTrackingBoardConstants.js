@@ -1,201 +1,82 @@
-export const MOCK_NURSES = [
-  { id: 'N001', name: 'Johnson, RN' },
-  { id: 'N002', name: 'Williams, RN' },
+export const TRACKING_INDICATORS = [
+  { key: 'total', countKey: 'total', label: 'Total patients', filterKey: null },
+  { key: 'scheduled', countKey: 'scheduled', label: 'Scheduled', filterKey: 'scheduled' },
+  { key: 'arrived', countKey: 'arrived', label: 'Arrived', filterKey: 'arrived' },
+  {
+    key: 'registrationIncomplete',
+    countKey: 'registrationIncomplete',
+    label: 'Registration incomplete',
+    filterKey: 'registrationIncomplete',
+  },
+  { key: 'roomed', countKey: 'roomed', label: 'Roomed', filterKey: 'roomed' },
+  { key: 'withProvider', countKey: 'withProvider', label: 'With Provider', filterKey: 'withProvider' },
+  { key: 'providerOut', countKey: 'providerOut', label: 'Provider Out', filterKey: 'providerOut' },
+  { key: 'checkout', countKey: 'checkout', label: 'Check out', filterKey: 'checkout' },
 ];
 
-export const MOCK_PATIENTS = [
-  {
-    id: 'pt-1',
-    mrn: '10018472',
-    name: 'Doe, John A.',
-    dob: '1985-05-15',
-    age: 39,
-    sex: 'M',
-    acuity: 'ESI-2',
-    chiefComplaint: 'Chest pain, SOB',
-    room: 'ED-101',
-    nurse: 'Johnson, RN',
-    nurseId: 'N001',
-    provider: 'Smith, MD',
-    providerId: 'P001',
-    vitals: { bp: '120/80', hr: 72, temp: '98.6', spo2: '98%' },
-    nursingStatus: 'Ready for Provider',
-    checkInTime: '2025-01-15T08:30:00',
-    timeInStatus: 42,
-    pendingTasks: '—',
-    notes: '',
-    flags: ['Interpreter'],
-  },
-  {
-    id: 'pt-2',
-    mrn: '10019203',
-    name: 'Smith, Jane M.',
-    dob: '1990-08-22',
-    age: 34,
-    sex: 'F',
-    acuity: 'ESI-3',
-    chiefComplaint: 'Fever, headache',
-    room: 'ED-102',
-    nurse: 'Williams, RN',
-    nurseId: 'N002',
-    provider: null,
-    providerId: null,
-    vitals: null,
-    nursingStatus: 'Vitals Pending',
-    checkInTime: '2025-01-15T09:15:00',
-    timeInStatus: 18,
-    pendingTasks: 'Vitals · Assessment',
-    notes: '',
-    flags: [],
-  },
-  {
-    id: 'pt-3',
-    mrn: '10017891',
-    name: 'Brown, Robert K.',
-    dob: '1978-12-03',
-    age: 46,
-    sex: 'M',
-    acuity: 'ESI-2',
-    chiefComplaint: 'Abdominal pain',
-    room: 'ED-103',
-    nurse: 'Johnson, RN',
-    nurseId: 'N001',
-    provider: 'Smith, MD',
-    providerId: 'P001',
-    vitals: { bp: '130/85', hr: 95, temp: '99.1', spo2: '97%' },
-    nursingStatus: 'With Provider',
-    checkInTime: '2025-01-15T07:00:00',
-    timeInStatus: 95,
-    pendingTasks: '—',
-    notes: 'NPO',
-    flags: ['NPO'],
-  },
-  {
-    id: 'pt-4',
-    mrn: '10020144',
-    name: 'Garcia, Maria L.',
-    dob: '1982-03-10',
-    age: 42,
-    sex: 'F',
-    acuity: 'ESI-4',
-    chiefComplaint: 'Sore throat',
-    room: 'ED-104',
-    nurse: 'Johnson, RN',
-    nurseId: 'N001',
-    provider: null,
-    providerId: null,
-    vitals: { bp: '118/72', hr: 78, temp: '98.9', spo2: '99%' },
-    nursingStatus: 'Assessment Done',
-    checkInTime: '2025-01-15T10:00:00',
-    timeInStatus: 25,
-    pendingTasks: '—',
-    notes: '',
-    flags: [],
-  },
-  {
-    id: 'pt-5',
-    mrn: '10021567',
-    name: 'Lee, David T.',
-    dob: '1995-11-20',
-    age: 29,
-    sex: 'M',
-    acuity: 'ESI-4',
-    chiefComplaint: 'Ankle injury',
-    room: 'ED-105',
-    nurse: 'Williams, RN',
-    nurseId: 'N002',
-    provider: null,
-    providerId: null,
-    vitals: null,
-    nursingStatus: 'Check-In',
-    checkInTime: '2025-01-15T10:45:00',
-    timeInStatus: 8,
-    pendingTasks: 'Vitals · Assessment',
-    notes: '',
-    flags: [],
-  },
-  {
-    id: 'pt-6',
-    mrn: '10016988',
-    name: 'Wilson, Sarah E.',
-    dob: '1970-07-08',
-    age: 54,
-    sex: 'F',
-    acuity: 'ESI-3',
-    chiefComplaint: 'DM follow-up',
-    room: 'ED-106',
-    nurse: 'Williams, RN',
-    nurseId: 'N002',
-    provider: 'Chen, MD',
-    providerId: 'P002',
-    vitals: { bp: '125/82', hr: 70, temp: '98.4', spo2: '98%' },
-    nursingStatus: 'Discharged/Cleanup',
-    checkInTime: '2025-01-15T08:00:00',
-    timeInStatus: 120,
-    pendingTasks: 'Room cleanup',
-    notes: 'DC 11:00',
-    flags: [],
-  },
+export const ARRIVAL_TIME_OPTIONS = [
+  { value: 'all', label: 'All arrival times' },
+  { value: 'morning', label: 'Morning (before 12 PM)' },
+  { value: 'afternoon', label: 'Afternoon (12 PM+)' },
+  { value: 'not_arrived', label: 'Not yet arrived' },
 ];
 
-export const BOARD_COLUMNS = [
-  { key: 'status', label: 'Status', defaultVisible: true, width: 'w-[148px]' },
-  { key: 'patient', label: 'Patient', defaultVisible: true, width: 'min-w-[200px]' },
-  { key: 'mrn', label: 'MRN', defaultVisible: true, width: 'w-[100px]' },
-  { key: 'ageSex', label: 'Age/Sex', defaultVisible: true, width: 'w-[72px]' },
-  { key: 'acuity', label: 'Acuity', defaultVisible: true, width: 'w-[64px]' },
-  { key: 'room', label: 'Room', defaultVisible: true, width: 'w-[80px]' },
-  { key: 'chiefComplaint', label: 'Chief Complaint', defaultVisible: true, width: 'min-w-[160px]' },
-  { key: 'nurse', label: 'Nurse', defaultVisible: true, width: 'w-[120px]' },
-  { key: 'provider', label: 'Provider', defaultVisible: true, width: 'w-[110px]' },
-  { key: 'vitals', label: 'Vitals', defaultVisible: true, width: 'w-[140px]' },
-  { key: 'checkIn', label: 'Arrival', defaultVisible: true, width: 'w-[72px]' },
-  { key: 'timeInStatus', label: 'Min in Status', defaultVisible: true, width: 'w-[88px]' },
-  { key: 'pendingTasks', label: 'Pending', defaultVisible: true, width: 'min-w-[120px]' },
-  { key: 'notes', label: 'Comments', defaultVisible: false, width: 'min-w-[100px]' },
-  { key: 'action', label: '', defaultVisible: true, width: 'w-[72px]' },
-];
-
-/** Workflow status styling — uses app theme tokens */
-export const NURSING_STATUS_STYLE = {
-  'Check-In': {
-    label: 'Check In',
-    stripe: 'bg-muted-foreground',
-    pill: 'bg-muted text-foreground border-border',
+export const STATUS_CHIP_COLORS = {
+  Scheduled: { stripe: 'bg-blue-500', pill: 'bg-blue-50 text-blue-800 border-blue-200' },
+  Rescheduled: { stripe: 'bg-orange-500', pill: 'bg-orange-50 text-orange-800 border-orange-200' },
+  Arrived: { stripe: 'bg-sky-500', pill: 'bg-sky-50 text-sky-800 border-sky-200' },
+  'Checked-In': { stripe: 'bg-yellow-500', pill: 'bg-yellow-50 text-yellow-900 border-yellow-200' },
+  'Registration Incomplete': {
+    stripe: 'bg-orange-500',
+    pill: 'bg-orange-50 text-orange-800 border-orange-200',
   },
-  'Vitals Pending': {
-    label: 'Vitals Pending',
-    stripe: 'bg-chart-3',
-    pill: 'bg-chart-3/15 text-foreground border-chart-3/50',
-  },
-  'Assessment Done': {
-    label: 'Assessment Done',
-    stripe: 'bg-chart-2',
-    pill: 'bg-chart-2/15 text-foreground border-chart-2/50',
-  },
-  'Ready for Provider': {
-    label: 'Ready for Provider',
-    stripe: 'bg-chart-3',
-    pill: 'bg-accent text-accent-foreground border-primary/25',
-  },
-  'With Provider': {
-    label: 'With Provider',
-    stripe: 'bg-primary',
-    pill: 'bg-primary/10 text-primary border-primary/30',
-  },
-  'Discharged/Cleanup': {
-    label: 'Discharged',
-    stripe: 'bg-muted-foreground/60',
-    pill: 'bg-secondary text-secondary-foreground border-border',
-  },
+  Roomed: { stripe: 'bg-violet-500', pill: 'bg-violet-50 text-violet-800 border-violet-200' },
+  'With Provider': { stripe: 'bg-purple-500', pill: 'bg-purple-50 text-purple-800 border-purple-200' },
+  'In Progress': { stripe: 'bg-purple-500', pill: 'bg-purple-50 text-purple-800 border-purple-200' },
+  'Provider Out': { stripe: 'bg-indigo-500', pill: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+  'Check out': { stripe: 'bg-green-500', pill: 'bg-green-50 text-green-800 border-green-200' },
+  Completed: { stripe: 'bg-green-500', pill: 'bg-green-50 text-green-800 border-green-200' },
 };
 
-export const BOARD_TABS = [
-  { id: 'all', label: 'All Patients' },
-  { id: 'my-patients', label: 'My Patients' },
-  { id: 'vitals-pending', label: 'Vitals Pending' },
-  { id: 'ready-for-provider', label: 'Ready for Provider' },
-  { id: 'completed', label: 'Completed' },
-];
+export function formatAppointmentDate(iso) {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  const yyyy = date.getUTCFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+}
 
-export const PAGE_SIZES = [25, 50, 100];
+export function formatTime12h(time24) {
+  if (!time24) return '—';
+  const [h, m] = time24.split(':').map(Number);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 || 12;
+  return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
+}
+
+export function formatWaitingTime(minutes) {
+  if (minutes == null) return '—';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+export function formatLastUpdated(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function todayIsoDate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}

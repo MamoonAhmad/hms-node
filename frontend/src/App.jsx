@@ -27,7 +27,9 @@ import { HcpcsCodesPage } from '@/pages/administration/hcpcs-codes/HcpcsCodesPag
 import { DiagnosisCodesPage } from '@/pages/administration/diagnosis-codes/DiagnosisCodesPage';
 import { TriageTrackingBoard } from '@/pages/triage-tracking-board/TriageTrackingBoard';
 import { NurseTrackingBoardPage } from '@/pages/nurse-tracking-board/NurseTrackingBoardPage';
+import { EncountersWorkListPage } from '@/pages/encounters-work-list/EncountersWorkListPage';
 import { PatientDashboard } from '@/pages/patient-dashboard/PatientDashboard';
+import { PatientChartPage } from '@/pages/patient-chart/PatientChartPage';
 import { CustomOrderSetPage } from '@/pages/custom-order-set/CustomOrderSetPage';
 import { ManageInventoryPage } from '@/pages/medication-management/manage-inventory/ManageInventoryPage';
 import { MedicationOrdersPage } from '@/pages/medication-management/medication-orders/MedicationOrdersPage';
@@ -135,7 +137,9 @@ function App() {
           <Route path="administration/permission-headers" element={<PermissionHeadersPage />} />
           <Route path="triage-tracking-board" element={<TriageTrackingBoard />} />
           <Route path="nurse-tracking-board" element={<NurseTrackingBoardPage />} />
+          <Route path="encounters-work-list" element={<EncountersWorkListPage />} />
           <Route path="patient-dashboard/:patientId?" element={<PatientDashboard />} />
+          <Route path="patient-chart/:patientId" element={<PatientChartPage />} />
           <Route path="custom-order-set" element={<CustomOrderSetPage />} />
           <Route path="patient-management/rooms" element={<RoomsPage />} />
           <Route path="patient-management/beds" element={<BedsPage />} />

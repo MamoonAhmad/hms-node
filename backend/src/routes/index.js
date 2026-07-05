@@ -30,6 +30,8 @@ const diagnosisCodeRoutes = require('./diagnosisCode.routes');
 const roomTypeRoutes = require('./roomType.routes');
 const roomRoutes = require('./room.routes');
 const bedRoutes = require('./bed.routes');
+const trackingBoardRoutes = require('./trackingBoard.routes');
+const encountersWorkListRoutes = require('./encountersWorkList.routes');
 
 // Public routes (no auth required)
 router.use('/auth', authRoutes);
@@ -50,6 +52,8 @@ router.use('/diagnosis-codes', auth, diagnosisCodeRoutes);
 router.use('/room-types', auth, roomTypeRoutes);
 router.use('/rooms', auth, roomRoutes);
 router.use('/beds', auth, bedRoutes);
+router.use('/tracking-board', auth, trackingBoardRoutes);
+router.use('/encounters-work-list', auth, encountersWorkListRoutes);
 router.use('/insurance-providers', auth, insuranceProviderRoutes);
 router.use('/providers', auth, providerRoutes);
 router.use('/specialties', auth, specialtyRoutes);

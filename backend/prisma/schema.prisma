@@ -473,6 +473,7 @@ model Room {
   deleter      User?            @relation("DeletedRooms", fields: [deletedBy], references: [id])
   roomTypes    RoomTypeOnRoom[]
   beds         Bed[]
+  appointments Appointment[]
 
   @@index([roomNumber])
   @@index([status])
@@ -649,10 +650,17 @@ model Appointment {
   providerId        String?
   status            String   @default("Scheduled")
   notes             String?
+  roomId            String?
+  chiefComplaint    String?
+  assignedNurseName String?
+  arrivalTime       DateTime?
+  checkoutStatus    String?  @default("Pending")
+  alertsFlags       Json?
   patientId         String
   patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
   providerRef       Provider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
   departmentRef     Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  room              Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
   orders            Order[]
   history           AppointmentHistory[]
   createdBy         String?
@@ -665,6 +673,7 @@ model Appointment {
   @@index([appointmentTypeId])
   @@index([appointmentDate])
   @@index([status])
+  @@index([roomId])
   @@map("appointments")
 }
 
