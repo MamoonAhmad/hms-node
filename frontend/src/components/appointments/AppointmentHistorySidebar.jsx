@@ -13,6 +13,32 @@ function formatDateTime(value) {
   });
 }
 
+function renderChangeList(entry) {
+  if (!Array.isArray(entry.changes) || entry.changes.length === 0) return null;
+
+  return (
+    <ul className="space-y-1 text-sm">
+      {entry.changes.map((change) => (
+        <li key={`${entry.id}-${change.field || change.label}`} className="text-muted-foreground">
+          <span className="font-medium text-foreground">{change.label || change.field}</span>
+          {change.from != null && (
+            <>
+              {' '}
+              from <span className="text-foreground">{String(change.from)}</span>
+            </>
+          )}
+          {change.to != null && (
+            <>
+              {' '}
+              to <span className="text-foreground">{String(change.to)}</span>
+            </>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function AppointmentHistorySidebar({ open, onClose, history = [], isLoading }) {
   if (!open) return null;
 
@@ -33,7 +59,7 @@ export function AppointmentHistorySidebar({ open, onClose, history = [], isLoadi
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Appointment History</h2>
+            <h2 className="text-lg font-semibold">Appointment Timeline</h2>
           </div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Close">
             <X className="h-4 w-4" />
@@ -55,48 +81,23 @@ export function AppointmentHistorySidebar({ open, onClose, history = [], isLoadi
                   </span>
                 </div>
 
-                {entry.action === 'created' && Array.isArray(entry.changes) && (
-                  <ul className="space-y-1 text-sm text-muted-foreground">
-                    {entry.changes.map((change) => (
-                      <li key={`${entry.id}-${change.label}`}>
-                        <span className="font-medium text-foreground">{change.label}:</span>{' '}
-                        {change.to != null ? String(change.to) : '—'}
-                      </li>
-                    ))}
-                  </ul>
+                {(entry.changedByName || entry.changedBy) && (
+                  <p className="text-sm text-muted-foreground">
+                    {entry.action === 'created' ? 'Created by' : 'Updated by'}:{' '}
+                    <span className="text-foreground">
+                      {entry.changedByName || entry.changedBy}
+                    </span>
+                    {entry.changedByRole && (
+                      <>
+                        {' '}
+                        · <span className="text-foreground">{entry.changedByRole}</span>
+                      </>
+                    )}
+                  </p>
                 )}
 
-                {entry.action === 'updated' && (
-                  <>
-                    {(entry.changedByName || entry.changedBy) && (
-                      <p className="text-sm text-muted-foreground">
-                        Updated by:{' '}
-                        <span className="text-foreground">{entry.changedByName || entry.changedBy}</span>
-                      </p>
-                    )}
-                    {Array.isArray(entry.changes) && entry.changes.length > 0 && (
-                      <ul className="space-y-1 text-sm">
-                        {entry.changes.map((change) => (
-                          <li key={`${entry.id}-${change.field}`} className="text-muted-foreground">
-                            <span className="font-medium text-foreground">{change.label}</span>
-                            {change.from != null && (
-                              <>
-                                {' '}
-                                from <span className="text-foreground">{String(change.from)}</span>
-                              </>
-                            )}
-                            {change.to != null && (
-                              <>
-                                {' '}
-                                to <span className="text-foreground">{String(change.to)}</span>
-                              </>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </>
-                )}
+                {entry.action === 'created' && renderChangeList(entry)}
+                {entry.action !== 'created' && renderChangeList(entry)}
               </div>
             ))
           )}

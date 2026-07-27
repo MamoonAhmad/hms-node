@@ -71,6 +71,7 @@ const appointmentController = {
       const query = req.validatedQuery || req.query;
       const result = await appointmentAvailabilityService.getAvailableDates(query.providerId, {
         appointmentType: query.appointmentType,
+        departmentId: query.departmentId,
         fromDate: query.fromDate,
         daysAhead: query.daysAhead,
       });
@@ -93,6 +94,7 @@ const appointmentController = {
         dateStr,
         {
           appointmentType: query.appointmentType,
+          departmentId: query.departmentId,
           excludeAppointmentId: query.excludeAppointmentId,
         },
       );
@@ -189,6 +191,52 @@ const appointmentController = {
       res.json({
         success: true,
         message: 'Appointment status updated successfully',
+        data: updatedAppointment,
+      });
+    } catch (error) {
+      if (error?.statusCode === 400) {
+        return res.status(400).json({ success: false, message: error.message });
+      }
+      next(error);
+    }
+  },
+
+  async checkIn(req, res, next) {
+    try {
+      const appointment = await appointmentService.findById(req.params.id);
+      if (!appointment) {
+        return res.status(404).json({ success: false, message: 'Appointment not found' });
+      }
+
+      const updatedAppointment = await appointmentService.checkIn(req.params.id, req.user);
+      res.json({
+        success: true,
+        message: 'Patient checked in successfully',
+        data: updatedAppointment,
+      });
+    } catch (error) {
+      if (error?.statusCode === 400) {
+        return res.status(400).json({ success: false, message: error.message });
+      }
+      next(error);
+    }
+  },
+
+  async assignRoom(req, res, next) {
+    try {
+      const appointment = await appointmentService.findById(req.params.id);
+      if (!appointment) {
+        return res.status(404).json({ success: false, message: 'Appointment not found' });
+      }
+
+      const updatedAppointment = await appointmentService.assignRoom(
+        req.params.id,
+        req.body.roomId,
+        req.user,
+      );
+      res.json({
+        success: true,
+        message: 'Patient assigned to room successfully',
         data: updatedAppointment,
       });
     } catch (error) {

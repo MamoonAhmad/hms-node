@@ -46,5 +46,5 @@ export function FormField({ label, htmlFor, required, hint, error, children, cla
  * Standard page content wrapper (title band + panels).
  */
 export function PageContent({ children, className }) {
-  return <div className={cn('ehr-page space-y-5', className)}>{children}</div>;
+  return <div className={cn('ehr-page space-y-4', className)}>{children}</div>;
 }

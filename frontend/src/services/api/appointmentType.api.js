@@ -61,4 +61,11 @@ export const appointmentTypeApi = {
     });
     return handleResponse(response);
   },
+
+  async getHistory(id) {
+    const response = await fetch(`${API_BASE_URL}/appointment-types/${id}/history`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
 };

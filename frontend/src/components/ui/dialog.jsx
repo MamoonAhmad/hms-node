@@ -38,7 +38,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/40",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-[2px]",
         className
       )}
       {...props} />
@@ -50,6 +50,7 @@ function DialogContent({
   children,
   showCloseButton = true,
   closeOnOverlayClick = true,
+  closeButtonClassName,
   ...props
 }) {
   return (
@@ -58,7 +59,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-0 rounded-lg border border-border shadow-[var(--shadow-elevation-md)] duration-200 sm:max-w-lg overflow-hidden",
+          "bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-0 rounded-lg border border-border shadow-[var(--shadow-elevation-lg)] duration-200 sm:max-w-lg overflow-hidden",
           className
         )}
         onPointerDownOutside={closeOnOverlayClick ? undefined : (e) => e.preventDefault()}
@@ -69,7 +70,11 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="ring-offset-background focus:ring-ring absolute top-3.5 right-3.5 z-20 rounded-sm p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+            className={cn(
+              "ring-offset-background focus:ring-ring absolute top-4 right-4 z-20 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+              closeButtonClassName,
+            )}
+          >
             <XIcon />
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
@@ -87,7 +92,7 @@ function DialogHeader({
     <div
       data-slot="dialog-header"
       className={cn(
-        "flex flex-col gap-1 border-b border-border bg-card px-5 py-3.5 pr-12 text-center sm:text-left",
+        "flex flex-col gap-0.5 border-b border-border bg-muted/30 px-5 py-3 pr-12 text-center sm:text-left",
         className
       )}
       {...props} />
@@ -101,7 +106,7 @@ function DialogBody({
   return (
     <div
       data-slot="dialog-body"
-      className={cn("ehr-dialog-body bg-muted/25 px-5 py-5 sm:px-6", className)}
+      className={cn("ehr-dialog-body bg-background px-5 py-4 sm:px-6", className)}
       {...props}
     />
   );
@@ -115,7 +120,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 border-t border-border/70 bg-muted/40 px-5 py-3.5 sm:flex-row sm:justify-end",
+        "flex flex-col-reverse gap-2 border-t border-border/60 bg-muted/30 px-5 py-3 sm:flex-row sm:justify-end",
         className
       )}
       {...props} />
@@ -129,7 +134,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-[1.0625rem] font-bold leading-tight text-foreground", className)}
+      className={cn("text-base font-semibold leading-tight text-foreground", className)}
       {...props} />
   );
 }

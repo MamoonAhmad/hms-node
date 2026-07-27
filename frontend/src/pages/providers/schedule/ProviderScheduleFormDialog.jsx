@@ -18,14 +18,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 import { appointmentTypeApi, locationApi, providerScheduleApi } from '@/services/api';
 import {
   DAYS_OPTIONS,
+  BREAK_APPLIES_TO_OPTIONS,
   scheduleToForm,
+  getProviderDepartmentOptions,
+  filterActiveAppointmentTypeIds,
+  resolveDefaultDepartmentId,
 } from '@/lib/providerScheduleUtils';
 
 const emptyForm = () => ({
   providerId: '',
+  departmentId: '',
   specialty: '',
   subSpecialty: '',
   days: [],
@@ -36,6 +42,11 @@ const emptyForm = () => ({
   maxAppointmentsPerSlot: 1,
   overBooking: 0,
   locationIds: [],
+  breakHoursEnabled: false,
+  breakStartTime: '12:00',
+  breakEndTime: '13:00',
+  breakAppliesTo: 'all',
+  breakDays: [],
   effectiveStartDate: new Date().toISOString().split('T')[0],
   effectiveEndDate: '',
   endOnEffectiveDate: false,
@@ -47,6 +58,7 @@ export function ProviderScheduleFormDialog({
   open,
   onOpenChange,
   schedule,
+  editingScheduleId,
   providers = [],
   readOnly = false,
   onSubmit,
@@ -56,97 +68,243 @@ export function ProviderScheduleFormDialog({
   const [appointmentTypes, setAppointmentTypes] = useState([]);
   const [formData, setFormData] = useState(emptyForm());
   const [errors, setErrors] = useState({});
+  const [inactiveTypesRemoved, setInactiveTypesRemoved] = useState(false);
 
-  const isEditing = !!schedule && !readOnly;
+  const isEditing = !!(editingScheduleId || (schedule?.id && !readOnly));
+  const scheduleId = editingScheduleId || schedule?.id;
 
+  const selectedProvider = providers.find((p) => p.id === formData.providerId);
+  const departmentOptions = getProviderDepartmentOptions(selectedProvider);
+
+  const handleProviderChange = (providerId) => {
+    const provider = providers.find((p) => p.id === providerId);
+    const deptOptions = getProviderDepartmentOptions(provider);
+    const departmentId = deptOptions[0]?.value || '';
+    setFormData((prev) => ({
+      ...prev,
+      providerId,
+      departmentId,
+      specialty: provider?.specialty || '',
+      subSpecialty: provider?.subSpecialty || '',
+    }));
+    setErrors((prev) => ({
+      ...prev,
+      providerId: null,
+      departmentId: departmentId ? null : prev.departmentId,
+    }));
+  };
+
+  const departmentDisplay = (() => {
+    const fromOptions = departmentOptions.find((d) => d.value === formData.departmentId)?.label;
+    if (fromOptions) return fromOptions;
+    if (formData.departmentName) return formData.departmentName;
+    if (formData.departmentId && formData.providerDepartments?.length) {
+      const match = formData.providerDepartments.find((d) => d.id === formData.departmentId);
+      if (match?.name || match?.departmentName) {
+        return match.name || match.departmentName;
+      }
+    }
+    if (formData.providerId) return 'No department assigned';
+    return '';
+  })();
+
+  // Load dropdown options when the dialog opens (does not reset form values).
   useEffect(() => {
     if (!open) return;
 
-    appointmentTypeApi.getActive().then((res) => {
-      setAppointmentTypes(
-        (res.data || []).map((t) => ({ value: t.id, label: t.name })),
-      );
-    }).catch(() => setAppointmentTypes([]));
+    let cancelled = false;
 
-    locationApi.getActive().then((res) => {
-      setLocationsOptions(
-        (res.data || []).map((l) => ({ value: l.id, label: l.name })),
-      );
-    }).catch(() => setLocationsOptions([]));
+    Promise.all([appointmentTypeApi.getActive(), locationApi.getActive()])
+      .then(([typesRes, locRes]) => {
+        if (cancelled) return;
+        setAppointmentTypes((typesRes.data || []).map((t) => ({ value: t.id, label: t.name })));
+        setLocationsOptions((locRes.data || []).map((l) => ({ value: l.id, label: l.name })));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAppointmentTypes([]);
+        setLocationsOptions([]);
+      });
 
-    if (schedule) {
-      setFormData(scheduleToForm(schedule) || emptyForm());
-    } else {
-      setFormData(emptyForm());
-    }
-    setErrors({});
-  }, [open, schedule]);
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // Initialize form only when the dialog opens or the edited schedule changes.
+  // Do not re-run on providers/options updates — that was wiping selected days.
+  useEffect(() => {
+    if (!open) return;
+
+    let cancelled = false;
+
+    const initForm = async () => {
+      setErrors({});
+      setInactiveTypesRemoved(false);
+
+      if (!schedule?.id) {
+        setFormData(emptyForm());
+        return;
+      }
+
+      let scheduleSource = schedule;
+      if (isEditing || readOnly) {
+        try {
+          const res = await providerScheduleApi.getById(schedule.id);
+          scheduleSource = res.data || schedule;
+        } catch {
+          scheduleSource = schedule;
+        }
+      }
+      if (cancelled) return;
+
+      const baseForm = scheduleToForm(scheduleSource) || emptyForm();
+      const selectedProvider = providers.find((p) => p.id === baseForm.providerId);
+      const departmentId = resolveDefaultDepartmentId(scheduleSource, selectedProvider);
+
+      // Keep appointment type IDs as-is here; filter against active options once they load.
+      setFormData({ ...baseForm, departmentId });
+    };
+
+    initForm();
+
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally omit providers/appointmentTypes — backfill below handles late loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on open/schedule identity
+  }, [open, schedule?.id, isEditing, readOnly]);
+
+  // When providers finish loading after form init, backfill department/specialty for the selected provider.
+  useEffect(() => {
+    if (!open || !formData.providerId || !providers.length) return;
+    const provider = providers.find((p) => p.id === formData.providerId);
+    if (!provider) return;
+    const deptOptions = getProviderDepartmentOptions(provider);
+    setFormData((prev) => {
+      const nextDepartmentId =
+        prev.departmentId && deptOptions.some((d) => d.value === prev.departmentId)
+          ? prev.departmentId
+          : deptOptions[0]?.value || prev.departmentId || '';
+      const nextSpecialty = provider.specialty || prev.specialty || '';
+      const nextSubSpecialty = provider.subSpecialty || prev.subSpecialty || '';
+      if (
+        nextDepartmentId === prev.departmentId &&
+        nextSpecialty === prev.specialty &&
+        nextSubSpecialty === prev.subSpecialty
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        departmentId: nextDepartmentId,
+        specialty: nextSpecialty,
+        subSpecialty: nextSubSpecialty,
+      };
+    });
+  }, [open, providers, formData.providerId]);
+
+  // Filter out inactive appointment types once the active list is available (edit only).
+  useEffect(() => {
+    if (!open || readOnly || !appointmentTypes.length) return;
+    if (!(isEditing || schedule?.id)) return;
+
+    setFormData((prev) => {
+      const { appointmentTypeIds, removedInactiveCount } = filterActiveAppointmentTypeIds(
+        prev.appointmentTypeIds,
+        appointmentTypes,
+      );
+      if (removedInactiveCount > 0) setInactiveTypesRemoved(true);
+      if (
+        appointmentTypeIds.length === (prev.appointmentTypeIds || []).length &&
+        appointmentTypeIds.every((id, i) => id === prev.appointmentTypeIds[i])
+      ) {
+        return prev;
+      }
+      return { ...prev, appointmentTypeIds };
+    });
+  }, [open, readOnly, isEditing, schedule?.id, appointmentTypes]);
 
   const activeProviders = providers.filter((p) => p.isActive !== false);
   const providerOptions = (readOnly || isEditing ? providers : activeProviders).map((p) => ({
     value: p.id,
-    label: p.name,
+    label: p.npi ? `${p.name} (${p.npi})` : p.name,
   }));
 
-  const handleProviderChange = (providerId) => {
-    const provider = providers.find((p) => p.id === providerId);
-    setFormData((prev) => ({
-      ...prev,
-      providerId,
-      specialty: provider?.specialty || '',
-      subSpecialty: provider?.subSpecialty || '',
-    }));
-    if (errors.providerId) setErrors((prev) => ({ ...prev, providerId: null }));
-  };
-
-  const validate = async () => {
+  const validate = async (data) => {
     const newErrors = {};
-    if (!formData.providerId) newErrors.providerId = 'Provider is required';
-    if (!formData.days?.length) newErrors.days = 'At least one day is required';
-    if (!formData.startTime) newErrors.startTime = 'Start time is required';
-    if (!formData.endTime) newErrors.endTime = 'End time is required';
+    if (!data.providerId) newErrors.providerId = 'Provider is required';
+    if (!data.departmentId) {
+      newErrors.departmentId = data.providerId
+        ? 'Selected provider has no department assigned'
+        : 'Department is required';
+    }
+    if (!data.days?.length) newErrors.days = 'At least one day is required';
+    if (!data.startTime) newErrors.startTime = 'Start time is required';
+    if (!data.endTime) newErrors.endTime = 'End time is required';
 
-    const startParts = (formData.startTime || '').split(':').map(Number);
-    const endParts = (formData.endTime || '').split(':').map(Number);
+    const startParts = (data.startTime || '').split(':').map(Number);
+    const endParts = (data.endTime || '').split(':').map(Number);
     const startM = startParts[0] * 60 + (startParts[1] || 0);
     const endM = endParts[0] * 60 + (endParts[1] || 0);
-    if (formData.startTime && formData.endTime && startM >= endM) {
+    if (data.startTime && data.endTime && startM >= endM) {
       newErrors.endTime = 'End time must be later than start time';
     }
 
-    const slotDuration = Number(formData.slotDuration);
-    if (!slotDuration || !Number.isInteger(slotDuration) || slotDuration < 1) {
-      newErrors.slotDuration = 'Slot duration is required';
-    }
-
-    if (!formData.appointmentTypeIds?.length) {
+    if (!data.appointmentTypeIds?.length) {
       newErrors.appointmentTypeIds = 'Select at least one appointment type';
     }
 
-    const max = Number(formData.maxAppointmentsPerSlot);
+    const max = Number(data.maxAppointmentsPerSlot);
     if (!Number.isInteger(max) || max < 1) {
       newErrors.maxAppointmentsPerSlot = 'Must be a positive integer';
     }
 
-    const ob = Number(formData.overBooking);
+    const ob = Number(data.overBooking);
     if (!Number.isInteger(ob) || ob < 0) {
       newErrors.overBooking = 'Must be a non-negative integer';
     }
 
-    if (!formData.effectiveStartDate) {
+    if (!data.effectiveStartDate) {
       newErrors.effectiveStartDate = 'Effective start date is required';
     }
 
-    if (formData.endOnEffectiveDate && !formData.effectiveEndDate) {
+    if (data.endOnEffectiveDate && !data.effectiveEndDate) {
       newErrors.effectiveEndDate = 'Effective end date is required when End Schedule is selected';
     }
 
     if (
-      formData.effectiveEndDate &&
-      formData.effectiveStartDate &&
-      formData.effectiveEndDate <= formData.effectiveStartDate
+      data.effectiveEndDate &&
+      data.effectiveStartDate &&
+      data.effectiveEndDate <= data.effectiveStartDate
     ) {
       newErrors.effectiveEndDate = 'Effective end date must be after effective start date';
+    }
+
+    if (data.breakHoursEnabled) {
+      if (!data.breakStartTime) newErrors.breakStartTime = 'Break start time is required';
+      if (!data.breakEndTime) newErrors.breakEndTime = 'Break end time is required';
+      if (!data.breakAppliesTo) newErrors.breakAppliesTo = 'Select how break hours apply';
+      if (
+        data.breakAppliesTo !== 'all' &&
+        !data.breakDays?.length
+      ) {
+        newErrors.breakDays = 'Select at least one day for break hours';
+      }
+      const breakStartParts = (data.breakStartTime || '').split(':').map(Number);
+      const breakEndParts = (data.breakEndTime || '').split(':').map(Number);
+      const breakStartM = breakStartParts[0] * 60 + (breakStartParts[1] || 0);
+      const breakEndM = breakEndParts[0] * 60 + (breakEndParts[1] || 0);
+      if (data.breakStartTime && data.breakEndTime && breakStartM >= breakEndM) {
+        newErrors.breakEndTime = 'Break end time must be later than break start time';
+      }
+      if (
+        data.breakStartTime &&
+        data.breakEndTime &&
+        (breakStartM < startM || breakEndM > endM)
+      ) {
+        newErrors.breakEndTime = 'Break hours must fall within schedule working hours';
+      }
     }
 
     setErrors(newErrors);
@@ -154,13 +312,14 @@ export function ProviderScheduleFormDialog({
 
     try {
       const overlapRes = await providerScheduleApi.checkOverlap({
-        providerId: formData.providerId,
-        startTime: formData.startTime,
-        endTime: formData.endTime,
-        days: formData.days,
-        effectiveStartDate: formData.effectiveStartDate,
-        effectiveEndDate: formData.effectiveEndDate || null,
-        excludeScheduleId: isEditing ? schedule.id : undefined,
+        providerId: data.providerId,
+        departmentId: data.departmentId,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        days: data.days,
+        effectiveStartDate: data.effectiveStartDate,
+        effectiveEndDate: data.effectiveEndDate || null,
+        excludeScheduleId: isEditing ? scheduleId : undefined,
       });
       if (overlapRes.data?.overlap) {
         setErrors((prev) => ({
@@ -179,8 +338,18 @@ export function ProviderScheduleFormDialog({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (readOnly) return;
-    if (!(await validate())) return;
-    onSubmit(formData);
+    // Snapshot so async overlap check / re-renders cannot submit a wiped form.
+    const snapshot = {
+      ...formData,
+      days: Array.isArray(formData.days) ? [...formData.days] : [],
+      appointmentTypeIds: Array.isArray(formData.appointmentTypeIds)
+        ? [...formData.appointmentTypeIds]
+        : [],
+      locationIds: Array.isArray(formData.locationIds) ? [...formData.locationIds] : [],
+      breakDays: Array.isArray(formData.breakDays) ? [...formData.breakDays] : [],
+    };
+    if (!(await validate(snapshot))) return;
+    onSubmit(snapshot);
   };
 
   const disabled = readOnly;
@@ -193,28 +362,31 @@ export function ProviderScheduleFormDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="ehr-form space-y-4">
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Provider</h3>
             <div className="space-y-2">
               <Label>Provider *</Label>
-              <Select
+              <SearchableSelect
                 value={formData.providerId || undefined}
                 onValueChange={handleProviderChange}
+                options={providerOptions}
+                placeholder="Search provider..."
                 disabled={disabled}
-              >
-                <SelectTrigger className={errors.providerId ? 'border-destructive' : ''}>
-                  <SelectValue placeholder="Select provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerOptions.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                triggerClassName={errors.providerId ? 'border-destructive' : ''}
+              />
               {errors.providerId && <p className="text-xs text-destructive">{errors.providerId}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Department *</Label>
+              <Input
+                value={departmentDisplay}
+                placeholder="Select provider first"
+                readOnly
+                disabled
+                className={`bg-muted ${errors.departmentId ? 'border-destructive' : ''}`}
+              />
+              {errors.departmentId && <p className="text-xs text-destructive">{errors.departmentId}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -312,24 +484,117 @@ export function ProviderScheduleFormDialog({
                 {errors.endTime && <p className="text-xs text-destructive">{errors.endTime}</p>}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Slot Duration (minutes) *</Label>
-              <Input
-                type="number"
-                min={1}
-                value={formData.slotDuration}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, slotDuration: parseInt(e.target.value, 10) || '' }))
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Break Hours</h3>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="breakHoursEnabled"
+                checked={formData.breakHoursEnabled}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, breakHoursEnabled: !!checked }))
                 }
-                className={errors.slotDuration ? 'border-destructive' : ''}
                 disabled={disabled}
               />
-              {errors.slotDuration && <p className="text-xs text-destructive">{errors.slotDuration}</p>}
+              <Label htmlFor="breakHoursEnabled" className="font-normal cursor-pointer">
+                Enable break hours
+              </Label>
             </div>
+            {formData.breakHoursEnabled && (
+              <div className="space-y-4 rounded-lg border border-border p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Break Start Time *</Label>
+                    <Input
+                      type="time"
+                      value={formData.breakStartTime}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, breakStartTime: e.target.value }))}
+                      className={errors.breakStartTime ? 'border-destructive' : ''}
+                      disabled={disabled}
+                    />
+                    {errors.breakStartTime && (
+                      <p className="text-xs text-destructive">{errors.breakStartTime}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Break End Time *</Label>
+                    <Input
+                      type="time"
+                      value={formData.breakEndTime}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, breakEndTime: e.target.value }))}
+                      className={errors.breakEndTime ? 'border-destructive' : ''}
+                      disabled={disabled}
+                    />
+                    {errors.breakEndTime && (
+                      <p className="text-xs text-destructive">{errors.breakEndTime}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Applies To *</Label>
+                  <Select
+                    value={formData.breakAppliesTo}
+                    onValueChange={(breakAppliesTo) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        breakAppliesTo,
+                        breakDays:
+                          breakAppliesTo === 'single' && prev.breakDays.length > 1
+                            ? [prev.breakDays[0]]
+                            : prev.breakDays,
+                      }))
+                    }
+                    disabled={disabled}
+                  >
+                    <SelectTrigger className={errors.breakAppliesTo ? 'border-destructive' : ''}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BREAK_APPLIES_TO_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.breakAppliesTo && (
+                    <p className="text-xs text-destructive">{errors.breakAppliesTo}</p>
+                  )}
+                </div>
+                {formData.breakAppliesTo !== 'all' && (
+                  <div className="space-y-2">
+                    <Label>Day Selection *</Label>
+                    <MultiSelect
+                      options={DAYS_OPTIONS.filter((d) => formData.days.includes(d.value))}
+                      value={formData.breakDays}
+                      onChange={(breakDays) => {
+                        const nextDays =
+                          formData.breakAppliesTo === 'single'
+                            ? breakDays.slice(-1)
+                            : breakDays;
+                        setFormData((prev) => ({ ...prev, breakDays: nextDays }));
+                        if (errors.breakDays) setErrors((prev) => ({ ...prev, breakDays: null }));
+                      }}
+                      placeholder="Select break days"
+                      className={errors.breakDays ? 'border-destructive' : ''}
+                      disabled={disabled || !formData.days.length}
+                    />
+                    {errors.breakDays && <p className="text-xs text-destructive">{errors.breakDays}</p>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Appointment Details</h3>
+            {inactiveTypesRemoved && !readOnly && (
+              <p className="text-sm text-amber-700 dark:text-amber-400 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+                One or more previously assigned appointment types are no longer active. Please select
+                at least one active appointment type before saving.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Appointment Type(s) *</Label>

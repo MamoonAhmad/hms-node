@@ -197,6 +197,12 @@ export function buildDemographicsReviewItems(formData, helpers) {
     },
     { label: 'Pronouns', value: resolvedPronouns() },
     { label: 'Date of Birth', value: formatDateValue(formData.dateOfBirth) },
+    {
+      label: 'SSN (PHI)',
+      value: formData.ssn
+        ? `•••-••-${String(formData.ssn).replace(/\D/g, '').slice(-4)}`
+        : '',
+    },
     { label: 'Email', value: formData.email },
     {
       label: 'Preferred Contact Method',
@@ -411,20 +417,27 @@ export function buildInsuranceReviewItems(formData, helpers) {
       value: whenSelfPay(formData, formatSelfPayPaymentMethod(formData.paymentMethod)),
     },
     {
-      label: 'Insurance Type (current entry)',
-      value: whenInsurance(formData, formatInsuranceRankType(formData.insuranceType)),
+      label: 'Insurance Type (primary)',
+      value: whenInsurance(formData, formatInsuranceRankType(formData.insuranceType || 'primary')),
     },
     {
-      label: 'Payer Name (current entry)',
+      label: 'Payer Name (primary)',
       value: whenInsurance(formData, getPayerName(formData.insuranceCompany)),
     },
     {
-      label: 'Policy Type (current entry)',
+      label: 'Policy Type (primary)',
       value: whenInsurance(formData, formatPolicyType(formData.policyType)),
     },
-    { label: 'Plan Name (current entry)', value: whenInsurance(formData, formData.planName) },
-    { label: 'Policy Number (current entry)', value: whenInsurance(formData, formData.policyNumber) },
-    { label: 'Group Number (current entry)', value: whenInsurance(formData, formData.groupNumber) },
+    { label: 'Plan Name (primary)', value: whenInsurance(formData, formData.planName) },
+    { label: 'Policy Number (primary)', value: whenInsurance(formData, formData.policyNumber) },
+    { label: 'Group Number (primary)', value: whenInsurance(formData, formData.groupNumber) },
+    {
+      label: 'Subscriber Relationship',
+      value: whenInsurance(
+        formData,
+        mapLabel(SUBSCRIBER_RELATIONSHIP_LABELS, formData.subscriberRelationship),
+      ),
+    },
     {
       label: 'Subscriber First Name',
       value: whenInsurance(formData, formData.subscriberFirstName),
@@ -434,13 +447,6 @@ export function buildInsuranceReviewItems(formData, helpers) {
       value: whenInsurance(formData, formData.subscriberLastName),
     },
     { label: 'Subscriber Name', value: whenInsurance(formData, formData.subscriberName) },
-    {
-      label: 'Subscriber Relationship',
-      value: whenInsurance(
-        formData,
-        mapLabel(SUBSCRIBER_RELATIONSHIP_LABELS, formData.subscriberRelationship),
-      ),
-    },
     {
       label: 'Subscriber Gender',
       value: whenInsurance(formData, mapLabel(SUBSCRIBER_GENDER_LABELS, formData.subscriberGender)),
@@ -489,7 +495,10 @@ export function buildInsuranceReviewItems(formData, helpers) {
     },
     {
       label: 'Authorization Number',
-      value: whenInsurance(formData, formData.authorizationNumber),
+      value: whenInsurance(
+        formData,
+        formData.authorizationRequired === 'yes' ? formData.authorizationNumber : '',
+      ),
     },
   ].map(({ label, value }) => ({ label, value: formatValue(value) }));
 }

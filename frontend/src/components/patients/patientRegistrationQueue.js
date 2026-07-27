@@ -1,8 +1,9 @@
 export const PATIENT_QUEUE_STORAGE_KEY = 'hms_patient_registration_queue';
 
 export const REGISTRATION_CHANNEL_OPTIONS = [
-  { value: 'appointment', label: 'Appointment' },
-  { value: 'walk_in', label: 'Walk in' },
+  { value: 'appointment', label: 'Scheduled' },
+  { value: 'walk_in', label: 'Walk-In' },
+  { value: 'registration_only', label: 'Registration Only' },
 ];
 
 export function formatRegistrationChannel(value) {
@@ -64,13 +65,41 @@ export function queueDraftToPatientRow(entry) {
     mrn: '—',
     firstName: f.firstName || '—',
     lastName: f.lastName || (name ? '' : 'Queued'),
+    middleName: f.middleName || '',
     dateOfBirth: f.dateOfBirth || null,
-    gender: f.gender || '—',
-    contactNumber: f.cellPhone || f.homePhone || f.workPhone || f.email || '—',
+    gender: f.gender || '',
+    cellPhone: f.cellPhone || '',
+    homePhone: f.homePhone || '',
+    workPhone: f.workPhone || '',
+    contactNumber: f.cellPhone || f.homePhone || f.workPhone || '',
     email: f.email || '',
-    registrationStatus: 'pending',
+    billingType: f.billingType || f.insuranceBillingType || '',
+    insuranceBillingType: f.insuranceBillingType || f.billingType || '',
+    insuranceList: entry.insuranceList || [],
+    consentFormSigned: false,
+    registrationStatus: 'draft',
     registrationChannel: entry.registrationChannel,
     createdAt: entry.queuedAt,
     _isQueueDraft: true,
   };
+}
+
+export function hasDraftableRegistrationData(formData) {
+  if (!formData) return false;
+  return !!(
+    formData.firstName?.trim() ||
+    formData.lastName?.trim() ||
+    formData.dateOfBirth ||
+    formData.email?.trim() ||
+    formData.cellPhone?.trim() ||
+    formData.homePhone?.trim()
+  );
+}
+
+export function mergeQueueDraftsWithPatients(apiPatients, { includeDrafts = true } = {}) {
+  if (!includeDrafts) return apiPatients;
+  const drafts = getPatientQueueDrafts().map(queueDraftToPatientRow);
+  const apiIds = new Set((apiPatients || []).map((p) => p.id));
+  const uniqueDrafts = drafts.filter((d) => !apiIds.has(d.id));
+  return [...uniqueDrafts, ...(apiPatients || [])];
 }

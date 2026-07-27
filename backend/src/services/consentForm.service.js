@@ -326,6 +326,16 @@ const consentFormService = {
     return serializeRecord(row);
   },
 
+  async getActiveMandatoryFormIds() {
+    const rows = await prisma.consentForm.findMany({
+      where: { deletedAt: null, isMandatory: true },
+      select: { id: true, status: true, effectiveDate: true, expiryDate: true },
+    });
+    return rows
+      .filter((row) => resolveEffectiveStatus(row) === 'active')
+      .map((row) => row.id);
+  },
+
   async delete(id, userId) {
     const existing = await this.findById(id);
     if (!existing) {

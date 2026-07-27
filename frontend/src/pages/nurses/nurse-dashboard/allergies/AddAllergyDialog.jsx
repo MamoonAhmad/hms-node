@@ -1,21 +1,21 @@
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-export function AddAllergyDialog({ open, onOpenChange, form, onFormChange, onSave }) {
+export function AddAllergyDialog({ open, onOpenChange, form, onFormChange, onSave, title = 'Add Allergy' }) {
   const handleChange = (field, value) => {
     onFormChange((prev) => ({ ...prev, [field]: value }));
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Add Allergy</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <DialogBody className="max-h-[70vh] overflow-y-auto">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="allergen-name">Allergen Name</Label>
@@ -162,7 +162,7 @@ export function AddAllergyDialog({ open, onOpenChange, form, onFormChange, onSav
               />
             </div>
           </div>
-        </div>
+        </DialogBody>
         <DialogFooter className="gap-2 sm:gap-0">
           <Button onClick={onSave} className="w-full sm:w-auto">
             Save Allergy

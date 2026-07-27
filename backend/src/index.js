@@ -9,10 +9,11 @@ const swaggerSpec = require('./config/swagger');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Middleware — patient registration may include consent signatures and profile photos
+const BODY_PARSER_LIMIT = '15mb';
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: BODY_PARSER_LIMIT }));
+app.use(bodyParser.urlencoded({ extended: true, limit: BODY_PARSER_LIMIT }));
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -38,7 +39,14 @@ app.get('/health', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  
+
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({
+      success: false,
+      error: 'Request payload is too large. Try removing large attachments or use smaller images.',
+    });
+  }
+
   // Handle Prisma errors
   if (err.code === 'P2002') {
     return res.status(409).json({
@@ -51,6 +59,15 @@ app.use((err, req, res, next) => {
     return res.status(404).json({
       success: false,
       error: 'Record not found',
+    });
+  }
+
+  const status = err.statusCode || err.status || 500;
+  if (status < 500) {
+    return res.status(status).json({
+      success: false,
+      message: err.message || 'Request failed',
+      error: err.message || 'Request failed',
     });
   }
 

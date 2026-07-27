@@ -97,3 +97,15 @@ export function validatePhoneNumber(value, country = DEFAULT_PHONE_COUNTRY) {
     message: 'Enter a valid mobile number for the selected country',
   };
 }
+
+export function formatPhoneForDisplay(value, defaultCountry = DEFAULT_PHONE_COUNTRY) {
+  const trimmed = value?.trim();
+  if (!trimmed) return '';
+
+  const parsed = parsePhoneNumberFromString(trimmed, defaultCountry);
+  if (parsed) {
+    return parsed.formatInternational();
+  }
+
+  return trimmed;
+}

@@ -91,10 +91,11 @@ export function maskGovernmentIdNumber(value) {
 
 export function resolveContactNumber(formData) {
   const method = formData.preferredContactMethod;
-  if (method === 'home') return formData.homePhone?.trim() || '';
-  if (method === 'work') return formData.workPhone?.trim() || '';
-  if (method === 'email') return formData.email?.trim() || '';
-  return formData.cellPhone?.trim() || '';
+  const cell = formData.cellPhone?.trim() || '';
+  if (method === 'home') return formData.homePhone?.trim() || cell;
+  if (method === 'work') return formData.workPhone?.trim() || cell;
+  if (method === 'email') return formData.email?.trim() || cell;
+  return cell;
 }
 
 export function formatProviderDisplayName(provider) {

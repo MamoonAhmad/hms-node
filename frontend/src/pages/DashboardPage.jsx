@@ -1,142 +1,228 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Users, Calendar, Clock, CheckCircle2, XCircle, UserX, CalendarClock } from 'lucide-react';
-import { appointmentApi } from '@/services/api';
+import {
+  Users,
+  Calendar,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  UserX,
+  CalendarClock,
+  CircleDot,
+} from 'lucide-react';
+import { appointmentApi, appointmentStatusApi, patientApi } from '@/services/api';
+import {
+  getAppointmentStatusesFallback,
+  getOpsDashboardAppointmentStatuses,
+  normalizeAppointmentStatus,
+} from '@/lib/appointmentStatuses';
+import { aggregateStatusCounts } from '@/lib/appointmentStatusWorkflow';
+import { getStatusSoftClass } from '@/lib/statusColors';
+import { cn } from '@/lib/utils';
+
+/** Facility "today" as YYYY-MM-DD in the browser/local facility clock. */
+function toDateKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+const STATUS_ICON = {
+  Scheduled: Calendar,
+  'Checked In': Clock,
+  'In Progress': Clock,
+  'Checked Out': CheckCircle2,
+  Completed: CheckCircle2,
+  Cancelled: XCircle,
+  'No Show': UserX,
+  Rescheduled: CalendarClock,
+  'Left Without Being Seen (LWBS)': UserX,
+};
+
+const STATUS_FG = {
+  'status-soft-info': 'text-[var(--status-info-fg)]',
+  'status-soft-warning': 'text-[var(--status-warning-fg)]',
+  'status-soft-success': 'text-[var(--status-success-fg)]',
+  'status-soft-danger': 'text-[var(--status-danger-fg)]',
+  'status-soft-muted': 'text-[var(--status-muted-fg)]',
+};
+
+function displayCount(value) {
+  if (value === null || value === undefined) return '—';
+  return value;
+}
+
+function MetricCard({ label, value, subtitle, icon: Icon }) {
+  return (
+    <div className="stat-card">
+      <div className="flex items-start justify-between px-5 py-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-1 tabular-nums text-3xl font-bold tracking-tight text-foreground">
+            {value}
+          </p>
+          {subtitle && (
+            <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+          )}
+        </div>
+        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusCard({ status, count, isLoading }) {
+  const soft = getStatusSoftClass(status);
+  const Icon = STATUS_ICON[normalizeAppointmentStatus(status)] || CircleDot;
+  const iconColor = STATUS_FG[soft] || STATUS_FG['status-soft-muted'];
+
+  return (
+    <div className="rounded-lg border border-border bg-card shadow-[var(--shadow-panel)]">
+      <div className="flex items-center justify-between px-5 py-3.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', soft)}>
+            <Icon className={cn('h-4 w-4', iconColor)} />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">{status}</p>
+            <p className="text-xs text-muted-foreground">Appointments</p>
+          </div>
+        </div>
+        <p className="ml-3 shrink-0 tabular-nums text-2xl font-bold text-foreground">
+          {isLoading ? '—' : count}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function countForStatus(statusCounts, statusName) {
+  if (!statusCounts) return 0;
+  if (statusCounts[statusName] != null) return statusCounts[statusName] || 0;
+  const canonical = normalizeAppointmentStatus(statusName);
+  return statusCounts[canonical] || 0;
+}
+
+function mergeStatusCounts(raw = {}) {
+  const counts = aggregateStatusCounts(raw);
+  Object.entries(raw).forEach(([key, value]) => {
+    if (key === 'all') return;
+    if (counts[key] == null) counts[key] = value || 0;
+  });
+  return counts;
+}
 
 export function DashboardPage() {
-  const [statusCounts, setStatusCounts] = useState({
-    Scheduled: 0,
-    'Checked-In': 0,
-    'In Progress': 0,
-    Completed: 0,
-    Cancelled: 0,
-    'No-Show': 0,
-    Rescheduled: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const [statusCounts, setStatusCounts] = useState(null);
+  const [statusCatalog, setStatusCatalog] = useState(() => getAppointmentStatusesFallback());
+  const [totalPatients, setTotalPatients] = useState(null);
+  const [todayAppointments, setTodayAppointments] = useState(null);
 
   useEffect(() => {
-    const fetchStatusCounts = async () => {
-      try {
-        setIsLoading(true);
-        const response = await appointmentApi.getAll({ limit: 1000 });
-        const appointments = response.data || [];
+    let cancelled = false;
 
-        const counts = {
-          Scheduled: 0,
-          'Checked-In': 0,
-          'In Progress': 0,
-          Completed: 0,
-          Cancelled: 0,
-          'No-Show': 0,
-          Rescheduled: 0,
-        };
+    appointmentStatusApi
+      .getActive()
+      .then((res) => {
+        if (cancelled) return;
+        const rows = Array.isArray(res.data) ? res.data : [];
+        setStatusCatalog(getOpsDashboardAppointmentStatuses(rows));
+      })
+      .catch((err) => {
+        console.error('Failed to fetch appointment status catalog:', err);
+        if (!cancelled) setStatusCatalog(getAppointmentStatusesFallback());
+      });
 
-        appointments.forEach((apt) => {
-          if (counts.hasOwnProperty(apt.status)) {
-            counts[apt.status]++;
-          }
-        });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchDashboardData = async () => {
+      const today = toDateKey();
+
+      const [patientResult, statusResult] = await Promise.allSettled([
+        patientApi.getAll({ limit: 1 }),
+        appointmentApi.getStatusCounts({ date: today }),
+      ]);
+
+      if (cancelled) return;
+
+      if (patientResult.status === 'fulfilled') {
+        setTotalPatients(patientResult.value.pagination?.total ?? 0);
+      } else {
+        console.error('Failed to fetch patient total:', patientResult.reason);
+      }
+
+      if (statusResult.status === 'fulfilled') {
+        const counts = mergeStatusCounts(statusResult.value.data || { all: 0 });
         setStatusCounts(counts);
-      } catch (err) {
-        console.error('Failed to fetch appointment counts:', err);
-      } finally {
-        setIsLoading(false);
+        setTodayAppointments(counts.all ?? 0);
+      } else {
+        console.error('Failed to fetch appointment status counts:', statusResult.reason);
       }
     };
 
-    fetchStatusCounts();
-    const interval = setInterval(fetchStatusCounts, 30000);
-    return () => clearInterval(interval);
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
-  const statusIcons = {
-    Scheduled: Calendar,
-    'Checked-In': Clock,
-    'In Progress': Clock,
-    Completed: CheckCircle2,
-    Cancelled: XCircle,
-    'No-Show': UserX,
-    Rescheduled: CalendarClock,
-  };
-
-  const statusColors = {
-    Scheduled: 'text-primary',
-    'Checked-In': 'text-yellow-600',
-    'In Progress': 'text-purple-600',
-    Completed: 'text-green-600',
-    Cancelled: 'text-red-600',
-    'No-Show': 'text-gray-600',
-    Rescheduled: 'text-orange-600',
-  };
+  const statusLoading = statusCounts === null;
 
   return (
     <div className="ehr-page">
       <PageHeader
         title="Operations Dashboard"
-        description="Real-time overview of patient volume, scheduling, and encounter status across your facility."
+        description="Real-time ops overview of registered patient volume and today's appointment status mix."
         breadcrumbs="Overview"
       />
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Key metrics
         </h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="gap-0 py-0">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/60 bg-muted/20 px-5 py-4">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Total Patients
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="px-5 py-4">
-              <div className="tabular-nums text-3xl font-semibold tracking-tight">--</div>
-              <p className="mt-1 text-xs text-muted-foreground">Registered patients</p>
-            </CardContent>
-          </Card>
-
-          <Card className="gap-0 py-0">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/60 bg-muted/20 px-5 py-4">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Appointments
-              </CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent className="px-5 py-4">
-              <div className="tabular-nums text-3xl font-semibold tracking-tight">--</div>
-              <p className="mt-1 text-xs text-muted-foreground">Today&apos;s appointments</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            label="Total Patients"
+            value={displayCount(totalPatients)}
+            subtitle="Registered patients"
+            icon={Users}
+          />
+          <MetricCard
+            label="Appointments"
+            value={displayCount(todayAppointments)}
+            subtitle="Today's appointments"
+            icon={Calendar}
+          />
         </div>
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+      <section className="space-y-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Appointment status
         </h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {Object.entries(statusCounts).map(([status, count]) => {
-            const Icon = statusIcons[status];
-            return (
-              <Card key={status} className="gap-0 py-0">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border/60 bg-muted/20 px-5 py-3">
-                  <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {status}
-                  </CardTitle>
-                  <Icon className={`h-4 w-4 ${statusColors[status]}`} />
-                </CardHeader>
-                <CardContent className="px-5 py-4">
-                  <div className="tabular-nums text-3xl font-semibold tracking-tight">
-                    {isLoading ? '--' : count}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Appointments</p>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <p className="text-sm text-muted-foreground">Today&apos;s appointments by status</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {statusCatalog.map((statusRow) => (
+            <StatusCard
+              key={statusRow.id || statusRow.name}
+              status={statusRow.name}
+              count={countForStatus(statusCounts, statusRow.name)}
+              isLoading={statusLoading}
+            />
+          ))}
         </div>
       </section>
     </div>

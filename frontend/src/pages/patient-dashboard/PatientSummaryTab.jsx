@@ -1,333 +1,420 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   AlertTriangle,
-  Pill,
   Calendar,
-  DollarSign,
-  Shield,
-  Bell,
   ClipboardList,
-  FileCheck,
-  Stethoscope,
   FileText,
-  Code,
-  CreditCard,
+  Loader2,
+  LogOut,
+  Shield,
+  Stethoscope,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { patientApi } from '@/services/api/patient.api';
 import { usePatientChart } from './PatientChartContext';
-import { NurseAssessmentSummaryContent } from './NurseAssessmentSummaryContent';
-import { DocumentsSummaryContent } from './DocumentsSummaryContent';
-import { ClaimForm } from './ClaimForm';
-import { formatAppointmentLabel } from './patientChartUtils';
+import { ChartTabShell, EmptyState, SectionCard, StatCard, StatusBadge } from './components/chart-ui';
 
-const SUMMARY_SECTIONS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'orders', label: 'Orders', icon: ClipboardList },
-  { id: 'results', label: 'Results', icon: FileCheck },
-  { id: 'nurse-assessment', label: 'Nurse assessment', icon: Stethoscope },
-  { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'diagnosis-codes', label: 'Diagnosis', icon: Code },
-  { id: 'billing', label: 'Billing', icon: CreditCard },
-];
+function formatDate(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+}
 
-function StatTile({ label, value, icon: Icon }) {
+function formatDateTime(value) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function VisitDetails({ visit, emptyMessage }) {
+  if (!visit) {
+    return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
+  }
   return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-panel)]">
-      <div className="flex items-start gap-3">
-        {Icon && (
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="h-4 w-4" />
-          </span>
-        )}
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="mt-1 text-sm font-semibold leading-snug text-foreground">{value}</p>
-        </div>
+    <dl className="grid gap-3 text-sm sm:grid-cols-2">
+      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+        <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date</dt>
+        <dd className="mt-0.5 font-medium">{formatDate(visit.encounterDate || visit.appointmentDate)}</dd>
       </div>
-    </div>
-  );
-}
-
-function OrdersSummary({ onViewAll }) {
-  const { orders } = usePatientChart();
-  const recent = orders.slice(0, 5);
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle>Orders</CardTitle>
-        <Button variant="link" className="h-auto p-0 text-sm" onClick={onViewAll}>
-          View all
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {recent.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No orders for this patient.</p>
-        ) : (
-          <ul className="divide-y divide-border text-sm">
-            {recent.map((o) => (
-              <li key={o.id} className="flex justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                <span className="min-w-0 truncate">{o.procedureName}</span>
-                <Badge variant="outline" className="shrink-0 font-normal">
-                  {o.status}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ResultsSummary({ onViewAll }) {
-  const { orders } = usePatientChart();
-  const labs = orders.filter((o) => o.category === 'Lab');
-  const pending = labs.filter((o) => o.status === 'Scheduled');
-  const completed = labs.filter((o) => o.status === 'Completed');
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle>Results</CardTitle>
-        <Button variant="link" className="h-auto p-0 text-sm" onClick={onViewAll}>
-          View all
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm">
-        {pending.length > 0 && (
-          <div>
-            <p className="font-medium text-amber-800 dark:text-amber-300">
-              Pending ({pending.length})
-            </p>
-            <ul className="mt-1.5 space-y-1 text-muted-foreground">
-              {pending.slice(0, 4).map((o) => (
-                <li key={o.id}>{o.procedureName}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {completed.length > 0 ? (
-          <div>
-            <p className="font-medium">Recent resulted</p>
-            <ul className="mt-1.5 space-y-1 text-muted-foreground">
-              {completed.slice(0, 4).map((o) => (
-                <li key={o.id}>{o.procedureName}</li>
-              ))}
-            </ul>
-          </div>
-        ) : pending.length === 0 ? (
-          <p className="text-muted-foreground">No lab orders on file.</p>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
-export function PatientSummaryTab({ onNavigateTab }) {
-  const { patient, appointments, orders } = usePatientChart();
-  const [selectedSection, setSelectedSection] = useState('overview');
-
-  const summary = useMemo(() => {
-    if (!patient) return null;
-    const sorted = [...appointments].sort((a, b) => {
-      const da = new Date(a.appointmentDate).getTime();
-      const db = new Date(b.appointmentDate).getTime();
-      return db - da;
-    });
-    const past = sorted.filter((a) => a.status === 'Completed');
-    const upcoming = sorted.filter((a) =>
-      ['Scheduled', 'Checked-In', 'In Progress', 'Rescheduled'].includes(a.status),
-    );
-    return {
-      insurance: {
-        primary: patient.insuranceProvider?.name || '—',
-        id: patient.policyNumber || '—',
-      },
-      lastVisit: past[0] ? formatAppointmentLabel(past[0]) : '—',
-      upcoming: upcoming[0] ? formatAppointmentLabel(upcoming[0]) : 'None scheduled',
-      outstandingBills:
-        patient.copay != null ? `$${Number(patient.copay).toFixed(2)} copay on file` : '—',
-      alerts: patient.generalNotes
-        ? [{ type: 'Note', message: patient.generalNotes }]
-        : orders.filter((o) => o.status === 'Scheduled').length
-          ? [
-              {
-                type: 'Pending',
-                message: `${orders.filter((o) => o.status === 'Scheduled').length} open order(s)`,
-              },
-            ]
-          : [],
-    };
-  }, [patient, appointments, orders]);
-
-  if (!summary) return null;
-
-  const renderSection = () => {
-    switch (selectedSection) {
-      case 'billing':
-        return <ClaimForm />;
-      case 'nurse-assessment':
-        return <NurseAssessmentSummaryContent patient={patient} />;
-      case 'documents':
-        return <DocumentsSummaryContent patientId={patient?.id} />;
-      case 'orders':
-        return <OrdersSummary onViewAll={() => onNavigateTab?.('orders')} />;
-      case 'results':
-        return <ResultsSummary onViewAll={() => onNavigateTab?.('results')} />;
-      case 'diagnosis-codes':
-        return (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Diagnosis codes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Active problem list will appear here when integrated with SOAP diagnoses.
-              </p>
-            </CardContent>
-          </Card>
-        );
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">Chart</p>
-          <h2 className="text-xl font-bold text-foreground">Patient summary</h2>
+      {visit.appointmentTime && (
+        <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+          <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Time</dt>
+          <dd className="mt-0.5 font-medium">{visit.appointmentTime}</dd>
         </div>
-        {patient?.id && patient.id !== 'sample' && (
-          <Button variant="outline" size="sm" asChild className="shrink-0">
+      )}
+      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+        <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Visit type</dt>
+        <dd className="mt-0.5 font-medium">{visit.visitType || '—'}</dd>
+      </div>
+      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+        <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Provider</dt>
+        <dd className="mt-0.5 font-medium">{visit.providerName || '—'}</dd>
+      </div>
+      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+        <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Location</dt>
+        <dd className="mt-0.5 font-medium">{visit.location || '—'}</dd>
+      </div>
+      <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+        <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</dt>
+        <dd className="mt-1">
+          <StatusBadge status={visit.status} />
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+export function PatientSummaryTab() {
+  const { patient, patientId, appointmentId, isSampleChart, refreshKey } = usePatientChart();
+  const [, setSearchParams] = useSearchParams();
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const canFetch = Boolean(patientId && patientId !== 'sample' && !isSampleChart);
+
+  const loadSummary = useCallback(async () => {
+    if (!canFetch) {
+      setSummary(null);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await patientApi.getSummary(patientId, {
+        encounterId: appointmentId || undefined,
+      });
+      setSummary(res.data);
+    } catch (err) {
+      setError(err.message || 'Failed to load summary');
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [canFetch, patientId, appointmentId]);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary, refreshKey]);
+
+  const goToProblemsTab = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', 'problems');
+      return next;
+    });
+  }, [setSearchParams]);
+
+  const goToCheckoutTab = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', 'patient-checkout');
+      if (appointmentId) next.set('appointmentId', appointmentId);
+      return next;
+    });
+  }, [setSearchParams, appointmentId]);
+
+  const overview = useMemo(() => {
+    if (!summary && !patient) return null;
+    return {
+      mrn: summary?.mrn || patient?.mrn || '—',
+      currentEncounterId: summary?.currentEncounterId || appointmentId || null,
+    };
+  }, [summary, patient, appointmentId]);
+
+  if (!patient) return null;
+
+  if (isSampleChart || patientId === 'sample') {
+    return (
+      <ChartTabShell
+        title="Patient summary"
+        description="Clinical overview for the current patient and encounter."
+      >
+        <EmptyState
+          icon={FileText}
+          title="No patient selected"
+          description="Open a registered patient chart to view the clinical summary."
+        />
+      </ChartTabShell>
+    );
+  }
+
+  const problemCount = summary?.problems?.length ?? 0;
+  const allergyCount = summary?.noKnownDrugAllergies ? 0 : (summary?.allergies?.length ?? 0);
+  const orderCount = summary?.orders?.length ?? 0;
+
+  return (
+    <ChartTabShell
+      title="Patient summary"
+      description={
+        overview
+          ? `Clinical overview · MRN ${overview.mrn}`
+          : 'Clinical overview for the current patient and encounter.'
+      }
+      actions={
+        patient?.id ? (
+          <Button variant="outline" size="sm" asChild>
             <Link to={`/patients/edit/${patient.id}`}>Edit registration</Link>
           </Button>
-        )}
-      </div>
-
-      <nav
-        className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-muted/50 p-1"
-        aria-label="Summary sections"
-      >
-        {SUMMARY_SECTIONS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setSelectedSection(id)}
-            className={cn(
-              'shrink-0 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              selectedSection === id
-                ? 'bg-card text-primary shadow-sm'
-                : 'text-muted-foreground hover:bg-card/60 hover:text-foreground',
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      {selectedSection === 'overview' ? (
+        ) : null
+      }
+      loading={loading}
+      loadingMessage="Loading summary…"
+      error={error}
+      onRetry={loadSummary}
+    >
+      {summary && (
         <div className="space-y-6">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatTile label="Last visit" value={summary.lastVisit} icon={Calendar} />
-            <StatTile label="Upcoming" value={summary.upcoming} icon={Calendar} />
-            <StatTile
-              label="Insurance"
-              value={summary.insurance.primary}
-              icon={Shield}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="Active problems"
+              value={problemCount}
+              icon={Stethoscope}
+              accent="info"
+              onClick={goToProblemsTab}
             />
-            <StatTile label="Financial" value={summary.outstandingBills} icon={DollarSign} />
+            <StatCard
+              label="Allergies"
+              value={summary.noKnownDrugAllergies ? 'NKDA' : allergyCount}
+              icon={AlertTriangle}
+              accent={allergyCount > 0 ? 'danger' : 'success'}
+            />
+            <StatCard
+              label="Current orders"
+              value={orderCount}
+              icon={ClipboardList}
+              accent="warning"
+            />
+            <StatCard
+              label="Insurance"
+              value={summary.insuranceEligibilityStatus || 'Not verified'}
+              icon={Shield}
+              accent="info"
+            />
           </div>
+
+          <SectionCard title="Chief complaint" icon={FileText} accent="primary" className="lg:col-span-2">
+            {summary.chiefComplaint ? (
+              <p className="text-sm leading-relaxed text-foreground">{summary.chiefComplaint}</p>
+            ) : (
+              <EmptyState title="No chief complaint recorded" />
+            )}
+          </SectionCard>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="border-green-200/70 bg-green-50/50 dark:bg-green-950/15">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-green-800 dark:text-green-300">
-                  <AlertTriangle className="h-4 w-4" />
-                  Allergies
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  No known allergies documented (NKA).
-                </p>
-              </CardContent>
-            </Card>
+            <SectionCard title="Overview" icon={Calendar} accent="info">
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+                  <span className="text-muted-foreground">Patient MRN</span>
+                  <span className="font-mono font-semibold">{summary.mrn}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+                  <span className="text-muted-foreground">Current encounter</span>
+                  <span className="font-medium text-right">
+                    {summary.currentEncounterId ? `${summary.currentEncounterId.slice(0, 8)}…` : '—'}
+                  </span>
+                </div>
+                {appointmentId && (
+                  <Button type="button" variant="success" size="sm" className="w-full gap-2" onClick={goToCheckoutTab}>
+                    <LogOut className="h-4 w-4" />
+                    Start Checkout
+                  </Button>
+                )}
+              </div>
+            </SectionCard>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <Pill className="h-4 w-4" />
-                  Medications
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">
-                  View and manage medications on the prescriptions tab.
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0"
-                  onClick={() => onNavigateTab?.('prescriptions')}
-                >
-                  Open prescriptions
-                </Button>
-              </CardContent>
-            </Card>
+            <SectionCard title="Provider" icon={Stethoscope} accent="info">
+              {summary.provider?.name ? (
+                <dl className="space-y-3 text-sm">
+                  <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+                    <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Provider name</dt>
+                    <dd className="mt-0.5 font-semibold">{summary.provider.name}</dd>
+                  </div>
+                  {summary.provider.specialty && (
+                    <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+                      <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Specialty</dt>
+                      <dd className="mt-0.5 font-medium">{summary.provider.specialty}</dd>
+                    </div>
+                  )}
+                </dl>
+              ) : (
+                <EmptyState title="No provider assigned" />
+              )}
+            </SectionCard>
+
+            <SectionCard title="Last visit" icon={Calendar}>
+              <VisitDetails visit={summary.lastVisit} emptyMessage="No previous visit found." />
+            </SectionCard>
+
+            <SectionCard title="Upcoming visit" icon={Calendar}>
+              <VisitDetails visit={summary.upcomingVisit} emptyMessage="No upcoming visit scheduled." />
+            </SectionCard>
+
+            <SectionCard title="Insurance eligibility" icon={Shield} accent="info">
+              {summary.insuranceEligibilityStatus ? (
+                <StatusBadge status={summary.insuranceEligibilityStatus} />
+              ) : (
+                <EmptyState title="Eligibility not verified" />
+              )}
+            </SectionCard>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <OrdersSummary onViewAll={() => onNavigateTab?.('orders')} />
-            <ResultsSummary onViewAll={() => onNavigateTab?.('results')} />
-          </div>
+          <SectionCard
+            title="Problems"
+            icon={Stethoscope}
+            accent="info"
+            actions={
+              <Button variant="link" size="sm" className="h-auto px-0" onClick={goToProblemsTab}>
+                View all
+              </Button>
+            }
+          >
+            {summary.problems?.length > 0 ? (
+              <div className="chart-table-wrap">
+                <Table>
+                  <TableHeader sticky>
+                    <TableRow>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Clinical status</TableHead>
+                      <TableHead>Verification</TableHead>
+                      <TableHead>Onset</TableHead>
+                      <TableHead>Resolved</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {summary.problems.map((problem) => (
+                      <TableRow
+                        key={problem.id}
+                        className="cursor-pointer"
+                        onClick={goToProblemsTab}
+                      >
+                        <TableCell className="font-mono text-xs">
+                          {problem.icd10Code || problem.problemCode || '—'}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {problem.diagnosisDescription || problem.problemDescription}
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={problem.status} />
+                        </TableCell>
+                        <TableCell>{problem.clinicalStatus || '—'}</TableCell>
+                        <TableCell>{problem.verificationStatus || problem.verification || '—'}</TableCell>
+                        <TableCell>{formatDate(problem.onsetDate)}</TableCell>
+                        <TableCell>{formatDate(problem.resolvedDate)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <EmptyState
+                title="No problems recorded"
+                action={goToProblemsTab}
+                actionLabel="Add problem"
+              />
+            )}
+          </SectionCard>
 
-          {summary.alerts.length > 0 && (
-            <Card className="border-amber-200/80 bg-amber-50/50 dark:bg-amber-950/15">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
-                  <Bell className="h-4 w-4" />
-                  Alerts
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm">
-                  {summary.alerts.map((a, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <Badge variant="outline" className="font-normal">
-                        {a.type}
-                      </Badge>
-                      <span>{a.message}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
+          <SectionCard
+            title="Allergies"
+            icon={AlertTriangle}
+            accent={summary.noKnownDrugAllergies ? 'success' : allergyCount > 0 ? 'danger' : 'default'}
+          >
+            {summary.noKnownDrugAllergies ? (
+              <div className="flex items-center gap-2">
+                <StatusBadge status="Verified">No Known Drug Allergies (NKDA)</StatusBadge>
+              </div>
+            ) : summary.allergies?.length > 0 ? (
+              <div className="chart-table-wrap">
+                <Table>
+                  <TableHeader sticky>
+                    <TableRow>
+                      <TableHead>Allergen</TableHead>
+                      <TableHead>Reaction</TableHead>
+                      <TableHead>Severity</TableHead>
+                      <TableHead>Onset</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Comment</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {summary.allergies.map((allergy) => (
+                      <TableRow key={allergy.id}>
+                        <TableCell className="font-medium">{allergy.allergenName}</TableCell>
+                        <TableCell>{allergy.reaction || '—'}</TableCell>
+                        <TableCell>{allergy.severity || '—'}</TableCell>
+                        <TableCell>{formatDate(allergy.onsetDate)}</TableCell>
+                        <TableCell>
+                          <StatusBadge status={allergy.status} />
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{allergy.comment || '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <EmptyState title="No allergies recorded" />
+            )}
+          </SectionCard>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Insurance details</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
-              <p>
-                <span className="text-muted-foreground">Primary: </span>
-                {summary.insurance.primary}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Member ID: </span>
-                <span className="font-mono">{summary.insurance.id}</span>
-              </p>
-            </CardContent>
-          </Card>
+          <SectionCard title="Orders" icon={ClipboardList} accent="warning">
+            {summary.orders?.length > 0 ? (
+              <div className="chart-table-wrap">
+                <Table>
+                  <TableHeader sticky>
+                    <TableRow>
+                      <TableHead>Order name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Ordered by</TableHead>
+                      <TableHead>Ordered date</TableHead>
+                      <TableHead>Priority</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {summary.orders.map((order) => (
+                      <TableRow key={order.id}>
+                        <TableCell className="font-medium">{order.orderName}</TableCell>
+                        <TableCell>{order.orderType}</TableCell>
+                        <TableCell>
+                          <StatusBadge status={order.orderStatus} />
+                        </TableCell>
+                        <TableCell>{order.orderedBy || '—'}</TableCell>
+                        <TableCell>{formatDateTime(order.orderedDate)}</TableCell>
+                        <TableCell>{order.priority || '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <EmptyState title="No current orders" />
+            )}
+          </SectionCard>
         </div>
-      ) : (
-        renderSection()
       )}
-    </div>
+    </ChartTabShell>
   );
 }

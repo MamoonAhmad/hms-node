@@ -207,12 +207,12 @@ export function TriageTrackingBoard() {
 
   const getStatusColor = (status) => {
     const colors = {
-      'Waiting Provider': 'bg-amber-100 text-amber-800',
-      'In Process': 'bg-primary/10 text-primary',
-      'Check-In': 'bg-green-100 text-green-800',
-      'Check-Out': 'bg-gray-100 text-gray-800',
+      'Waiting Provider': 'status-soft-warning border',
+      'In Process': 'status-soft-info border',
+      'Check-In': 'status-soft-success border',
+      'Check-Out': 'status-soft-muted border',
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status] || 'status-soft-muted border';
   };
 
   const handleProviderChange = (patientId, providerId) => {

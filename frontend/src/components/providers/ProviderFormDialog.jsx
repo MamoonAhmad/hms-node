@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { departmentApi, specialtyApi, subSpecialtyApi } from '@/services/api';
 import { PhoneNumberInput } from '@/components/ui/phone-number-input';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { validatePhoneNumber } from '@/lib/phoneNumberUtils';
 
 const FORM_NONE = '__none__';
@@ -32,7 +33,7 @@ const initialFormData = {
   dateOfBirth: '',
   specialtyId: '',
   subSpecialtyId: '',
-  departmentId: '',
+  departmentIds: [],
   taxonomy: '',
   email: '',
   taxId: '',
@@ -85,12 +86,44 @@ function fkTrim(v) {
   return String(v).trim();
 }
 
+/** Collect department UUIDs from any shape the provider API may return. */
+function extractProviderDepartmentIds(provider) {
+  if (!provider) return [];
+  const ids = [];
+
+  if (Array.isArray(provider.departmentIds)) {
+    provider.departmentIds.forEach((id) => {
+      const trimmed = fkTrim(id);
+      if (trimmed) ids.push(trimmed);
+    });
+  }
+
+  if (Array.isArray(provider.departments)) {
+    provider.departments.forEach((d) => {
+      const trimmed = fkTrim(d?.id);
+      if (trimmed) ids.push(trimmed);
+    });
+  }
+
+  if (Array.isArray(provider.departmentLinks)) {
+    provider.departmentLinks.forEach((link) => {
+      const trimmed = fkTrim(link?.departmentId ?? link?.department?.id);
+      if (trimmed) ids.push(trimmed);
+    });
+  }
+
+  const legacy = fkTrim(provider.departmentId ?? provider.department?.id);
+  if (legacy) ids.push(legacy);
+
+  return [...new Set(ids)];
+}
+
 function mapProviderToForm(provider) {
   if (!provider) return initialFormData;
 
-  const specialtyId = provider.specialtyId ?? provider.specialty?.id ?? '';
-  const subSpecialtyId = provider.subSpecialtyId ?? provider.subSpecialty?.id ?? '';
-  const departmentId = provider.departmentId ?? provider.department?.id ?? '';
+  const specialtyId = fkTrim(provider.specialtyId ?? provider.specialty?.id);
+  const subSpecialtyId = fkTrim(provider.subSpecialtyId ?? provider.subSpecialty?.id);
+  const departmentIds = extractProviderDepartmentIds(provider);
 
   return {
     ...initialFormData,
@@ -103,7 +136,7 @@ function mapProviderToForm(provider) {
     dateOfBirth: toDateInputValue(provider.dateOfBirth),
     specialtyId,
     subSpecialtyId,
-    departmentId,
+    departmentIds,
     taxonomy: provider.taxonomy ?? '',
     email: provider.email ?? '',
     taxId: provider.taxId ?? '',
@@ -131,7 +164,9 @@ function mapProviderToForm(provider) {
 function buildProviderSubmitPayload(formData) {
   const specialtyId = fkTrim(formData.specialtyId);
   const subSpecialtyId = fkTrim(formData.subSpecialtyId);
-  const departmentId = fkTrim(formData.departmentId);
+  const departmentIds = Array.isArray(formData.departmentIds)
+    ? [...new Set(formData.departmentIds.map((id) => fkTrim(id)).filter(Boolean))]
+    : [];
 
   const out = {
     npi: String(formData.npi || '').trim(),
@@ -160,7 +195,8 @@ function buildProviderSubmitPayload(formData) {
     treatment: formData.treatment?.trim() || null,
     specialtyId: specialtyId || null,
     subSpecialtyId: subSpecialtyId || null,
-    departmentId: departmentId || null,
+    departmentIds,
+    departmentId: departmentIds[0] || null,
   };
 
   for (const k of dateFields) {
@@ -170,7 +206,15 @@ function buildProviderSubmitPayload(formData) {
   return out;
 }
 
-export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading, provider, mode = 'create' }) {
+export function ProviderFormDialog({
+  open,
+  onOpenChange,
+  onSubmit,
+  isLoading,
+  provider,
+  mode = 'create',
+  submitError = null,
+}) {
   const [formData, setFormData] = useState(initialFormData);
   const [errors, setErrors] = useState({});
   const [specialties, setSpecialties] = useState([]);
@@ -281,7 +325,39 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading, pr
 
   const specVal = fkTrim(formData.specialtyId) || FORM_NONE;
   const subVal = fkTrim(formData.subSpecialtyId) || FORM_NONE;
-  const deptVal = fkTrim(formData.departmentId) || FORM_NONE;
+
+  // Active catalog + any departments already assigned on the provider (so edit always shows selection).
+  const departmentOptions = useMemo(() => {
+    const byId = new Map();
+    departments.forEach((d) => {
+      const id = fkTrim(d.id);
+      if (!id) return;
+      byId.set(id, {
+        value: id,
+        label: d.departmentCode ? `${d.departmentName} (${d.departmentCode})` : d.departmentName,
+      });
+    });
+    (provider?.departments || []).forEach((d) => {
+      const id = fkTrim(d?.id);
+      if (!id || byId.has(id)) return;
+      byId.set(id, {
+        value: id,
+        label: d.departmentCode ? `${d.departmentName} (${d.departmentCode})` : d.departmentName || id,
+      });
+    });
+    if (provider?.department?.id) {
+      const id = fkTrim(provider.department.id);
+      if (id && !byId.has(id)) {
+        byId.set(id, {
+          value: id,
+          label: provider.department.departmentCode
+            ? `${provider.department.departmentName} (${provider.department.departmentCode})`
+            : provider.department.departmentName || id,
+        });
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [departments, provider]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -290,7 +366,16 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading, pr
           <DialogTitle className="text-xl">{title}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="ehr-form space-y-4">
+          {submitError ? (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+            >
+              {submitError}
+            </div>
+          ) : null}
+
           {/* Basic information */}
           <section className="space-y-4">
             <h3 className={sectionTitleClass}>Basic information</h3>
@@ -430,24 +515,17 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, isLoading, pr
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Department</Label>
-                <Select
-                  value={deptVal}
-                  onValueChange={(v) => handleChange('departmentId', v === FORM_NONE ? '' : v)}
+                <Label>Department(s)</Label>
+                <MultiSelect
+                  options={departmentOptions}
+                  value={formData.departmentIds}
+                  onChange={(departmentIds) => handleChange('departmentIds', departmentIds)}
+                  placeholder="Select department(s)"
+                  searchable
+                  showSelectAll
+                  selectAllLabel="Select all departments"
                   disabled={readOnly || isLoading}
-                >
-                  <SelectTrigger className={fieldClass} disabled={readOnly || isLoading}>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 overflow-y-auto">
-                    <SelectItem value={FORM_NONE}>None</SelectItem>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.departmentCode ? `${d.departmentName} (${d.departmentCode})` : d.departmentName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="taxonomy">Taxonomy</Label>

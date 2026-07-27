@@ -20,43 +20,96 @@ export const INSURANCE_CARD_SIDE_OPTIONS = [
   { value: 'back', label: 'Back' },
 ];
 
-/** Checklist rows shown on patient registration → Documents tab */
-export const DOCUMENT_CHECKLIST_ITEMS = [
+/** @deprecated Static checklist removed from Documents tab; kept for review compatibility. */
+export const DOCUMENT_CHECKLIST_ITEMS = [];
+
+export const REQUIRED_DOCUMENT_TYPES = [];
+
+export const INSURANCE_CARD_SIDES = [
   {
-    key: 'photo-id',
-    label: 'Photo ID',
-    required: false,
-    category: 'Identity Proof',
-    defaultDocumentName: 'Photo ID',
-  },
-  {
-    key: 'insurance-card-front',
-    label: 'Insurance card (front)',
-    required: false,
+    side: 'front',
     category: 'Insurance Card Front',
-    insuranceCardSide: 'front',
-    defaultDocumentName: 'Insurance card (front)',
+    nameSuffix: 'front side',
   },
   {
-    key: 'insurance-card-back',
-    label: 'Insurance card (back)',
-    required: false,
+    side: 'back',
     category: 'Insurance Card Back',
-    insuranceCardSide: 'back',
-    defaultDocumentName: 'Insurance card (back)',
-  },
-  {
-    key: 'referral-letter',
-    label: 'Referral letter',
-    required: false,
-    category: 'Referral Letter',
-    defaultDocumentName: 'Referral letter',
+    nameSuffix: 'backside',
   },
 ];
 
-export const REQUIRED_DOCUMENT_TYPES = DOCUMENT_CHECKLIST_ITEMS.filter((i) => i.required).map(
-  (i) => i.key,
-);
+export function insuranceCardDocumentName(typeLabel, side) {
+  const suffix = side === 'back' ? 'backside' : 'front side';
+  return `${typeLabel} insurance card ${suffix}`;
+}
+
+export function insuranceCardRequiredType(typeKey, side) {
+  return `insurance-${typeKey}-${side}`;
+}
+
+export function findInsuranceCardDocument(documents, typeKey, side) {
+  if (!Array.isArray(documents) || !typeKey || !side) return null;
+  const requiredType = insuranceCardRequiredType(typeKey, side);
+  const category = side === 'front' ? 'Insurance Card Front' : 'Insurance Card Back';
+
+  return (
+    documents.find((d) => d.requiredDocumentType === requiredType) ||
+    documents.find(
+      (d) =>
+        String(d.insuranceTypeKey || '').toLowerCase() === typeKey &&
+        String(d.insuranceCardSide || '').toLowerCase() === side,
+    ) ||
+    documents.find((d) => {
+      const name = String(d.documentName || d.title || '').toLowerCase();
+      const typeMatch = name.includes(typeKey);
+      const sideMatch =
+        side === 'front'
+          ? name.includes('front')
+          : name.includes('backside') || (name.includes('back') && !name.includes('front'));
+      const categoryMatch =
+        d.documentCategory === category || d.category === category || d.documentType === category;
+      return typeMatch && sideMatch && (categoryMatch || typeMatch);
+    }) ||
+    null
+  );
+}
+
+export function upsertInsuranceCardDocument(documents, { typeKey, typeLabel, side, fileMeta }) {
+  const list = Array.isArray(documents) ? [...documents] : [];
+  const requiredType = insuranceCardRequiredType(typeKey, side);
+  const category = side === 'front' ? 'Insurance Card Front' : 'Insurance Card Back';
+  const filtered = list.filter(
+    (d) =>
+      d.requiredDocumentType !== requiredType &&
+      !(
+        String(d.insuranceTypeKey || '').toLowerCase() === typeKey &&
+        String(d.insuranceCardSide || '').toLowerCase() === side
+      ),
+  );
+
+  if (!fileMeta) return filtered;
+
+  filtered.unshift({
+    id: `ins-${typeKey}-${side}-${Date.now()}`,
+    documentName: insuranceCardDocumentName(typeLabel, side),
+    documentCategory: category,
+    documentType: insuranceCardDocumentName(typeLabel, side),
+    type: insuranceCardDocumentName(typeLabel, side),
+    category,
+    requiredDocumentType: requiredType,
+    insuranceTypeKey: typeKey,
+    insuranceCardSide: side,
+    fileName: fileMeta.fileName,
+    file: fileMeta.file || null,
+    fileData: fileMeta.fileData || null,
+    mimeType: fileMeta.mimeType || null,
+    documentNotes: '',
+    governmentIdType: '',
+    documentExpirationDate: '',
+  });
+
+  return filtered;
+}
 
 export { GOVERNMENT_ID_TYPE_OPTIONS };
 
@@ -77,47 +130,22 @@ export function emptyNewDocument() {
 export function newDocumentFromChecklistItem(item) {
   return {
     ...emptyNewDocument(),
-    documentCategory: item.category,
-    documentName: item.defaultDocumentName,
-    requiredDocumentType: item.key,
-    insuranceCardSide: item.insuranceCardSide || '',
-    governmentIdType: item.category === 'Identity Proof' ? '' : '',
+    documentCategory: item?.category || '',
+    documentName: item?.defaultDocumentName || '',
+    requiredDocumentType: item?.key || '',
+    insuranceCardSide: item?.insuranceCardSide || '',
+    governmentIdType: item?.category === 'Identity Proof' ? '' : '',
   };
 }
 
 export function isChecklistItemUploaded(item, documents) {
-  if (!Array.isArray(documents) || documents.length === 0) return false;
+  if (!item || !Array.isArray(documents) || documents.length === 0) return false;
   if (documents.some((d) => d.requiredDocumentType === item.key)) return true;
-
-  if (item.key === 'photo-id') {
-    return documents.some((d) => d.documentCategory === 'Identity Proof');
-  }
-  if (item.key === 'insurance-card-front') {
-    return documents.some(
-      (d) =>
-        d.documentCategory === 'Insurance Card Front' ||
-        d.requiredDocumentType === 'insurance-card-front',
-    );
-  }
-  if (item.key === 'insurance-card-back') {
-    return documents.some(
-      (d) =>
-        d.documentCategory === 'Insurance Card Back' ||
-        d.requiredDocumentType === 'insurance-card-back',
-    );
-  }
-  if (item.key === 'referral-letter') {
-    return documents.some(
-      (d) => d.documentCategory === 'Referral Letter' || d.requiredDocumentType === 'referral-letter',
-    );
-  }
   return false;
 }
 
-export function getMissingRequiredDocuments(documents) {
-  return DOCUMENT_CHECKLIST_ITEMS.filter(
-    (item) => item.required && !isChecklistItemUploaded(item, documents),
-  );
+export function getMissingRequiredDocuments() {
+  return [];
 }
 
 export function validatePatientDocuments(documents, { strictMode = true } = {}) {
@@ -137,22 +165,14 @@ export function validatePatientDocuments(documents, { strictMode = true } = {}) 
   });
 
   if (strictMode) {
-    const missing = getMissingRequiredDocuments(list);
-    missing.forEach((item) => {
-      if (item.key === 'photo-id') {
-        errors.documentsPhotoId = 'Photo ID is required before saving';
-      }
-      if (item.key === 'insurance-card-front') {
-        errors.documentsInsuranceFront = 'Insurance card (front) is required before saving';
-      }
-    });
+    // Insurance card uploads are optional; no hard required documents on this tab.
   }
 
   return {
     errors,
     warnings,
     isValid: Object.keys(errors).length === 0,
-    missingRequired: getMissingRequiredDocuments(list),
+    missingRequired: getMissingRequiredDocuments(),
   };
 }
 
@@ -227,22 +247,36 @@ export function serializeDocumentsForSubmit(documents) {
       id,
       documentName,
       documentCategory,
+      documentType,
+      type,
       fileName,
+      fileData,
+      dataUrl,
+      mimeType,
       requiredDocumentType,
       governmentIdType,
       documentExpirationDate,
       insuranceCardSide,
+      insuranceTypeKey,
       documentNotes,
     }) => ({
       id,
       documentName,
+      title: documentName,
       documentCategory,
+      category: documentCategory,
+      documentType: documentType || documentName || documentCategory,
+      type: type || documentType || documentName || documentCategory,
       fileName,
       fileRef: fileName,
+      fileData: fileData || dataUrl || null,
+      dataUrl: fileData || dataUrl || null,
+      mimeType: mimeType || null,
       requiredDocumentType: requiredDocumentType || null,
       governmentIdType: governmentIdType || null,
       documentExpirationDate: documentExpirationDate || null,
       insuranceCardSide: insuranceCardSide || null,
+      insuranceTypeKey: insuranceTypeKey || null,
       documentNotes: documentNotes || null,
     }),
   );

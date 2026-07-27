@@ -34,17 +34,19 @@ import {
   Pill,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STATUS_SOFT } from '@/lib/statusColors';
 import { usePatientChart } from './PatientChartContext';
 import { formatPatientName } from './patientChartUtils';
+import { ChartTabShell, StatCard } from './components/chart-ui';
 
 const PAGE_SIZE = 10;
 
 const STATUS_CONFIG = {
-  Active: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-green-200',
-  Completed: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary border-primary/30',
-  Discontinued: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 border-gray-200',
-  Expired: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-200',
-  'Pending Pharmacy': 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border-orange-200',
+  Active: STATUS_SOFT.success,
+  Completed: STATUS_SOFT.info,
+  Discontinued: STATUS_SOFT.muted,
+  Expired: STATUS_SOFT.danger,
+  'Pending Pharmacy': STATUS_SOFT.warning,
 };
 
 const mockPatientHeaderFallback = {
@@ -250,71 +252,57 @@ export function PrescriptionsTab() {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Patient Header - Sticky */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b pb-4 -mx-2 px-2">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Patient Name</p>
-                <p className="font-semibold text-foreground">{mockPatientHeader.patientName}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">MRN</p>
-                <p className="font-mono text-sm">{mockPatientHeader.mrn}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">DOB</p>
-                <p className="text-sm">{mockPatientHeader.dob} ({mockPatientHeader.age} Years)</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Gender</p>
-                <p className="text-sm">{mockPatientHeader.gender}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Encounter ID</p>
-                <p className="font-mono text-sm">{mockPatientHeader.encounterId}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Visit Date</p>
-                <p className="text-sm">{mockPatientHeader.visitDate}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Allergies</p>
-                <div className="flex flex-wrap gap-1 mt-0.5">
-                  {mockPatientHeader.allergies.map((a, i) => (
-                    <Badge key={i} variant="destructive" className="text-xs">
-                      {a.name}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Primary Provider</p>
-                <p className="text-sm">{mockPatientHeader.primaryProvider}</p>
-              </div>
+    <ChartTabShell
+      title="Prescriptions"
+      description="Manage active prescriptions, refills, and medication reconciliation for this patient."
+      actions={
+        <Button onClick={() => setNewPrescriptionOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          New Prescription
+        </Button>
+      }
+    >
+      {/* Patient context strip */}
+      <div className="sticky top-0 z-10 -mx-1 rounded-xl border border-border/80 bg-card/95 px-3 py-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="chart-info-tile">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Patient</p>
+              <p className="font-semibold">{mockPatientHeader.patientName}</p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+          <div className="chart-info-tile">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">MRN</p>
+              <p className="font-mono text-sm">{mockPatientHeader.mrn}</p>
+            </div>
+          </div>
+          <div className="chart-info-tile">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Encounter</p>
+              <p className="font-mono text-sm">{mockPatientHeader.encounterId}</p>
+            </div>
+          </div>
+          <div className="chart-info-tile">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Provider</p>
+              <p className="text-sm">{mockPatientHeader.primaryProvider}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Summary Strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {summaryCards.map((card) => (
-          <Card
+          <StatCard
             key={card.key}
-            className={cn(
-              'cursor-pointer transition-colors hover:bg-muted/50',
-              statusFilter === card.filter && 'ring-2 ring-primary'
-            )}
+            label={card.label}
+            value={card.count}
+            icon={Pill}
+            accent={statusFilter === card.filter ? 'info' : 'default'}
             onClick={() => setStatusFilter(statusFilter === card.filter ? null : card.filter)}
-          >
-            <CardContent className="p-4">
-              <p className="text-2xl font-bold text-foreground">{card.count}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{card.label}</p>
-            </CardContent>
-          </Card>
+            className={cn(statusFilter === card.filter && 'ring-2 ring-primary')}
+          />
         ))}
       </div>
 
@@ -750,6 +738,6 @@ export function PrescriptionsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </ChartTabShell>
   );
 }

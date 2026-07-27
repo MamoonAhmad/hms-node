@@ -14,6 +14,7 @@ import {
 import { Download, Printer, FileText } from 'lucide-react';
 import { buildPatientProfileBundle, downloadJson } from '@/pages/patient-dashboard/patientProfileBundle';
 import { usePatientChart } from '@/pages/patient-dashboard/PatientChartContext';
+import { ChartTabShell } from '@/pages/patient-dashboard/components/chart-ui';
 
 function Section({ id, title, children }) {
   return (
@@ -139,16 +140,11 @@ export function PatientProfileTab() {
   const { demographics, meta } = bundle;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Patient profile</h1>
-          <p className="text-muted-foreground text-sm mt-1 max-w-3xl">
-            Consolidated record for chart review, legal, or care coordination. Use <strong>Download all</strong> for
-            machine-readable JSON and HTML, or <strong>Print all</strong> for a formatted paper copy.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 shrink-0">
+    <ChartTabShell
+      title="Patient profile"
+      description="Consolidated record for chart review, legal, or care coordination. Download JSON/HTML or print a formatted copy."
+      actions={
+        <>
           {patient?.id && patient.id !== 'sample' && (
             <Button variant="outline" className="gap-2" asChild>
               <Link to={`/patients/edit/${patient.id}`}>Edit registration</Link>
@@ -156,19 +152,20 @@ export function PatientProfileTab() {
           )}
           <Button type="button" variant="default" className="gap-2" onClick={handleDownloadAll}>
             <Download className="h-4 w-4" />
-            Download all (JSON)
+            Download JSON
           </Button>
           <Button type="button" variant="secondary" className="gap-2" onClick={handleDownloadHtml}>
             <FileText className="h-4 w-4" />
-            Download all (HTML)
+            Download HTML
           </Button>
           <Button type="button" variant="outline" className="gap-2" onClick={handlePrintAll}>
             <Printer className="h-4 w-4" />
             Print all
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+      className="print:space-y-4"
+    >
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -483,6 +480,6 @@ export function PatientProfileTab() {
           End of patient profile — exported {new Date(bundle.meta.generatedAt).toLocaleString()}.
         </p>
       </div>
-    </div>
+    </ChartTabShell>
   );
 }

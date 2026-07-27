@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Clock, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { appointmentTypeApi } from '@/services/api';
+import {
+  AppointmentTypeHistorySidebar,
+  formatUsAuditDateTime,
+} from './AppointmentTypeHistorySidebar';
 
 const MODAL_SHELL_PROPS = {
   closeOnOverlayClick: false,
@@ -33,6 +37,7 @@ const emptyForm = () => ({
   name: '',
   description: '',
   isActive: true,
+  providerRequired: false,
   defaultTime: '',
 });
 
@@ -42,6 +47,7 @@ function rowToForm(row) {
     name: row?.name || '',
     description: row?.description || '',
     isActive: row?.isActive !== false,
+    providerRequired: row?.providerRequired === true,
     defaultTime: defaultTime === 0 || defaultTime ? String(defaultTime) : '',
   };
 }
@@ -49,6 +55,12 @@ function rowToForm(row) {
 function formatTimeDisplay(value) {
   if (value === '' || value == null) return '—';
   return String(value);
+}
+
+function isSystemAppointmentType(row) {
+  if (!row) return false;
+  if (row.isSystem === true) return true;
+  return String(row.name || '').trim().toLowerCase() === 'general';
 }
 
 function parseDefaultTime(value) {
@@ -66,6 +78,7 @@ function buildPayload(form) {
     name,
     description: form.description?.trim() || null,
     isActive: form.isActive !== false,
+    providerRequired: form.providerRequired === true,
     defaultTime,
   };
 }
@@ -75,6 +88,7 @@ function payloadsEqual(a, b) {
     a.name === b.name &&
     (a.description || '') === (b.description || '') &&
     a.isActive === b.isActive &&
+    a.providerRequired === b.providerRequired &&
     (a.defaultTime ?? null) === (b.defaultTime ?? null)
   );
 }
@@ -85,8 +99,16 @@ function auditUserLabel(user) {
 }
 
 function formatAuditDate(value) {
-  if (!value) return '—';
-  return new Date(value).toLocaleString();
+  return formatUsAuditDateTime(value);
+}
+
+function AuditUserCell({ user, date }) {
+  return (
+    <div className="text-sm">
+      <p className="font-medium text-foreground">{auditUserLabel(user)}</p>
+      <p className="text-xs text-muted-foreground mt-0.5">{formatUsAuditDateTime(date)}</p>
+    </div>
+  );
 }
 
 export function AppointmentTypesPage() {
@@ -102,6 +124,10 @@ export function AppointmentTypesPage() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyTarget, setHistoryTarget] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const fetchList = useCallback(async () => {
     setIsLoading(true);
@@ -135,6 +161,10 @@ export function AppointmentTypesPage() {
   const isReadOnly = formMode === 'view';
 
   const openForm = (mode, row = null) => {
+    // System types (General) are view-only.
+    if (row && isSystemAppointmentType(row) && mode === 'edit') {
+      mode = 'view';
+    }
     setFormMode(mode);
     setSelectedItem(row);
     setForm(row ? rowToForm(row) : emptyForm());
@@ -194,6 +224,10 @@ export function AppointmentTypesPage() {
   };
 
   const handleDeleteClick = (row) => {
+    if (isSystemAppointmentType(row)) {
+      setError('The "General" appointment type is system-defined and cannot be deleted.');
+      return;
+    }
     setDeleteTarget(row);
     setIsDeleteOpen(true);
   };
@@ -216,6 +250,26 @@ export function AppointmentTypesPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const openHistory = async (row) => {
+    setHistoryTarget(row);
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      const res = await appointmentTypeApi.getHistory(row.id);
+      setHistory(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const closeHistory = () => {
+    setHistoryOpen(false);
+    setHistoryTarget(null);
+    setHistory([]);
   };
 
   return (
@@ -249,6 +303,12 @@ export function AppointmentTypesPage() {
                   ? 'Edit Appointment Type'
                   : 'Add Appointment Type'}
             </DialogTitle>
+            {selectedItem && isSystemAppointmentType(selectedItem) && (
+              <DialogDescription>
+                General is a system appointment type. It is available for all providers and cannot be
+                edited or deleted.
+              </DialogDescription>
+            )}
           </DialogHeader>
 
           <form onSubmit={handleFormSubmit} className="space-y-4">
@@ -299,6 +359,36 @@ export function AppointmentTypesPage() {
                   <span className="text-sm text-muted-foreground">
                     ({form.isActive ? 'Active' : 'Inactive'})
                   </span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Provider require</Label>
+              {isReadOnly ? (
+                <Input
+                  value={form.providerRequired ? 'Yes' : 'No'}
+                  readOnly
+                  className="bg-muted cursor-default max-w-xs"
+                />
+              ) : (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="aptTypeProviderRequired"
+                      checked={form.providerRequired}
+                      onCheckedChange={(checked) =>
+                        setForm((p) => ({ ...p, providerRequired: !!checked }))
+                      }
+                    />
+                    <Label htmlFor="aptTypeProviderRequired" className="font-normal cursor-pointer">
+                      Provider require
+                    </Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    When checked, this type is hidden from the general catalog and only shown for
+                    providers whose schedule includes it.
+                  </p>
                 </div>
               )}
             </div>
@@ -440,21 +530,43 @@ export function AppointmentTypesPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((row, index) => (
+                filtered.map((row, index) => {
+                  const systemType = isSystemAppointmentType(row);
+                  return (
                   <TableRow key={row.id}>
                     <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                    <TableCell className="font-medium">{row.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <span>{row.name}</span>
+                        {systemType && (
+                          <span className="rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            System
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatTimeDisplay(row.defaultTime)}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {auditUserLabel(row.creator)}
+                    <TableCell>
+                      <AuditUserCell user={row.creator} date={row.createdAt} />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {auditUserLabel(row.updater)}
+                    <TableCell>
+                      <AuditUserCell user={row.updater} date={row.updatedAt} />
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="View history"
+                          aria-label="View history"
+                          onClick={() => openHistory(row)}
+                        >
+                          <Clock className="h-4 w-4" />
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
@@ -466,37 +578,50 @@ export function AppointmentTypesPage() {
                         >
                           <Eye className="h-4 w-4 icon-action-view" />
                         </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Edit"
-                          aria-label="Edit"
-                          onClick={() => openForm('edit', row)}
-                        >
-                          <Pencil className="h-4 w-4 icon-action-edit" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          title="Delete"
-                          aria-label="Delete"
-                          onClick={() => handleDeleteClick(row)}
-                        >
-                          <Trash2 className="h-4 w-4 icon-action-delete" />
-                        </Button>
+                        {!systemType && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              title="Edit"
+                              aria-label="Edit"
+                              onClick={() => openForm('edit', row)}
+                            >
+                              <Pencil className="h-4 w-4 icon-action-edit" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              title="Delete"
+                              aria-label="Delete"
+                              onClick={() => handleDeleteClick(row)}
+                            >
+                              <Trash2 className="h-4 w-4 icon-action-delete" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </div>
       </div>
+
+      <AppointmentTypeHistorySidebar
+        open={historyOpen}
+        onClose={closeHistory}
+        appointmentTypeName={historyTarget?.name}
+        history={history}
+        isLoading={historyLoading}
+      />
     </div>
   );
 }

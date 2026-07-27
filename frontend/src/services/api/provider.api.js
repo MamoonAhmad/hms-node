@@ -9,6 +9,7 @@ export const providerApi = {
     if (params.search) searchParams.set('search', params.search);
     if (params.isActive !== undefined && params.isActive !== '')
       searchParams.set('isActive', params.isActive);
+    if (params.departmentId) searchParams.set('departmentId', params.departmentId);
 
     const response = await fetch(`${API_BASE_URL}/providers?${searchParams}`, {
       headers: getAuthHeaders(),

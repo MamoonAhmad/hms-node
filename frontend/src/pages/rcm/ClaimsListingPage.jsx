@@ -40,6 +40,7 @@ import {
   Flag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { claimApi } from '@/services/api/claim.api';
 
 // Status options for filter and display (use 'all' not '' for Radix Select)
 const CLAIM_STATUSES = [
@@ -47,14 +48,42 @@ const CLAIM_STATUSES = [
   { value: 'draft', label: 'Draft' },
   { value: 'ready', label: 'Ready to submit' },
   { value: 'submitted', label: 'Submitted' },
-  { value: 'accepted', label: 'Accepted' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'denied', label: 'Denied' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'partial', label: 'Partial payment' },
-  { value: 'appealing', label: 'Appealing' },
-  { value: 'voided', label: 'Voided/Cancelled' },
 ];
+
+function mapApiClaim(claim) {
+  const status = String(claim.status || 'Draft').toLowerCase();
+  const totalCharge = Number(claim.totalCharge) || 0;
+  const dos = claim.dateOfService
+    ? String(claim.dateOfService).slice(0, 10)
+    : '';
+  return {
+    id: claim.id,
+    claimId: claim.claimNumber,
+    patientName: claim.patientName
+      || [claim.patientLastName, claim.patientFirstName].filter(Boolean).join(', '),
+    patientMrn: claim.patientMrn || '',
+    dateOfService: dos,
+    payer: claim.payerName || '—',
+    status,
+    claimType: claim.claimType || 'original',
+    totalCharge,
+    amountPaid: 0,
+    balanceDue: totalCharge,
+    submittedDate: claim.submittedAt ? String(claim.submittedAt).slice(0, 10) : null,
+    renderingProvider: claim.renderingProviderName || '—',
+    placeOfService: claim.placeOfService || '',
+    rejectionReason: null,
+    encounterNumber: claim.encounterNumber || null,
+    appointmentId: claim.appointmentId || null,
+    patientId: claim.patientId || null,
+    raw: claim,
+  };
+}
+
+function toApiStatus(status) {
+  if (!status) return status;
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
 
 const CLAIM_TYPES = [
   { value: 'all', label: 'All types' },
@@ -199,18 +228,18 @@ const MOCK_CLAIMS = [
 
 function getStatusBadgeVariant(status) {
   const map = {
-    draft: 'secondary',
-    ready: 'outline',
-    submitted: 'default',
-    accepted: 'default',
+    draft: 'muted',
+    ready: 'info',
+    submitted: 'info',
+    accepted: 'success',
     rejected: 'destructive',
     denied: 'destructive',
-    paid: 'default',
-    partial: 'outline',
-    appealing: 'outline',
-    voided: 'secondary',
+    paid: 'success',
+    partial: 'warning',
+    appealing: 'warning',
+    voided: 'muted',
   };
-  return map[status] || 'secondary';
+  return map[status] || 'muted';
 }
 
 function getStatusLabel(status) {
@@ -263,7 +292,8 @@ function getDateRange(preset) {
 
 export function ClaimsListingPage() {
   const [loading, setLoading] = useState(false);
-  const [claims, setClaims] = useState(MOCK_CLAIMS);
+  const [claims, setClaims] = useState([]);
+  const [loadError, setLoadError] = useState(null);
 
   // Filters
   const [globalSearch, setGlobalSearch] = useState('');
@@ -463,10 +493,56 @@ export function ClaimsListingPage() {
   const canVoidSelected = selectedClaims.length > 0;
   const canExportSelected = selectedClaims.length > 0;
 
-  const handleRefresh = useCallback(() => {
+  const loadClaims = useCallback(async () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 600);
-  }, []);
+    setLoadError(null);
+    try {
+      const res = await claimApi.listClaims({
+        page: 1,
+        limit: 100,
+        search: globalSearchDebounced || undefined,
+        status: statusFilter !== 'all' ? toApiStatus(statusFilter) : undefined,
+        dateFrom: dosFrom || undefined,
+        dateTo: dosTo || undefined,
+      });
+      const rows = (res?.data || []).map(mapApiClaim);
+      setClaims(rows);
+    } catch (err) {
+      setLoadError(err?.message || 'Failed to load claims');
+      setClaims([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [globalSearchDebounced, statusFilter, dosFrom, dosTo]);
+
+  useEffect(() => {
+    loadClaims();
+  }, [loadClaims]);
+
+  const handleRefresh = useCallback(() => {
+    loadClaims();
+  }, [loadClaims]);
+
+  const handleMarkReady = useCallback(async (claim) => {
+    try {
+      await claimApi.updateClaimStatus(claim.id, 'Ready');
+      await loadClaims();
+    } catch (err) {
+      setLoadError(err?.message || 'Failed to update claim');
+    }
+  }, [loadClaims]);
+
+  const handleSubmitClaim = useCallback(async (claim) => {
+    try {
+      if (claim.status === 'draft') {
+        await claimApi.updateClaimStatus(claim.id, 'Ready');
+      }
+      await claimApi.updateClaimStatus(claim.id, 'Submitted');
+      await loadClaims();
+    } catch (err) {
+      setLoadError(err?.message || 'Failed to submit claim');
+    }
+  }, [loadClaims]);
 
   const handleExport = useCallback(() => {
     const data = selectedClaims.length ? selectedClaims : sortedClaims.slice(0, 5000);
@@ -513,6 +589,12 @@ export function ClaimsListingPage() {
           </Button>
         </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {loadError}
+        </div>
+      )}
 
       {/* Top filter section */}
       <Card>
@@ -703,12 +785,16 @@ export function ClaimsListingPage() {
                 label: 'Patient',
                 cellClassName: 'font-medium',
                 render: (row) => (
-                  <Link
-                    to={`/patient-dashboard/${row.patientMrn}`}
-                    className="text-primary hover:underline"
-                  >
-                    {row.patientName}
-                  </Link>
+                  row.patientId ? (
+                    <Link
+                      to={`/patient-dashboard/${row.patientId}${row.appointmentId ? `?appointmentId=${row.appointmentId}&tab=charge-capture` : '?tab=charge-capture'}`}
+                      className="text-primary hover:underline"
+                    >
+                      {row.patientName}
+                    </Link>
+                  ) : (
+                    <span>{row.patientName}</span>
+                  )
                 ),
               },
               {
@@ -791,6 +877,27 @@ export function ClaimsListingPage() {
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
+                {claim.status === 'draft' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => handleMarkReady(claim)}
+                  >
+                    Ready
+                  </Button>
+                )}
+                {(claim.status === 'draft' || claim.status === 'ready') && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => handleSubmitClaim(claim)}
+                    aria-label="Submit claim"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button variant="ghost" size="icon" className="h-8 w-8" asChild aria-label="Edit claim">
                   <Link to={`/rcm/cms-1500?claimId=${claim.claimId}`}>
                     <Pencil className="h-4 w-4" />

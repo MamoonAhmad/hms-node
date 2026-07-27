@@ -260,6 +260,17 @@ function buildListWhere(filters) {
     conditions.push({ providerId: filters.providerId });
   }
 
+  if (filters.departmentId) {
+    conditions.push({
+      provider: {
+        OR: [
+          { departmentId: filters.departmentId },
+          { departmentLinks: { some: { departmentId: filters.departmentId } } },
+        ],
+      },
+    });
+  }
+
   if (filters.days?.length) {
     conditions.push({ days: { hasSome: filters.days } });
   }

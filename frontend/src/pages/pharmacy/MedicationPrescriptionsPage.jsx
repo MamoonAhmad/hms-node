@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,10 +13,17 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Barcode, Eye } from 'lucide-react';
-import { prescriptionPatientsMock } from './pharmacyMockData';
+import { orderApi } from '@/services/api';
+import {
+  mapOrderToPharmacyMed,
+  groupOrdersByPatient,
+} from '@/lib/orderWorklist';
 
 export function MedicationPrescriptionsPage() {
   const navigate = useNavigate();
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [patientName, setPatientName] = useState('');
   const [mrn, setMrn] = useState('');
   const [quickSearch, setQuickSearch] = useState('');
@@ -27,11 +34,35 @@ export function MedicationPrescriptionsPage() {
   const [tableSearch, setTableSearch] = useState('');
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await orderApi.getOrders({ category: 'Pharmacy', limit: 500 });
+        const mapped = (res?.data || []).map(mapOrderToPharmacyMed);
+        const grouped = groupOrdersByPatient(mapped, 'dateTime');
+        if (!cancelled) setPatients(grouped);
+      } catch (err) {
+        if (!cancelled) {
+          setPatients([]);
+          setError(err.message || 'Failed to load medication orders');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const filtered = useMemo(() => {
-    let list = prescriptionPatientsMock;
+    let list = patients;
     if (patientName.trim()) {
       const q = patientName.toLowerCase();
-      list = list.filter((p) => p.name.toLowerCase().includes(q));
+      list = list.filter((p) => (p.name || '').toLowerCase().includes(q));
     }
     if (mrn.trim()) {
       const q = mrn.toLowerCase();
@@ -42,9 +73,7 @@ export function MedicationPrescriptionsPage() {
       list = list.filter(
         (p) =>
           (p.name || '').toLowerCase().includes(q) ||
-          (p.mrn || '').toLowerCase().includes(q) ||
-          (p.admission?.erId || '').toLowerCase().includes(q) ||
-          (p.admission?.complaint || '').toLowerCase().includes(q)
+          (p.mrn || '').toLowerCase().includes(q)
       );
     }
     if (admissionSearch.trim()) {
@@ -52,7 +81,7 @@ export function MedicationPrescriptionsPage() {
       list = list.filter((p) => (p.admission?.erId || '').toLowerCase().includes(q));
     }
     return list;
-  }, [patientName, mrn, quickSearch, admissionSearch]);
+  }, [patients, patientName, mrn, quickSearch, admissionSearch]);
 
   const filteredByTableSearch = useMemo(() => {
     const q = tableSearch.toLowerCase().trim();
@@ -60,9 +89,7 @@ export function MedicationPrescriptionsPage() {
     return filtered.filter(
       (p) =>
         (p.name || '').toLowerCase().includes(q) ||
-        (p.mrn || '').toLowerCase().includes(q) ||
-        (p.admission?.erId || '').toLowerCase().includes(q) ||
-        (p.admission?.complaint || '').toLowerCase().includes(q)
+        (p.mrn || '').toLowerCase().includes(q)
     );
   }, [filtered, tableSearch]);
 
@@ -103,6 +130,8 @@ export function MedicationPrescriptionsPage() {
         <p className="text-muted-foreground">E-Prescribe & Med Reconciliation</p>
       </div>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
@@ -141,10 +170,41 @@ export function MedicationPrescriptionsPage() {
         <CardContent>
           <DataTable
             columns={[
-              { key: 'patientDetails', label: 'Patient Details', render: (row) => (<div className="text-sm"><div className="font-medium">{row.name}</div><div className="text-muted-foreground">MRN: {row.mrn} · DOB: {row.dob} · Age: {row.age} · {row.gender}</div></div>) },
-              { key: 'admissionDetails', label: 'Admission Details', render: (row) => (<div className="text-sm"><div>{row.admission?.erId}</div><div className="text-muted-foreground">{row.admission?.complaint} · {row.admission?.arrivalMethod}</div><div className="text-xs">{row.admission?.status}</div></div>) },
-              { key: 'medications', label: 'Medications', render: (row) => (<div className="text-sm"><div className="font-medium">{row.medicationCount} medication(s)</div><div className="text-muted-foreground text-xs">{row.lastUpdated ? new Date(row.lastUpdated).toLocaleString() : '-'}</div><div className="text-xs">by {row.updatedBy}</div></div>) },
-              { key: 'lastUpdated', label: 'Last Updated', render: (row) => (<div className="text-sm"><div>{row.lastUpdated ? new Date(row.lastUpdated).toLocaleString() : '-'}</div><div className="text-xs text-muted-foreground">{row.updatedBy}</div></div>) },
+              {
+                key: 'patientDetails',
+                label: 'Patient Details',
+                render: (row) => (
+                  <div className="text-sm">
+                    <div className="font-medium">{row.name}</div>
+                    <div className="text-muted-foreground">
+                      MRN: {row.mrn} · DOB: {row.dob} · Age: {row.age} · {row.gender}
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                key: 'medications',
+                label: 'Medications',
+                render: (row) => (
+                  <div className="text-sm">
+                    <div className="font-medium">{row.medicationCount} medication(s)</div>
+                    <div className="text-muted-foreground text-xs">
+                      {row.lastUpdated ? new Date(row.lastUpdated).toLocaleString() : '-'}
+                    </div>
+                    <div className="text-xs">by {row.updatedBy}</div>
+                  </div>
+                ),
+              },
+              {
+                key: 'lastUpdated',
+                label: 'Last Updated',
+                render: (row) => (
+                  <div className="text-sm">
+                    <div>{row.lastUpdated ? new Date(row.lastUpdated).toLocaleString() : '-'}</div>
+                    <div className="text-xs text-muted-foreground">{row.updatedBy}</div>
+                  </div>
+                ),
+              },
             ]}
             data={rows}
             total={total}
@@ -156,11 +216,20 @@ export function MedicationPrescriptionsPage() {
             onPageSizeChange={handlePageSizeChange}
             getRowId={(row) => row.id}
             searchPlaceholder="Search patient records..."
-            emptyMessage="No records"
+            emptyMessage={loading ? 'Loading medication orders...' : 'No records'}
             actions={(row) => (
               <div className="flex gap-1">
-                <Button variant="ghost" size="sm" title="View Tests" onClick={() => navigate(`/pharmacy/e-prescribe-med-reconciliation/patient/${row.id}`)}><Eye className="h-4 w-4 icon-action-view" /></Button>
-                <Button variant="ghost" size="sm" title="Generate Barcode Labels" onClick={() => setBarcodeRow(row)}><Barcode className="h-4 w-4" /></Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="View medications"
+                  onClick={() => navigate(`/pharmacy/e-prescribe-med-reconciliation/patient/${row.id}`)}
+                >
+                  <Eye className="h-4 w-4 icon-action-view" />
+                </Button>
+                <Button variant="ghost" size="sm" title="Generate Barcode Labels" onClick={() => setBarcodeRow(row)}>
+                  <Barcode className="h-4 w-4" />
+                </Button>
               </div>
             )}
           />

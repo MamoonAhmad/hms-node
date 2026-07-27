@@ -6,7 +6,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { formatAppointmentTypes } from '@/lib/providerScheduleUtils';
+import { formatAppointmentTypes, formatScheduleDepartments } from '@/lib/providerScheduleUtils';
 
 function formatTimeSlot(start, end) {
   if (!start || !end) return '-';
@@ -38,6 +38,10 @@ export function ViewScheduleDialog({ open, onOpenChange, schedule }) {
               <p className="font-medium">{schedule.specialty || '-'}</p>
             </div>
             <div className="space-y-1">
+              <Label className="text-muted-foreground">Department(s)</Label>
+              <p className="font-medium">{formatScheduleDepartments(schedule)}</p>
+            </div>
+            <div className="space-y-1">
               <Label className="text-muted-foreground">Sub-Specialty</Label>
               <p className="font-medium">{schedule.subSpecialty || '-'}</p>
             </div>
@@ -49,6 +53,14 @@ export function ViewScheduleDialog({ open, onOpenChange, schedule }) {
           <div className="space-y-1">
             <Label className="text-muted-foreground">Time Slot(s)</Label>
             <p className="font-medium">{formatTimeSlot(schedule.startTime, schedule.endTime)}</p>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-muted-foreground">Break Hours</Label>
+            <p className="font-medium">
+              {schedule.breakHoursEnabled
+                ? `${schedule.breakStartTime} – ${schedule.breakEndTime}`
+                : 'None'}
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">

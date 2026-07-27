@@ -23,6 +23,7 @@ import { providerApi, providerBlockHourApi } from '@/services/api';
 import { DAYS_FILTER_OPTIONS } from '@/lib/providerScheduleUtils';
 import { formatDateRange, formatTimeSlot, buildBlockPayload } from '@/lib/providerBlockHourUtils';
 import { BlockHoursFormDialog } from './BlockHoursFormDialog';
+import { useTopbarDepartment } from '@/contexts/TopbarDepartmentContext';
 
 const BLOCK_COLUMNS = [
   { key: 'providerName', label: 'Provider Name', cellClassName: 'font-medium' },
@@ -46,6 +47,7 @@ const BLOCK_COLUMNS = [
 ];
 
 export function BlockHoursPage() {
+  const { departmentId } = useTopbarDepartment();
   const [blocks, setBlocks] = useState([]);
   const [providers, setProviders] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,6 +70,7 @@ export function BlockHoursPage() {
         limit: pagination.limit,
         search: search.trim() || undefined,
         providerId: filters.providerId || undefined,
+        departmentId: departmentId || undefined,
         days: filters.days.length ? filters.days : undefined,
         status: filters.status || undefined,
       });
@@ -83,7 +86,7 @@ export function BlockHoursPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters, pagination.page, pagination.limit, search]);
+  }, [filters, pagination.page, pagination.limit, search, departmentId]);
 
   useEffect(() => {
     fetchBlocks();
@@ -91,10 +94,10 @@ export function BlockHoursPage() {
 
   useEffect(() => {
     setPagination((p) => ({ ...p, page: 1 }));
-  }, [filters, search]);
+  }, [filters, search, departmentId]);
 
   useEffect(() => {
-    providerApi.getAll({ limit: 500 }).then((res) => {
+    providerApi.getAll({ limit: 500, departmentId: departmentId || undefined }).then((res) => {
       setProviders(
         (res.data || []).map((p) => ({
           id: p.id,
@@ -103,7 +106,7 @@ export function BlockHoursPage() {
         })),
       );
     }).catch(() => setProviders([]));
-  }, []);
+  }, [departmentId]);
 
   const providerOptions = useMemo(
     () => providers.map((p) => ({ value: p.id, label: p.name })),

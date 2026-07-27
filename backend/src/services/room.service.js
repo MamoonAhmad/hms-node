@@ -21,6 +21,9 @@ const roomTypeInclude = {
 
 const listInclude = {
   ...auditInclude,
+  department: {
+    select: { id: true, departmentName: true, departmentCode: true },
+  },
   roomTypes: {
     include: roomTypeInclude,
     orderBy: { roomType: { sortOrder: 'asc' } },
@@ -77,6 +80,15 @@ function serializeRoom(row) {
     displayName: row.displayName || '',
     floor: row.floor || '',
     unit: row.unit || '',
+    departmentId: row.departmentId || null,
+    department: row.department
+      ? {
+          id: row.department.id,
+          departmentName: row.department.departmentName,
+          departmentCode: row.department.departmentCode,
+        }
+      : null,
+    departmentName: row.department?.departmentName || '',
     status: row.status,
     licensedBeds: row.licensedBeds,
     notes: row.notes || '',
@@ -136,6 +148,21 @@ async function validateRoomTypeIds(roomTypeIds) {
   return uniqueIds;
 }
 
+async function resolveDepartmentId(departmentId) {
+  if (departmentId == null || departmentId === '') return null;
+  const id = String(departmentId).trim();
+  const dept = await prisma.department.findFirst({
+    where: { id },
+    select: { id: true },
+  });
+  if (!dept) {
+    const err = new Error('Department is invalid');
+    err.statusCode = 400;
+    throw err;
+  }
+  return dept.id;
+}
+
 async function getSummary() {
   const [totalRooms, activeRooms, agg] = await Promise.all([
     prisma.room.count({ where: NOT_DELETED }),
@@ -163,6 +190,7 @@ const roomService = {
     }
 
     const roomTypeIds = await validateRoomTypeIds(data.roomTypeIds);
+    const departmentId = await resolveDepartmentId(data.departmentId);
 
     const row = await prisma.room.create({
       data: {
@@ -170,6 +198,7 @@ const roomService = {
         displayName: emptyToNull(data.displayName),
         floor: emptyToNull(data.floor),
         unit: emptyToNull(data.unit),
+        departmentId,
         status: normalizeStatus(data.status),
         licensedBeds: parseLicensedBeds(data.licensedBeds),
         notes: emptyToNull(data.notes),
@@ -203,6 +232,11 @@ const roomService = {
           { unit: { contains: search, mode: 'insensitive' } },
           { status: { contains: search, mode: 'insensitive' } },
           { notes: { contains: search, mode: 'insensitive' } },
+          {
+            department: {
+              departmentName: { contains: search, mode: 'insensitive' },
+            },
+          },
           {
             roomTypes: {
               some: {
@@ -249,14 +283,22 @@ const roomService = {
     };
   },
 
-  async findAllActive() {
+  async findAllActive(filters = {}) {
+    const where = { ...NOT_DELETED, status: 'active' };
+    if (filters.departmentId) {
+      where.departmentId = filters.departmentId;
+    }
+
     const rows = await prisma.room.findMany({
-      where: { ...NOT_DELETED, status: 'active' },
+      where,
       orderBy: [{ roomNumber: 'asc' }],
       select: {
         id: true,
         roomNumber: true,
         displayName: true,
+        floor: true,
+        unit: true,
+        departmentId: true,
       },
     });
 
@@ -296,6 +338,9 @@ const roomService = {
     if (data.displayName !== undefined) payload.displayName = emptyToNull(data.displayName);
     if (data.floor !== undefined) payload.floor = emptyToNull(data.floor);
     if (data.unit !== undefined) payload.unit = emptyToNull(data.unit);
+    if (data.departmentId !== undefined) {
+      payload.departmentId = await resolveDepartmentId(data.departmentId);
+    }
     if (data.status !== undefined) payload.status = normalizeStatus(data.status);
     if (data.licensedBeds !== undefined) payload.licensedBeds = parseLicensedBeds(data.licensedBeds, existing.licensedBeds);
     if (data.notes !== undefined) payload.notes = emptyToNull(data.notes);

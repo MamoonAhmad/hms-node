@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { providerApi } from '@/services/api';
+import { useTopbarDepartment } from '@/contexts/TopbarDepartmentContext';
 
 const COLUMNS = [
   {
@@ -40,13 +41,21 @@ const COLUMNS = [
   },
   {
     key: 'departmentLabel',
-    label: 'Department',
-    render: (row) =>
-      row.department?.departmentName ?? <span className="text-muted-foreground">—</span>,
+    label: 'Department(s)',
+    render: (row) => {
+      const names = (row.departments || [])
+        .map((d) => d.departmentName)
+        .filter(Boolean);
+      if (!names.length && row.department?.departmentName) {
+        names.push(row.department.departmentName);
+      }
+      return names.length ? names.join(', ') : <span className="text-muted-foreground">—</span>;
+    },
   },
 ];
 
 export function ProvidersPage() {
+  const { departmentId } = useTopbarDepartment();
   const [providers, setProviders] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -62,6 +71,7 @@ export function ProvidersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
   const [formMode, setFormMode] = useState('create');
+  const [formError, setFormError] = useState(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const fetchProviders = useCallback(async () => {
@@ -73,6 +83,7 @@ export function ProvidersPage() {
         limit: pagination.limit,
       };
       if (search.trim()) params.search = search.trim();
+      if (departmentId) params.departmentId = departmentId;
 
       const response = await providerApi.getAll(params);
       setProviders(response.data || []);
@@ -85,11 +96,15 @@ export function ProvidersPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search]);
+  }, [pagination.page, pagination.limit, search, departmentId]);
 
   useEffect(() => {
     fetchProviders();
   }, [fetchProviders]);
+
+  useEffect(() => {
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, [departmentId]);
 
   const tableRows = useMemo(
     () =>
@@ -116,6 +131,7 @@ export function ProvidersPage() {
   const handleCreate = () => {
     setSelectedProvider(null);
     setFormMode('create');
+    setFormError(null);
     setIsFormOpen(true);
   };
 
@@ -124,6 +140,7 @@ export function ProvidersPage() {
       const detail = await providerApi.getById(provider.id);
       setSelectedProvider(detail.data ?? detail);
       setFormMode('view');
+      setFormError(null);
       setIsFormOpen(true);
     } catch (err) {
       setError(err.message);
@@ -135,6 +152,7 @@ export function ProvidersPage() {
       const detail = await providerApi.getById(provider.id);
       setSelectedProvider(detail.data ?? detail);
       setFormMode('edit');
+      setFormError(null);
       setIsFormOpen(true);
     } catch (err) {
       setError(err.message);
@@ -148,6 +166,7 @@ export function ProvidersPage() {
 
   const handleFormSubmit = async (payload) => {
     setIsSubmitting(true);
+    setFormError(null);
     try {
       if (formMode === 'edit' && selectedProvider?.id) {
         await providerApi.update(selectedProvider.id, payload);
@@ -156,12 +175,25 @@ export function ProvidersPage() {
       }
       setIsFormOpen(false);
       setSelectedProvider(null);
+      setFormError(null);
       await fetchProviders();
     } catch (err) {
-      setError(err.message);
+      const details = Array.isArray(err.details)
+        ? err.details.map((d) => d.message || d).filter(Boolean)
+        : Array.isArray(err.errors)
+          ? err.errors.map((e) => e.message || e).filter(Boolean)
+          : [];
+      setFormError(
+        details.length ? `${err.message || 'Validation failed'}: ${details.join('; ')}` : err.message || 'Failed to save provider',
+      );
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFormOpenChange = (open) => {
+    setIsFormOpen(open);
+    if (!open) setFormError(null);
   };
 
   const handleDeleteConfirm = async () => {
@@ -244,11 +276,12 @@ export function ProvidersPage() {
 
       <ProviderFormDialog
         open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={handleFormOpenChange}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}
         provider={selectedProvider}
         mode={formMode}
+        submitError={formError}
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>

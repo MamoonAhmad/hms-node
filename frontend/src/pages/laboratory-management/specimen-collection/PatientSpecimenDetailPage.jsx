@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,32 +19,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, Eye, Edit, Printer } from 'lucide-react';
-import { labApi } from '@/services/api';
-import { getLabStatusBadgeClass } from '@/lib/labConstants';
-import { SPECIMEN_TYPES } from '@/lib/labConstants';
+import { ArrowLeft, Eye, Edit, Plus, Printer } from 'lucide-react';
+import { orderApi } from '@/services/api';
+import { getLabStatusBadgeClass, SPECIMEN_TYPES } from '@/lib/labConstants';
 import { EditSpecimenDialog } from './EditSpecimenDialog';
 import { ViewSpecimenDialog } from './ViewSpecimenDialog';
+import { calcAge, mapOrderToLabRow } from '@/lib/orderWorklist';
 
 function formatDateTime(str) {
   if (!str) return '-';
   return new Date(str).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function calcAge(dob) {
-  if (!dob) return '-';
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-}
-
 export function PatientSpecimenDetailPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
   const [tests, setTests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     testId: '',
     testName: '',
@@ -54,19 +46,45 @@ export function PatientSpecimenDetailPage() {
   const [editTest, setEditTest] = useState(null);
   const [viewTest, setViewTest] = useState(null);
 
+  const loadTests = async () => {
+    if (!patientId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await orderApi.getOrders({ patientId, category: 'Lab', destination: 'onsite', limit: 500 });
+      setTests((res?.data || []).map(mapOrderToLabRow));
+    } catch (err) {
+      setTests([]);
+      setError(err.message || 'Failed to load lab orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    labApi.getPatientSpecimens(patientId, filters).then(({ data }) => setTests(data || []));
-  }, [patientId, filters]);
+    loadTests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
+
+  const filteredTests = useMemo(() => {
+    return tests.filter((row) => {
+      if (filters.testId && !(row.testId || '').toLowerCase().includes(filters.testId.toLowerCase())) return false;
+      if (filters.testName && !(row.testName || '').toLowerCase().includes(filters.testName.toLowerCase())) return false;
+      if (filters.specimenStatus && row.specimenStatus !== filters.specimenStatus) return false;
+      if (filters.specimenType && row.specimenType !== filters.specimenType) return false;
+      return true;
+    });
+  }, [tests, filters]);
 
   const handleClearFilters = () =>
     setFilters({ testId: '', testName: '', specimenStatus: '', specimenType: '' });
 
-  const handleSaved = () => {
+  const handleSaved = async () => {
     setEditTest(null);
-    labApi.getPatientSpecimens(patientId, filters).then(({ data }) => setTests(data || []));
+    await loadTests();
   };
 
-  const patient = tests.length > 0 ? { ...tests[0].patient, admission: tests[0].admission } : null;
+  const patient = tests.length > 0 ? tests[0].patient : null;
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -80,6 +98,8 @@ export function PatientSpecimenDetailPage() {
         </div>
       </div>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       {patient && (
         <Card>
           <CardHeader>
@@ -89,10 +109,8 @@ export function PatientSpecimenDetailPage() {
             <div><Label className="text-muted-foreground">Patient Name</Label><p className="font-medium">{patient.name}</p></div>
             <div><Label className="text-muted-foreground">MRN</Label><p>{patient.mrn}</p></div>
             <div><Label className="text-muted-foreground">DOB</Label><p>{patient.dob}</p></div>
-            <div><Label className="text-muted-foreground">Age</Label><p>{calcAge(patient.dob)}</p></div>
+            <div><Label className="text-muted-foreground">Age</Label><p>{calcAge(patient.dateOfBirth)}</p></div>
             <div><Label className="text-muted-foreground">Gender</Label><p>{patient.gender}</p></div>
-            <div><Label className="text-muted-foreground">Chief Complaint</Label><p>{patient.admission?.chiefComplaint ?? '-'}</p></div>
-            <div><Label className="text-muted-foreground">Patient Status</Label><p>{patient.admission?.admissionStatus ?? '-'}</p></div>
           </CardContent>
         </Card>
       )}
@@ -109,9 +127,8 @@ export function PatientSpecimenDetailPage() {
             <SelectContent>
               <SelectItem value="_">All</SelectItem>
               <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Submitted">Submitted</SelectItem>
               <SelectItem value="Collected">Collected</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
+              <SelectItem value="Cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filters.specimenType || '_'} onValueChange={(v) => setFilters((f) => ({ ...f, specimenType: v === '_' ? '' : v }))}>
@@ -135,14 +152,17 @@ export function PatientSpecimenDetailPage() {
               <TableRow>
                 <TableHead>Test Information</TableHead>
                 <TableHead>Specimen Status</TableHead>
+                <TableHead>Ordered</TableHead>
                 <TableHead className="w-[140px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tests.length === 0 ? (
-                <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No tests</TableCell></TableRow>
+              {loading ? (
+                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">Loading...</TableCell></TableRow>
+              ) : filteredTests.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No tests</TableCell></TableRow>
               ) : (
-                tests.map((row) => (
+                filteredTests.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>
                       <div className="space-y-0.5">
@@ -156,10 +176,22 @@ export function PatientSpecimenDetailPage() {
                         {row.specimenStatus}
                       </span>
                     </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{formatDateTime(row.orderDateTime)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setViewTest(row)} title="View"><Eye className="h-4 w-4 icon-action-view" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => setEditTest(row)} title="Edit Specimen"><Edit className="h-4 w-4 icon-action-edit" /></Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditTest(row)}
+                          title={row.specimenStatus === 'Pending' ? 'Add Specimen Collection' : 'Edit Specimen'}
+                        >
+                          {row.specimenStatus === 'Pending' ? (
+                            <Plus className="h-4 w-4 icon-action-edit" />
+                          ) : (
+                            <Edit className="h-4 w-4 icon-action-edit" />
+                          )}
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => navigate(`/laboratory-management/specimen-collection/labels?specimenId=${row.id}&count=1`)} title="Print Barcode"><Printer className="h-4 w-4 icon-action-print" /></Button>
                       </div>
                     </TableCell>

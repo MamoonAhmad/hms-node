@@ -10,6 +10,7 @@ const createAppointmentTypeSchema = Joi.object({
     'number.base': 'Time must be a valid number',
   }),
   isActive: Joi.boolean().default(true),
+  providerRequired: Joi.boolean().default(false),
   sortOrder: Joi.number().integer().min(0).max(9999).default(0),
 });
 
@@ -22,6 +23,7 @@ const updateAppointmentTypeSchema = Joi.object({
     'number.base': 'Time must be a valid number',
   }),
   isActive: Joi.boolean(),
+  providerRequired: Joi.boolean(),
   sortOrder: Joi.number().integer().min(0).max(9999),
 })
   .min(1)

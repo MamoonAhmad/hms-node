@@ -109,6 +109,7 @@ const providerScheduleController = {
         'search',
         'providerIds',
         'specialtyId',
+        'departmentId',
         'days',
         'dateFrom',
         'dateTo',

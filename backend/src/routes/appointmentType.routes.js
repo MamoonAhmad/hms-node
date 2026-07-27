@@ -142,6 +142,11 @@ const {
 router.post('/', validate(createAppointmentTypeSchema, 'body'), appointmentTypeController.create);
 router.get('/', validate(queryAppointmentTypeSchema, 'query'), appointmentTypeController.findAll);
 router.get('/active', appointmentTypeController.findAllActive);
+router.get(
+  '/:id/history',
+  validate(appointmentTypeIdSchema, 'params'),
+  appointmentTypeController.getHistory,
+);
 router.get('/:id', validate(appointmentTypeIdSchema, 'params'), appointmentTypeController.findById);
 router.put(
   '/:id',

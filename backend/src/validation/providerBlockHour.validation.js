@@ -51,6 +51,7 @@ const queryProviderBlockHourSchema = Joi.object({
   limit: Joi.number().integer().min(1).max(500).default(10),
   search: Joi.string().trim().max(200).allow(''),
   providerId: Joi.string().uuid().allow('', null),
+  departmentId: Joi.string().uuid().allow('', null),
   days: Joi.alternatives().try(
     Joi.string().trim().allow(''),
     Joi.array().items(Joi.string().valid(...DAY_VALUES)),

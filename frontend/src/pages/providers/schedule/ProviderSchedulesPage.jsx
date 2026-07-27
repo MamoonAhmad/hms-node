@@ -20,22 +20,35 @@ import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { providerApi, providerScheduleApi, specialtyApi } from '@/services/api';
+import { providerApi, providerScheduleApi, specialtyApi, departmentApi } from '@/services/api';
 import {
   DAYS_FILTER_OPTIONS,
   formatAppointmentTypes,
+  formatBreakHours,
   formatLocations,
   formatTimeSlot,
+  formatScheduleDepartments,
   buildSchedulePayload,
 } from '@/lib/providerScheduleUtils';
 import { ProviderScheduleFormDialog } from './ProviderScheduleFormDialog';
+import { useTopbarDepartment } from '@/contexts/TopbarDepartmentContext';
 
 const SCHEDULE_COLUMNS = [
   { key: 'providerName', label: 'Provider Name', cellClassName: 'font-medium' },
+  {
+    key: 'departmentName',
+    label: 'Department(s)',
+    render: (row) => formatScheduleDepartments(row),
+  },
   { key: 'specialty', label: 'Specialty', render: (row) => row.specialty || '-' },
   { key: 'subSpecialty', label: 'Sub-Specialty', render: (row) => row.subSpecialty || '-' },
   { key: 'days', label: 'Days', render: (row) => (row.days || []).join(', ') || '-' },
   { key: 'timeSlot', label: 'Time Slot(s)', render: (row) => formatTimeSlot(row.startTime, row.endTime) },
+  {
+    key: 'breakHours',
+    label: 'Break Hours',
+    render: (row) => formatBreakHours(row),
+  },
   {
     key: 'appointmentType',
     label: 'Appointment Type',
@@ -62,11 +75,18 @@ export function ProviderSchedulesPage() {
   const [schedules, setSchedules] = useState([]);
   const [providers, setProviders] = useState([]);
   const [specialties, setSpecialties] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const {
+    departmentId: topbarDepartmentId,
+    setSelectedDepartmentId,
+    ALL_DEPARTMENTS_VALUE,
+  } = useTopbarDepartment();
   const [filters, setFilters] = useState({
     providerIds: [],
     specialtyId: '',
+    departmentId: topbarDepartmentId || '',
     days: [],
     status: '',
     dateFrom: '',
@@ -80,6 +100,11 @@ export function ProviderSchedulesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    const next = topbarDepartmentId || '';
+    setFilters((prev) => (prev.departmentId === next ? prev : { ...prev, departmentId: next }));
+  }, [topbarDepartmentId]);
+
   const fetchSchedules = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -89,6 +114,7 @@ export function ProviderSchedulesPage() {
         search: search.trim() || undefined,
         providerIds: filters.providerIds.length ? filters.providerIds : undefined,
         specialtyId: filters.specialtyId || undefined,
+        departmentId: filters.departmentId || topbarDepartmentId || undefined,
         days: filters.days.length ? filters.days : undefined,
         dateFrom: filters.dateFrom || undefined,
         dateTo: filters.dateTo || undefined,
@@ -106,7 +132,7 @@ export function ProviderSchedulesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters, pagination.page, pagination.limit, search]);
+  }, [filters, pagination.page, pagination.limit, search, topbarDepartmentId]);
 
   useEffect(() => {
     fetchSchedules();
@@ -114,7 +140,7 @@ export function ProviderSchedulesPage() {
 
   useEffect(() => {
     setPagination((p) => ({ ...p, page: 1 }));
-  }, [filters, search]);
+  }, [filters, search, topbarDepartmentId]);
 
   useEffect(() => {
     providerApi.getAll({ limit: 500 }).then((res) => {
@@ -123,16 +149,26 @@ export function ProviderSchedulesPage() {
         rows.map((p) => ({
           id: p.id,
           name: [p.firstName, p.lastName].filter(Boolean).join(' '),
+          npi: p.npi || '',
           specialty: p.specialty?.name || '',
           subSpecialty: p.subSpecialty?.name || '',
           specialtyId: p.specialty?.id,
           subSpecialtyId: p.subSpecialty?.id,
           isActive: p.isActive,
+          departmentId: p.departmentId || p.department?.id || null,
+          departmentIds: p.departmentIds || [],
+          departments: p.departments?.length
+            ? p.departments
+            : p.department
+              ? [p.department]
+              : [],
+          department: p.department || null,
         })),
       );
     }).catch(() => setProviders([]));
 
     specialtyApi.getActive().then((res) => setSpecialties(res.data || [])).catch(() => setSpecialties([]));
+    departmentApi.getActive().then((res) => setDepartments(res.data || [])).catch(() => setDepartments([]));
   }, []);
 
   const providerOptions = useMemo(
@@ -143,6 +179,11 @@ export function ProviderSchedulesPage() {
   const specialtyOptions = useMemo(
     () => specialties.map((s) => ({ value: s.id, label: s.name })),
     [specialties],
+  );
+
+  const departmentOptions = useMemo(
+    () => departments.map((d) => ({ value: d.id, label: d.departmentName })),
+    [departments],
   );
 
   const handleSearch = useCallback((keyword) => {
@@ -245,7 +286,7 @@ export function ProviderSchedulesPage() {
       )}
 
       <div className="rounded-lg border bg-card p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div className="space-y-2">
             <Label>Provider</Label>
             <MultiSelect
@@ -275,6 +316,29 @@ export function ProviderSchedulesPage() {
                 {specialtyOptions.map((s) => (
                   <SelectItem key={s.value} value={s.value}>
                     {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Department</Label>
+            <Select
+              value={filters.departmentId || 'all'}
+              onValueChange={(v) => {
+                const next = v === 'all' ? '' : v;
+                setFilters((prev) => ({ ...prev, departmentId: next }));
+                setSelectedDepartmentId(next || ALL_DEPARTMENTS_VALUE);
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All departments</SelectItem>
+                {departmentOptions.map((d) => (
+                  <SelectItem key={d.value} value={d.value}>
+                    {d.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -395,6 +459,7 @@ export function ProviderSchedulesPage() {
           if (!open) closeForm();
         }}
         schedule={selectedSchedule}
+        editingScheduleId={formMode === 'edit' ? selectedSchedule?.id : undefined}
         providers={providers}
         onSubmit={handleFormSubmit}
         isLoading={isSubmitting}

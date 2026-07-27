@@ -35,6 +35,12 @@ const scheduleBodyFields = {
   maxAppointmentsPerSlot: Joi.number().integer().min(1).required(),
   overBooking: Joi.number().integer().min(0).default(0),
   locationIds: Joi.array().items(Joi.string().uuid()).default([]),
+  departmentId: Joi.string().uuid().required(),
+  breakHoursEnabled: Joi.boolean().default(false),
+  breakStartTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).allow(null, ''),
+  breakEndTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).allow(null, ''),
+  breakAppliesTo: Joi.string().valid('single', 'multiple', 'all').allow(null, ''),
+  breakDays: Joi.array().items(Joi.string().valid(...DAY_VALUES)).default([]),
   effectiveStartDate: Joi.date().iso().required(),
   effectiveEndDate: Joi.date().iso().allow(null, ''),
   endOnEffectiveDate: Joi.boolean().default(false),
@@ -54,6 +60,12 @@ const updateProviderScheduleSchema = Joi.object({
   maxAppointmentsPerSlot: Joi.number().integer().min(1),
   overBooking: Joi.number().integer().min(0),
   locationIds: Joi.array().items(Joi.string().uuid()),
+  departmentId: Joi.string().uuid(),
+  breakHoursEnabled: Joi.boolean(),
+  breakStartTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).allow(null, ''),
+  breakEndTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).allow(null, ''),
+  breakAppliesTo: Joi.string().valid('single', 'multiple', 'all').allow(null, ''),
+  breakDays: Joi.array().items(Joi.string().valid(...DAY_VALUES)),
   effectiveStartDate: Joi.date().iso(),
   effectiveEndDate: Joi.date().iso().allow(null, ''),
   endOnEffectiveDate: Joi.boolean(),
@@ -69,6 +81,7 @@ const queryProviderScheduleSchema = Joi.object({
   search: Joi.string().trim().max(200).allow(''),
   providerIds: uuidListFromQuery,
   specialtyId: Joi.string().uuid().allow('', null),
+  departmentId: Joi.string().uuid().allow('', null),
   days: Joi.alternatives().try(Joi.string().trim().allow(''), Joi.array().items(Joi.string().valid(...DAY_VALUES))),
   dateFrom: Joi.date().iso().allow('', null),
   dateTo: Joi.date().iso().allow('', null),
@@ -87,6 +100,7 @@ const checkOverlapSchema = Joi.object({
   endTime: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).required(),
   effectiveStartDate: Joi.date().iso().required(),
   effectiveEndDate: Joi.date().iso().allow(null, ''),
+  departmentId: Joi.string().uuid().allow(null, ''),
   excludeScheduleId: Joi.string().uuid().allow(null, ''),
 });
 
@@ -118,6 +132,7 @@ const validate = (schema, property = 'body') => {
         value.days = parseDayList(value.days);
       }
       if (value.specialtyId === '') value.specialtyId = undefined;
+      if (value.departmentId === '') value.departmentId = undefined;
       if (value.status === '') value.status = undefined;
       if (value.dateFrom === '') value.dateFrom = undefined;
       if (value.dateTo === '') value.dateTo = undefined;
@@ -126,6 +141,7 @@ const validate = (schema, property = 'body') => {
     if (property === 'body' || property === 'query') {
       if (value.effectiveEndDate === '') value.effectiveEndDate = null;
       if (value.excludeScheduleId === '') value.excludeScheduleId = null;
+      if (value.departmentId === '') value.departmentId = null;
       if (value.days && typeof value.days === 'string') {
         value.days = parseDayList(value.days);
       }

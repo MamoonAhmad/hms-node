@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus,
   Search,
-  Pencil,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -28,17 +27,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { AppointmentActionMenu } from '@/components/appointments/AppointmentActionMenu';
+import { AppointmentDetailSidebar } from '@/components/appointments/AppointmentDetailSidebar';
 import { AppointmentFormDialog } from '@/components/appointments/AppointmentFormDialog';
 import { AppointmentHistorySidebar } from '@/components/appointments/AppointmentHistorySidebar';
 import { AppointmentTimeline } from '@/components/appointments/AppointmentTimeline';
+import { RoomPatientDialog } from '@/components/appointments/RoomPatientDialog';
+import {
+  getEditAppointmentPath,
+  getNewAppointmentPath,
+} from '@/pages/appointments/AppointmentFormPage';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
-import { buildAppointmentSubmitPayloadFromRegistration } from '@/components/patients/patientRegistrationAppointmentConstants';
+import { createAppointmentFromRegistrationIfNeeded } from '@/components/patients/patientRegistrationAppointmentConstants';
 import {
   getDefaultAppointmentStatusName,
   getAppointmentStatusesFallback,
-  statusChipStyle,
+  getCanonicalAppointmentStatuses,
+  appointmentStatusSoftClass,
+  appointmentStatusSolidClass,
+  normalizeAppointmentStatus,
 } from '@/lib/appointmentStatuses';
+import { APPOINTMENT_STATUS } from '@/lib/appointmentStatusWorkflow';
+import { eventStatusChipClass } from '@/lib/appointmentEventStatus';
 import {
   buildPatientSearchOption,
   buildProviderSearchOption,
@@ -46,6 +57,7 @@ import {
   formatPatientListName,
   formatProviderListName,
 } from '@/lib/appointmentUtils';
+import { patientPhotoSrc } from '@/pages/patient-dashboard/patientChartUtils';
 import {
   appointmentApi,
   appointmentStatusApi,
@@ -53,9 +65,31 @@ import {
   departmentApi,
   patientApi,
   providerApi,
+  providerBlockHourApi,
 } from '@/services/api';
 
+import { useTopbarDepartment } from '@/contexts/TopbarDepartmentContext';
 import { cn } from '@/lib/utils';
+
+function PatientListAvatar({ patient }) {
+  const photo = patientPhotoSrc(patient);
+  const initials =
+    `${(patient?.firstName?.[0] || '').toUpperCase()}${(patient?.lastName?.[0] || '').toUpperCase()}` ||
+    '?';
+
+  return (
+    <span
+      className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--status-info-bg)] text-xs font-semibold text-[var(--status-info-fg)] ring-1 ring-[var(--status-info-border)]"
+      aria-hidden
+    >
+      {photo ? (
+        <img src={photo} alt="" className="h-full w-full object-cover" />
+      ) : (
+        initials
+      )}
+    </span>
+  );
+}
 
 function toDateKey(date) {
   const y = date.getFullYear();
@@ -64,22 +98,88 @@ function toDateKey(date) {
   return `${y}-${m}-${d}`;
 }
 
+function parseLocalDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function shiftDateKey(dateKey, days) {
+  const date = parseLocalDate(dateKey);
+  date.setDate(date.getDate() + days);
+  return toDateKey(date);
+}
+
+function shiftMonthKey(dateKey, months) {
+  const date = parseLocalDate(dateKey);
+  date.setMonth(date.getMonth() + months);
+  return toDateKey(date);
+}
+
+function getWeekRange(dateKey) {
+  const anchor = parseLocalDate(dateKey);
+  const start = new Date(anchor);
+  start.setDate(anchor.getDate() - anchor.getDay());
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { dateFrom: toDateKey(start), dateTo: toDateKey(end) };
+}
+
+function getMonthRange(dateKey) {
+  const anchor = parseLocalDate(dateKey);
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  return { dateFrom: toDateKey(start), dateTo: toDateKey(end) };
+}
+
+function resolveProviderDepartmentPrefill(provider, departmentFilter) {
+  if (!provider) return '';
+  const providerDeptIds = provider.departmentIds?.length
+    ? provider.departmentIds
+    : provider.departmentId
+      ? [provider.departmentId]
+      : [];
+  if (departmentFilter && providerDeptIds.includes(departmentFilter)) {
+    return departmentFilter;
+  }
+  return provider.departmentId || providerDeptIds[0] || '';
+}
+
 const FILTER_CONTROL_CLASS = 'h-10 w-full';
 
-const SEGMENTED_GROUP_CLASS =
-  'flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted p-1 shadow-sm';
+const FILTER_CHIP_BASE =
+  'inline-flex h-8 shrink-0 items-center rounded-full border px-3.5 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1';
 
-const SEGMENTED_ITEM_ACTIVE =
-  'bg-background text-foreground shadow-sm hover:bg-background';
+const FILTER_CHIP_IDLE =
+  'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground';
 
-const SEGMENTED_ITEM_IDLE =
-  'text-muted-foreground hover:bg-background/70 hover:text-foreground';
+const FILTER_CHIP_ACTIVE =
+  'border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90';
+
+const VIEW_TOGGLE_GROUP_CLASS =
+  'flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted/80 p-1';
+
+const VIEW_TOGGLE_ACTIVE =
+  'bg-card text-foreground shadow-sm ring-1 ring-border hover:bg-card';
+
+const VIEW_TOGGLE_IDLE =
+  'text-muted-foreground hover:bg-card/80 hover:text-foreground';
+
+const STATUS_BADGE_CLASS =
+  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold';
 
 const timelineRangeOptions = [
   { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
 ];
 
 export function AppointmentsPage() {
+  const navigate = useNavigate();
+  const {
+    departmentId: topbarDepartmentId,
+    setSelectedDepartmentId,
+    ALL_DEPARTMENTS_VALUE,
+  } = useTopbarDepartment();
   const [appointments, setAppointments] = useState([]);
   const [patients, setPatients] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -106,23 +206,35 @@ export function AppointmentsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState(topbarDepartmentId || '');
   const [providerFilter, setProviderFilter] = useState('');
   const [patientFilter, setPatientFilter] = useState('');
   const [dateFilter, setDateFilter] = useState(() => toDateKey(new Date()));
   const [dateToFilter, setDateToFilter] = useState('');
+
+  useEffect(() => {
+    const next = topbarDepartmentId || '';
+    setDepartmentFilter((prev) => (prev === next ? prev : next));
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [topbarDepartmentId]);
 
   // Dialogs
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState('create');
   const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
   const [patientFormFromAppointment, setPatientFormFromAppointment] = useState(false);
-  const [pendingPatientId, setPendingPatientId] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailAppointment, setDetailAppointment] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [roomDialogOpen, setRoomDialogOpen] = useState(false);
+  const [roomAppointment, setRoomAppointment] = useState(null);
+  const [roomSubmitting, setRoomSubmitting] = useState(false);
+  const [providerBlockHours, setProviderBlockHours] = useState([]);
 
   // For pre-filling form from timeline click
   const [initialDate, setInitialDate] = useState('');
@@ -169,6 +281,16 @@ export function AppointmentsPage() {
         if (dateToFilter) params.dateTo = dateToFilter;
       } else if (timelineRange === 'day') {
         params.date = dateFilter;
+        params.excludeHiddenTimeline = true;
+      } else if (timelineRange === 'week') {
+        const range = getWeekRange(dateFilter);
+        params.dateFrom = range.dateFrom;
+        params.dateTo = range.dateTo;
+        params.excludeHiddenTimeline = true;
+      } else if (timelineRange === 'month') {
+        const range = getMonthRange(dateFilter);
+        params.dateFrom = range.dateFrom;
+        params.dateTo = range.dateTo;
         params.excludeHiddenTimeline = true;
       }
 
@@ -224,7 +346,7 @@ export function AppointmentsPage() {
       .then((res) => {
         if (cancelled) return;
         const rows = Array.isArray(res.data) ? res.data : [];
-        if (rows.length) setAppointmentStatusCatalog(rows);
+        setAppointmentStatusCatalog(getCanonicalAppointmentStatuses(rows));
       })
       .catch(() => {
         if (!cancelled) setAppointmentStatusCatalog(getAppointmentStatusesFallback());
@@ -243,6 +365,34 @@ export function AppointmentsPage() {
     fetchAppointments();
     fetchStatusCounts();
   }, [fetchAppointments, fetchStatusCounts]);
+
+  useEffect(() => {
+    if (!providerFilter || viewMode !== 'timeline') {
+      setProviderBlockHours([]);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    providerBlockHourApi
+      .getAll({
+        providerId: providerFilter,
+        status: 'Active',
+        limit: 100,
+      })
+      .then((res) => {
+        if (!cancelled) {
+          setProviderBlockHours(Array.isArray(res.data) ? res.data : []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setProviderBlockHours([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [providerFilter, viewMode]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -264,6 +414,120 @@ export function AppointmentsPage() {
     setTimelineRange('day');
   };
 
+  const handlePreviousDay = () => {
+    setDateFilter((prev) => {
+      if (timelineRange === 'month') return shiftMonthKey(prev, -1);
+      const days = timelineRange === 'week' ? -7 : -1;
+      return shiftDateKey(prev, days);
+    });
+  };
+
+  const handleNextDay = () => {
+    setDateFilter((prev) => {
+      if (timelineRange === 'month') return shiftMonthKey(prev, 1);
+      const days = timelineRange === 'week' ? 7 : 1;
+      return shiftDateKey(prev, days);
+    });
+  };
+
+  const handleViewPatientAppointments = (appointment) => {
+    if (!appointment?.patientId) return;
+    navigate(`/appointments/patient/${appointment.patientId}`);
+  };
+
+  const handleCalendarAppointmentClick = (appointment) => {
+    handleView(appointment);
+  };
+
+  const applyAppointmentUpdate = (appointmentId, updated) => {
+    setAppointments((prev) =>
+      prev.map((row) => (row.id === appointmentId ? { ...row, ...updated } : row)),
+    );
+    fetchAppointments();
+    fetchStatusCounts();
+  };
+
+  const handleAdvanceStatus = async (appointment, nextStatus) => {
+    if (!appointment?.id || !nextStatus) return;
+    try {
+      const res =
+        nextStatus === APPOINTMENT_STATUS.CHECKED_IN
+          ? await appointmentApi.checkIn(appointment.id)
+          : await appointmentApi.updateStatus(appointment.id, nextStatus);
+      const updated = res?.data || { ...appointment, status: nextStatus };
+      applyAppointmentUpdate(appointment.id, updated);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleCancelAppointment = async (appointment) => {
+    if (!appointment?.id) return;
+    const patientName = formatPatientListName(appointment.patient);
+    const confirmed = window.confirm(
+      `Cancel appointment for ${patientName}? This sets the appointment status to Cancelled.`,
+    );
+    if (!confirmed) return;
+    try {
+      const res = await appointmentApi.updateStatus(
+        appointment.id,
+        APPOINTMENT_STATUS.CANCELLED,
+      );
+      const updated = res?.data || { ...appointment, status: APPOINTMENT_STATUS.CANCELLED };
+      applyAppointmentUpdate(appointment.id, updated);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleMarkNoShow = async (appointment) => {
+    if (!appointment?.id) return;
+    const patientName = formatPatientListName(appointment.patient);
+    const confirmed = window.confirm(
+      `Mark appointment for ${patientName} as No Show?`,
+    );
+    if (!confirmed) return;
+    try {
+      const res = await appointmentApi.updateStatus(
+        appointment.id,
+        APPOINTMENT_STATUS.NO_SHOW,
+      );
+      const updated = res?.data || { ...appointment, status: APPOINTMENT_STATUS.NO_SHOW };
+      applyAppointmentUpdate(appointment.id, updated);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const openRoomDialog = (appointment) => {
+    setRoomAppointment(appointment);
+    setRoomDialogOpen(true);
+  };
+
+  const handleAssignRoom = async (roomId) => {
+    if (!roomAppointment?.id) return;
+    setRoomSubmitting(true);
+    try {
+      const res = await appointmentApi.assignRoom(roomAppointment.id, roomId);
+      const updated = res?.data || {
+        ...roomAppointment,
+        roomId,
+        eventStatus: 'Roomed',
+      };
+      setAppointments((prev) =>
+        prev.map((row) => (row.id === roomAppointment.id ? { ...row, ...updated } : row)),
+      );
+      setRoomDialogOpen(false);
+      setRoomAppointment(null);
+      fetchAppointments();
+      fetchStatusCounts();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setRoomSubmitting(false);
+    }
+  };
+
   const handleFilterChange = (filterType, value) => {
     const actualValue = value === 'all' ? '' : value;
     switch (filterType) {
@@ -272,6 +536,7 @@ export function AppointmentsPage() {
         break;
       case 'department':
         setDepartmentFilter(actualValue);
+        setSelectedDepartmentId(actualValue || ALL_DEPARTMENTS_VALUE);
         break;
       case 'provider':
         setProviderFilter(actualValue);
@@ -293,12 +558,24 @@ export function AppointmentsPage() {
     setPagination((prev) => ({ ...prev, page: newPage }));
   };
 
+  const prefillProvider = providerFilter
+    ? providers.find((provider) => provider.id === providerFilter)
+    : null;
+  const resolvedDepartmentPrefill = resolveProviderDepartmentPrefill(
+    prefillProvider,
+    departmentFilter,
+  );
+
   const handleCreate = () => {
-    setSelectedAppointment(null);
-    setFormMode('create');
-    setInitialDate('');
-    setInitialTime('');
-    setIsFormOpen(true);
+    navigate(
+      getNewAppointmentPath({
+        date: viewMode === 'timeline' ? dateFilter : '',
+        providerId: providerFilter || '',
+        departmentId: resolvedDepartmentPrefill || departmentFilter || '',
+        appointmentType: typeFilter || '',
+        patientId: patientFilter || '',
+      }),
+    );
   };
 
   const handleCreatePatient = (fromAppointment = false) => {
@@ -313,11 +590,15 @@ export function AppointmentsPage() {
       const response = await patientApi.create(patientData);
       const patientId = response?.data?.id;
 
-      if (bookAppointment && patientId) {
-        const appointmentPayload = buildAppointmentSubmitPayloadFromRegistration(data, patientId, {
-          defaultStatus: getDefaultAppointmentStatusName(),
-        });
-        await appointmentApi.create(appointmentPayload);
+      const createdAppointment = patientId
+        ? await createAppointmentFromRegistrationIfNeeded(patientId, data, {
+            appointmentApi,
+            defaultStatus: getDefaultAppointmentStatusName(),
+            evaluateRegistrationStatus: true,
+          })
+        : null;
+
+      if (createdAppointment) {
         await fetchAppointments();
         setIsPatientFormOpen(false);
         setPatientFormFromAppointment(false);
@@ -328,10 +609,16 @@ export function AppointmentsPage() {
       setIsPatientFormOpen(false);
       await fetchPatients();
       if (patientFormFromAppointment && patientId) {
-        setPendingPatientId(patientId);
-        if (!isFormOpen) {
-          setIsFormOpen(true);
-        }
+        setPatientFormFromAppointment(false);
+        navigate(
+          getNewAppointmentPath({
+            patientId,
+            providerId: providerFilter || '',
+            departmentId: resolvedDepartmentPrefill || departmentFilter || '',
+            appointmentType: typeFilter || '',
+          }),
+        );
+        return;
       }
       setPatientFormFromAppointment(false);
     } catch (err) {
@@ -346,6 +633,7 @@ export function AppointmentsPage() {
     setStatusFilter('');
     setTypeFilter('');
     setDepartmentFilter('');
+    setSelectedDepartmentId(ALL_DEPARTMENTS_VALUE);
     setProviderFilter('');
     setPatientFilter('');
     setDateFilter(toDateKey(new Date()));
@@ -376,27 +664,36 @@ export function AppointmentsPage() {
     patientFilter;
 
   const handleTimeSlotClick = (date, time) => {
-    setSelectedAppointment(null);
-    setFormMode('create');
-    setInitialDate(date);
-    setInitialTime(time);
-    setIsFormOpen(true);
+    navigate(
+      getNewAppointmentPath({
+        date,
+        time,
+        providerId: providerFilter || '',
+        departmentId: resolvedDepartmentPrefill || departmentFilter || '',
+        appointmentType: typeFilter || '',
+        patientId: patientFilter || '',
+      }),
+    );
   };
 
-  const handleView = (appointment) => {
-    setSelectedAppointment(appointment);
-    setFormMode('view');
-    setInitialDate('');
-    setInitialTime('');
-    setIsFormOpen(true);
+  const handleView = async (appointment) => {
+    if (!appointment?.id) return;
+    setDetailOpen(true);
+    setDetailAppointment(appointment);
+    setDetailLoading(true);
+    try {
+      const res = await appointmentApi.getById(appointment.id);
+      setDetailAppointment(res?.data || appointment);
+    } catch {
+      setDetailAppointment(appointment);
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
-  const handleEdit = (appointment) => {
-    setSelectedAppointment(appointment);
-    setFormMode('edit');
-    setInitialDate('');
-    setInitialTime('');
-    setIsFormOpen(true);
+  const handleEditOrReschedule = (appointment) => {
+    if (!appointment?.id) return;
+    navigate(getEditAppointmentPath(appointment.id));
   };
 
   const openHistory = async (appointment) => {
@@ -431,16 +728,6 @@ export function AppointmentsPage() {
     }
   };
 
-  const handleStatusChange = async (appointmentId, newStatus) => {
-    try {
-      await appointmentApi.updateStatus(appointmentId, newStatus);
-      fetchAppointments();
-      fetchStatusCounts();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -468,14 +755,14 @@ export function AppointmentsPage() {
           <p className="text-muted-foreground">Manage patient appointments</p>
         </div>
         <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row sm:items-center">
-          <div className={SEGMENTED_GROUP_CLASS}>
+          <div className={VIEW_TOGGLE_GROUP_CLASS}>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setViewMode('timeline')}
               className={cn(
                 'gap-1.5',
-                viewMode === 'timeline' ? SEGMENTED_ITEM_ACTIVE : SEGMENTED_ITEM_IDLE,
+                viewMode === 'timeline' ? VIEW_TOGGLE_ACTIVE : VIEW_TOGGLE_IDLE,
               )}
             >
               <LayoutGrid className="h-4 w-4" />
@@ -487,7 +774,7 @@ export function AppointmentsPage() {
               onClick={() => setViewMode('list')}
               className={cn(
                 'gap-1.5',
-                viewMode === 'list' ? SEGMENTED_ITEM_ACTIVE : SEGMENTED_ITEM_IDLE,
+                viewMode === 'list' ? VIEW_TOGGLE_ACTIVE : VIEW_TOGGLE_IDLE,
               )}
             >
               <List className="h-4 w-4" />
@@ -589,72 +876,58 @@ export function AppointmentsPage() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Status
-            </p>
-            <div className="overflow-x-auto pb-1">
-              <div className={cn(SEGMENTED_GROUP_CLASS, 'min-w-max')}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleStatusTabChange('all')}
-                  className={cn(
-                    'h-8 shrink-0',
-                    !statusFilter ? SEGMENTED_ITEM_ACTIVE : SEGMENTED_ITEM_IDLE,
-                  )}
-                >
-                  All ({statusCounts.all || 0})
-                </Button>
-                {appointmentStatusCatalog.map((statusRow) => {
-                  const status = statusRow.name;
-                  const chipStyle = statusChipStyle(status, appointmentStatusCatalog);
-                  const isActive = statusFilter === status;
-                  const count = statusCounts[status] || 0;
-                  return (
-                  <Button
+          <div className="space-y-2.5">
+            <p className="text-sm font-medium text-foreground">Status</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleStatusTabChange('all')}
+                className={cn(
+                  FILTER_CHIP_BASE,
+                  !statusFilter ? FILTER_CHIP_ACTIVE : FILTER_CHIP_IDLE,
+                )}
+              >
+                All ({statusCounts.all || 0})
+              </button>
+              {appointmentStatusCatalog.map((statusRow) => {
+                const status = statusRow.name;
+                const isActive = statusFilter === status;
+                const count = statusCounts[status] || 0;
+                return (
+                  <button
                     key={statusRow.id || status}
                     type="button"
-                    variant="ghost"
-                    size="sm"
                     onClick={() => handleStatusTabChange(status)}
                     className={cn(
-                      'h-8 shrink-0',
-                      isActive ? 'shadow-sm ring-1 ring-border/60' : SEGMENTED_ITEM_IDLE,
+                      FILTER_CHIP_BASE,
+                      isActive
+                        ? appointmentStatusSolidClass(status)
+                        : cn(appointmentStatusSoftClass(status), 'hover:opacity-90'),
                     )}
-                    style={isActive ? chipStyle : undefined}
                   >
                     {status} ({count})
-                  </Button>
-                  );
-                })}
-              </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {viewMode === 'timeline' && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Calendar view
-              </p>
-              <div className={cn(SEGMENTED_GROUP_CLASS, 'w-fit')}>
+            <div className="space-y-2.5">
+              <p className="text-sm font-medium text-foreground">Calendar view</p>
+              <div className="flex flex-wrap gap-2">
                 {timelineRangeOptions.map((option) => (
-                  <Button
+                  <button
                     key={option.value}
                     type="button"
-                    variant="ghost"
-                    size="sm"
                     onClick={() => handleTimelineRangeChange(option.value)}
                     className={cn(
-                      'flex-1',
-                      timelineRange === option.value
-                        ? SEGMENTED_ITEM_ACTIVE
-                        : SEGMENTED_ITEM_IDLE,
+                      FILTER_CHIP_BASE,
+                      timelineRange === option.value ? FILTER_CHIP_ACTIVE : FILTER_CHIP_IDLE,
                     )}
                   >
                     {option.label}
-                  </Button>
+                  </button>
                 ))}
               </div>
             </div>
@@ -676,10 +949,13 @@ export function AppointmentsPage() {
           selectedDate={dateFilter}
           rangeMode={timelineRange}
           onTimeSlotClick={handleTimeSlotClick}
-          onAppointmentClick={handleView}
+          onAppointmentClick={handleCalendarAppointmentClick}
           onDayClick={handleTimelineDayClick}
+          onPreviousDay={handlePreviousDay}
+          onNextDay={handleNextDay}
           statusCatalog={appointmentStatusCatalog}
-          onStatusChange={handleStatusChange}
+          blockHours={providerBlockHours}
+          filteredProviderId={providerFilter}
         />
       )}
 
@@ -693,7 +969,9 @@ export function AppointmentsPage() {
                 <TableHead>Patient Information</TableHead>
                 <TableHead>Appointment Type</TableHead>
                 <TableHead>Appointment Status</TableHead>
+                <TableHead>Event Status</TableHead>
                 <TableHead>Appointment Time</TableHead>
+                <TableHead>Department</TableHead>
                 <TableHead>Provider Information</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -701,7 +979,7 @@ export function AppointmentsPage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center">
+                  <TableCell colSpan={9} className="h-32 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                       Loading...
@@ -710,7 +988,7 @@ export function AppointmentsPage() {
                 </TableRow>
               ) : appointments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                     No appointments found
                   </TableCell>
                 </TableRow>
@@ -721,46 +999,53 @@ export function AppointmentsPage() {
                       {(pagination.page - 1) * pagination.limit + index + 1}
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">
-                        {formatPatientListName(appointment.patient)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatPatientDemographics(appointment.patient)}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <PatientListAvatar patient={appointment.patient} />
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">
+                            {formatPatientListName(appointment.patient)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatPatientDemographics(appointment.patient)}
+                          </div>
+                          <div className="text-xs text-muted-foreground tabular-nums">
+                            MRN: {appointment.patient?.mrn || '—'}
+                          </div>
+                          <div className="text-xs text-muted-foreground tabular-nums">
+                            Enc: {appointment.encounterNumber || '—'}
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="inline-flex items-center rounded-full bg-secondary px-2 py-1 text-xs font-medium">
+                      <span className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-foreground">
                         {appointment.appointmentType}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={appointment.status}
-                        onValueChange={(value) =>
-                          handleStatusChange(appointment.id, value)
-                        }
+                      <span
+                        className={cn(
+                          STATUS_BADGE_CLASS,
+                          appointmentStatusSoftClass(appointment.status),
+                        )}
                       >
-                        <SelectTrigger className="h-8 w-40">
-                          <span
-                            className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                            style={statusChipStyle(appointment.status, appointmentStatusCatalog)}
-                          >
-                            {appointment.status}
-                          </span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {appointmentStatusCatalog.map((statusRow) => (
-                            <SelectItem key={statusRow.id || statusRow.name} value={statusRow.name}>
-                              <span
-                                className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                                style={statusChipStyle(statusRow.name, appointmentStatusCatalog)}
-                              >
-                                {statusRow.name}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        {normalizeAppointmentStatus(appointment.status)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          STATUS_BADGE_CLASS,
+                          eventStatusChipClass(appointment.eventStatus || 'Scheduled'),
+                        )}
+                      >
+                        {appointment.eventStatus || 'Scheduled'}
+                      </span>
+                      {appointment.room?.displayName || appointment.room?.roomNumber ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Room: {appointment.room.displayName || appointment.room.roomNumber}
+                        </div>
+                      ) : null}
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">
@@ -770,6 +1055,11 @@ export function AppointmentsPage() {
                         <Clock className="h-3 w-3" />
                         {formatTime(appointment.appointmentTime)}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {appointment.departmentRef?.departmentName ||
+                        appointment.department ||
+                        '—'}
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">
@@ -782,32 +1072,17 @@ export function AppointmentsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handleView(appointment)}
-                          title="View"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handleEdit(appointment)}
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4 icon-action-edit" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openHistory(appointment)}
-                          title="Timeline history"
-                        >
-                          <Clock className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <AppointmentActionMenu
+                        appointment={appointment}
+                        onViewPatientAppointments={handleViewPatientAppointments}
+                        onAdvanceStatus={handleAdvanceStatus}
+                        onCancelAppointment={handleCancelAppointment}
+                        onMarkNoShow={handleMarkNoShow}
+                        onRoomPatient={openRoomDialog}
+                        onView={handleView}
+                        onEditOrReschedule={handleEditOrReschedule}
+                        onHistory={openHistory}
+                      />
                     </TableCell>
                   </TableRow>
                 ))
@@ -857,7 +1132,6 @@ export function AppointmentsPage() {
         onOpenChange={(open) => {
           setIsFormOpen(open);
           if (!open) {
-            setPendingPatientId('');
             setFormMode('create');
           }
         }}
@@ -865,7 +1139,9 @@ export function AppointmentsPage() {
         patients={patients}
         onSubmit={handleFormSubmit}
         onAddPatient={() => handleCreatePatient(true)}
-        prefillPatientId={pendingPatientId}
+        prefillProviderId={providerFilter}
+        prefillDepartmentId={resolvedDepartmentPrefill}
+        prefillAppointmentType={typeFilter}
         isLoading={isSubmitting}
         initialDate={initialDate}
         initialTime={initialTime}
@@ -880,6 +1156,25 @@ export function AppointmentsPage() {
         isLoading={historyLoading}
       />
 
+      <AppointmentDetailSidebar
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetailAppointment(null);
+        }}
+        appointment={detailAppointment}
+        isLoading={detailLoading}
+        statusCatalog={appointmentStatusCatalog}
+      />
+
+      <RoomPatientDialog
+        open={roomDialogOpen}
+        onOpenChange={setRoomDialogOpen}
+        appointment={roomAppointment}
+        onSubmit={handleAssignRoom}
+        isLoading={roomSubmitting}
+      />
+
       <PatientFormDialog
         open={isPatientFormOpen}
         onOpenChange={setIsPatientFormOpen}
@@ -887,6 +1182,14 @@ export function AppointmentsPage() {
         onSubmit={handlePatientSubmit}
         isLoading={isSubmitting}
         registrationMode="quick"
+        onNavigateToExisting={(existingPatient) => {
+          setIsPatientFormOpen(false);
+          if (existingPatient?.mrn) {
+            navigate(`/patients?mrn=${encodeURIComponent(existingPatient.mrn)}`);
+            return;
+          }
+          navigate('/patients');
+        }}
       />
     </div>
   );

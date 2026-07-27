@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { usePatientChart } from './PatientChartContext';
 import { formatPatientName } from './patientChartUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,13 +16,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Trash2, Edit, FileText, LayoutTemplate, BookmarkPlus } from 'lucide-react';
+import { Plus, Trash2, LayoutTemplate, BookmarkPlus, RefreshCw, Loader2, Stethoscope } from 'lucide-react';
 import {
   BUILTIN_SOAP_TEMPLATES,
   loadCustomTemplates,
   saveCustomTemplates,
   applySoapTemplateContent,
-  emptyMedicationRow,
 } from '@/pages/patient-dashboard/soapNoteTemplates';
 import {
   Table,
@@ -34,6 +33,15 @@ import {
 } from '@/components/ui/table';
 import { AddAllergyDialog } from '@/pages/nurses/nurse-dashboard/allergies/AddAllergyDialog';
 import { AddVitalsDialog } from './AddVitalsDialog';
+import { ScreeningScoresPanel } from './intake/ScreeningScoresPanel';
+import { ChartTabShell } from './components/chart-ui';
+import { fetchSoapEncounterPrefill } from './notes/mapEncounterDataToSoap';
+import { loadNotes, upsertNote } from './notes/notesStorage';
+import { NotesListingCard } from './notes/NotesListingCard';
+import { PhysicalExamPickerDialog } from './notes/PhysicalExamPickerDialog';
+import { NoteSignActions } from './notes/NoteSignActions';
+import { SoapNoteReadOnlyView } from './notes/SoapNoteReadOnlyView';
+import { syncStatusForNotePersist } from '@/lib/syncEncounterVisitStatus';
 
 const defaultAllergyForm = () => ({
   allergen: '',
@@ -49,30 +57,27 @@ const defaultAllergyForm = () => ({
   comment: '',
 });
 
-export function SOAPNotesTab({ onDirtyChange }) {
-  const { patient, encounter, appointment } = usePatientChart();
+export function SOAPNotesTab({ onDirtyChange, embedded = false }) {
+  const {
+    patient,
+    encounter,
+    appointment,
+    patientId,
+    appointmentId,
+    isSampleChart,
+    refreshChart,
+  } = usePatientChart();
+  const prefillAppliedRef = useRef(false);
+  const userEditedRef = useRef(false);
 
-  const [header, setHeader] = useState({
-    patientName: '',
-    encounterId: '',
-    dateOfService: new Date().toISOString().slice(0, 10),
+  const [header, setHeader] = useState(() => ({
+    patientName: patient ? formatPatientName(patient) : '',
+    encounterId: appointment?.id?.slice(0, 8).toUpperCase() || encounter?.id?.slice(0, 8) || '—',
+    dateOfService: encounter?.appointmentDate || new Date().toISOString().slice(0, 10),
     chiefComplaint: '',
-    provider: '',
-    location: '',
-  });
-
-  useEffect(() => {
-    if (!patient) return;
-    setHeader((h) => ({
-      ...h,
-      patientName: formatPatientName(patient),
-      encounterId: appointment?.id?.slice(0, 8).toUpperCase() || encounter?.id?.slice(0, 8) || '—',
-      chiefComplaint: encounter?.reason || appointment?.visitReason || h.chiefComplaint,
-      provider: encounter?.visitProvider || appointment?.provider || '—',
-      location: encounter?.location || appointment?.department || '—',
-      dateOfService: encounter?.appointmentDate || h.dateOfService,
-    }));
-  }, [patient, encounter, appointment]);
+    provider: encounter?.visitProvider || appointment?.provider || '',
+    location: encounter?.location || appointment?.department || '',
+  }));
 
   const [subjective, setSubjective] = useState({
     chiefComplaint: '',
@@ -93,6 +98,7 @@ export function SOAPNotesTab({ onDirtyChange }) {
   const [showVitalsDialog, setShowVitalsDialog] = useState(false);
 
   const [physicalExam, setPhysicalExam] = useState('');
+  const [showPhysicalExamPicker, setShowPhysicalExamPicker] = useState(false);
   const [diagnosticTestingResults, setDiagnosticTestingResults] = useState('');
 
   const [diagnoses, setDiagnoses] = useState([{ code: '', description: '' }]);
@@ -105,19 +111,139 @@ export function SOAPNotesTab({ onDirtyChange }) {
   const [patientEducation, setPatientEducation] = useState('');
   const [referrals, setReferrals] = useState('');
 
-  const [soapNotes, setSoapNotes] = useState([
-    { id: 1, date: '2025-01-20', provider: 'Dr. Sarah Smith', status: 'locked' },
-    { id: 2, date: '2025-01-15', provider: 'Dr. John Williams', status: 'draft' },
-  ]);
+  const [soapNotes, setSoapNotes] = useState(() => loadNotes(patientId, appointmentId, 'soap'));
   const [editingNoteId, setEditingNoteId] = useState(null);
+  const [lockedNote, setLockedNote] = useState(null);
   const [addendumNoteId, setAddendumNoteId] = useState(null);
   const [addendumText, setAddendumText] = useState('');
+  const [confirmComplete, setConfirmComplete] = useState(false);
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const [prefillMeta, setPrefillMeta] = useState({ hasIntake: false, sectionsPresent: [] });
+  const [prefillError, setPrefillError] = useState(null);
 
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [customTemplates, setCustomTemplates] = useState([]);
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateDescription, setNewTemplateDescription] = useState('');
+
+  const headerDisplay = {
+    ...header,
+    patientName: header.patientName || (patient ? formatPatientName(patient) : ''),
+    encounterId:
+      header.encounterId ||
+      appointment?.id?.slice(0, 8).toUpperCase() ||
+      encounter?.id?.slice(0, 8) ||
+      '—',
+    provider: header.provider || encounter?.visitProvider || appointment?.provider || '',
+    location: header.location || encounter?.location || appointment?.department || '',
+    dateOfService:
+      header.dateOfService || encounter?.appointmentDate || new Date().toISOString().slice(0, 10),
+  };
+
+  const applyPrefill = useCallback(
+    (snapshot, { force = false } = {}) => {
+      if (!snapshot) return;
+      if (!force && userEditedRef.current && prefillAppliedRef.current) return;
+
+      const subj = snapshot.subjective || {};
+      const pick = (incoming, previous) =>
+        force ? (incoming ?? '') : (incoming || previous || '');
+
+      setHeader((h) => ({
+        ...h,
+        chiefComplaint: pick(snapshot.header?.chiefComplaint, h.chiefComplaint),
+      }));
+      setSubjective((prev) => ({
+        chiefComplaint: pick(subj.chiefComplaint, prev.chiefComplaint),
+        hpi: pick(subj.hpi, prev.hpi),
+        ros: pick(subj.ros, prev.ros),
+        currentMeds: pick(subj.currentMeds, prev.currentMeds),
+        pmh: pick(subj.pmh, prev.pmh),
+        pastSurgical: pick(subj.pastSurgical, prev.pastSurgical),
+        socialHx: pick(subj.socialHx, prev.socialHx),
+        familyHx: pick(subj.familyHx, prev.familyHx),
+      }));
+      if (force || (snapshot.allergies || []).length) {
+        setAllergies(snapshot.allergies || []);
+      }
+      if (force || (snapshot.vitalsList || []).length) {
+        setVitalsList(snapshot.vitalsList || []);
+      }
+      if (force || (snapshot.diagnoses || []).some((d) => d.code || d.description)) {
+        setDiagnoses(
+          (snapshot.diagnoses || []).some((d) => d.code || d.description)
+            ? snapshot.diagnoses
+            : [{ code: '', description: '' }],
+        );
+      }
+      if (force || snapshot.planText) {
+        setPlanText((prev) => pick(snapshot.planText, prev));
+      }
+      if (force || snapshot.physicalExam) {
+        setPhysicalExam((prev) => pick(snapshot.physicalExam, prev));
+      }
+      if (force || snapshot.referrals) {
+        setReferrals((prev) => pick(snapshot.referrals, prev));
+      }
+      setPrefillMeta(snapshot.sourceMeta || { hasIntake: false, sectionsPresent: [] });
+      prefillAppliedRef.current = true;
+    },
+    [],
+  );
+
+  const loadPrefill = useCallback(
+    async ({ force = false } = {}) => {
+      if (!patientId) return;
+      setPrefillLoading(true);
+      setPrefillError(null);
+      try {
+        const snapshot = await fetchSoapEncounterPrefill({
+          patientId,
+          appointmentId,
+          isSampleChart,
+        });
+        // Attach appointment/encounter context for chief complaint fallback
+        if (appointment || encounter) {
+          const withCtx = {
+            ...snapshot,
+            header: {
+              ...snapshot.header,
+              chiefComplaint:
+                snapshot.header?.chiefComplaint ||
+                encounter?.reason ||
+                appointment?.visitReason ||
+                '',
+            },
+            subjective: {
+              ...snapshot.subjective,
+              chiefComplaint:
+                snapshot.subjective?.chiefComplaint ||
+                encounter?.reason ||
+                appointment?.visitReason ||
+                '',
+            },
+          };
+          if (force) userEditedRef.current = false;
+          applyPrefill(withCtx, { force });
+        } else {
+          if (force) userEditedRef.current = false;
+          applyPrefill(snapshot, { force });
+        }
+      } catch (err) {
+        setPrefillError(err.message || 'Failed to load encounter data for notes');
+      } finally {
+        setPrefillLoading(false);
+      }
+    },
+    [patientId, appointmentId, isSampleChart, appointment, encounter, applyPrefill],
+  );
+
+  useEffect(() => {
+    prefillAppliedRef.current = false;
+    userEditedRef.current = false;
+    loadPrefill({ force: true });
+  }, [patientId, appointmentId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openTemplateDialog = () => {
     setCustomTemplates(loadCustomTemplates());
@@ -214,10 +340,21 @@ export function SOAPNotesTab({ onDirtyChange }) {
     saveCustomTemplates(next);
   };
 
-  const updateHeader = (field, value) => setHeader((p) => ({ ...p, [field]: value }));
-  const updateSubjective = (field, value) => setSubjective((p) => ({ ...p, [field]: value }));
+  const markEdited = () => {
+    userEditedRef.current = true;
+  };
+
+  const updateHeader = (field, value) => {
+    markEdited();
+    setHeader((p) => ({ ...p, [field]: value }));
+  };
+  const updateSubjective = (field, value) => {
+    markEdited();
+    setSubjective((p) => ({ ...p, [field]: value }));
+  };
 
   const handleAllergySave = () => {
+    markEdited();
     const timestamp = new Intl.DateTimeFormat('en-US', { dateStyle: 'short', timeStyle: 'short' }).format(new Date());
     setAllergies((prev) => [...prev, { ...allergyForm, id: Date.now(), timestamp }]);
     setAllergyForm(defaultAllergyForm());
@@ -225,6 +362,7 @@ export function SOAPNotesTab({ onDirtyChange }) {
   };
 
   const handleAddVitals = (vitals) => {
+    markEdited();
     setVitalsList((prev) => [...prev, vitals]);
   };
 
@@ -239,40 +377,119 @@ export function SOAPNotesTab({ onDirtyChange }) {
   const updateMedication = (i, field, value) =>
     setMedications((p) => p.map((m, idx) => (idx === i ? { ...m, [field]: value } : m)));
 
-  const handleSaveDraft = () => {
-    const newNote = {
-      id: Date.now(),
-      date: header.dateOfService,
-      provider: header.provider,
-      status: 'draft',
-    };
-    setSoapNotes((prev) => [newNote, ...prev]);
-    setEditingNoteId(newNote.id);
-    onDirtyChange?.(false);
+  const buildSoapSummary = () => {
+    const cc = subjective.chiefComplaint || header.chiefComplaint || '';
+    const hpi = subjective.hpi || '';
+    const text = [cc, hpi].filter(Boolean).join(' — ');
+    return text.length > 80 ? `${text.slice(0, 80)}…` : text || 'SOAP note';
   };
 
-  const handleSignAndLock = () => {
-    const newNote = {
-      id: Date.now(),
-      date: header.dateOfService,
-      provider: header.provider,
-      status: 'locked',
+  const persistSoapNote = (status) => {
+    if (status === 'locked' && !confirmComplete) return;
+    const note = {
+      id: editingNoteId || `soap-${Date.now()}`,
+      date: headerDisplay.dateOfService,
+      provider: headerDisplay.provider || '—',
+      status,
+      summary: buildSoapSummary(),
+      content: {
+        ...buildCurrentContentSnapshot(),
+        headerChiefComplaint: headerDisplay.chiefComplaint,
+      },
+      allergies,
+      vitalsList,
+      addendums: soapNotes.find((n) => n.id === editingNoteId)?.addendums || [],
+      updatedAt: new Date().toISOString(),
     };
-    setSoapNotes((prev) => [newNote, ...prev]);
+    const next = upsertNote(patientId, appointmentId, 'soap', note);
+    setSoapNotes(next);
+    setConfirmComplete(false);
     onDirtyChange?.(false);
+
+    if (status === 'locked') {
+      setLockedNote(note);
+      setEditingNoteId(null);
+    } else {
+      setEditingNoteId(note.id);
+      setLockedNote(null);
+    }
+
+    // Draft → With Provider; signed & locked → Provider Out
+    void syncStatusForNotePersist(appointmentId, status, appointment?.status).then((updated) => {
+      if (updated) refreshChart?.();
+    });
   };
+
+  const handleSaveDraft = () => persistSoapNote('draft');
+  const handleSignAndLock = () => persistSoapNote('locked');
 
   const handleSaveAddendum = () => {
     if (!addendumNoteId || !addendumText.trim()) return;
-    setSoapNotes((prev) =>
-      prev.map((n) =>
-        n.id === addendumNoteId
-          ? { ...n, addendums: [...(n.addendums || []), { id: Date.now(), text: addendumText, addedBy: header.provider, dateTime: new Date().toISOString() }] }
-          : n
-      )
-    );
+    const target = soapNotes.find((n) => n.id === addendumNoteId) || lockedNote;
+    if (!target) return;
+    const updated = {
+      ...target,
+      addendums: [
+        ...(target.addendums || []),
+        {
+          id: Date.now(),
+          text: addendumText,
+          addedBy: header.provider || target.provider,
+          dateTime: new Date().toISOString(),
+        },
+      ],
+    };
+    const next = upsertNote(patientId, appointmentId, 'soap', updated);
+    setSoapNotes(next);
+    setLockedNote(updated);
     setAddendumNoteId(null);
     setAddendumText('');
+  };
+
+  const openLockedSoapNote = (note) => {
+    const latest = soapNotes.find((n) => n.id === note.id) || note;
+    setLockedNote(latest);
+    setEditingNoteId(null);
+    setConfirmComplete(false);
+    setAddendumNoteId(null);
+    setAddendumText('');
+    onDirtyChange?.(false);
+  };
+
+  const handleEditSoapNote = (note) => {
+    if (note.status === 'locked') {
+      openLockedSoapNote(note);
+      return;
+    }
+    setLockedNote(null);
+    setAddendumNoteId(null);
+    setConfirmComplete(false);
+    setEditingNoteId(note.id);
+    const c = note.content || {};
+    if (c.headerChiefComplaint != null) {
+      setHeader((h) => ({ ...h, chiefComplaint: c.headerChiefComplaint }));
+    }
+    if (c.subjective) setSubjective((prev) => ({ ...prev, ...c.subjective }));
+    if (c.physicalExam != null) setPhysicalExam(c.physicalExam);
+    if (c.diagnosticTestingResults != null) setDiagnosticTestingResults(c.diagnosticTestingResults);
+    if (c.diagnoses) setDiagnoses(c.diagnoses);
+    if (c.differential != null) setDifferential(c.differential);
+    if (c.clinicalImpression != null) setClinicalImpression(c.clinicalImpression);
+    if (c.planText != null) setPlanText(c.planText);
+    if (c.medications) setMedications(c.medications);
+    if (c.followUp != null) setFollowUp(c.followUp);
+    if (c.patientEducation != null) setPatientEducation(c.patientEducation);
+    if (c.referrals != null) setReferrals(c.referrals);
+    if (note.allergies) setAllergies(note.allergies);
+    if (note.vitalsList) setVitalsList(note.vitalsList);
+    userEditedRef.current = true;
+  };
+
+  const closeLockedSoapNote = () => {
+    setLockedNote(null);
+    setAddendumNoteId(null);
+    setAddendumText('');
+    setConfirmComplete(false);
   };
 
   const formatVitalsSummary = (v) => {
@@ -284,27 +501,65 @@ export function SOAPNotesTab({ onDirtyChange }) {
     return parts.length ? parts.join(', ') : '—';
   };
 
-  return (
+  const soapActions = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className="gap-2"
+        onClick={() => loadPrefill({ force: true })}
+        disabled={prefillLoading}
+      >
+        {prefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        Refresh from intake
+      </Button>
+      <Button type="button" variant="default" className="gap-2" onClick={openTemplateDialog}>
+        <LayoutTemplate className="h-4 w-4" />
+        SOAP templates
+      </Button>
+      <Button type="button" variant="outline" className="gap-2" onClick={() => setSaveTemplateOpen(true)}>
+        <BookmarkPlus className="h-4 w-4" />
+        Save as template
+      </Button>
+    </>
+  );
+
+  const content = (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">SOAP Note</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Document this encounter in SOAP format. Use templates to load common structures, then edit
-            for this patient.
-          </p>
+      {embedded && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">SOAP Notes</h3>
+            <p className="text-sm text-muted-foreground">
+              Prefills from Intake and encounter data. Edit as needed, then save or sign.
+            </p>
+          </div>
+          {!lockedNote && <div className="flex shrink-0 flex-wrap gap-2">{soapActions}</div>}
         </div>
-        <div className="flex flex-wrap gap-2 shrink-0">
-          <Button type="button" variant="default" className="gap-2" onClick={openTemplateDialog}>
-            <LayoutTemplate className="h-4 w-4" />
-            SOAP templates
-          </Button>
-          <Button type="button" variant="outline" className="gap-2" onClick={() => setSaveTemplateOpen(true)}>
-            <BookmarkPlus className="h-4 w-4" />
-            Save as template
-          </Button>
+      )}
+
+      {!lockedNote && (prefillLoading || prefillMeta.sectionsPresent?.length > 0 || prefillError) && (
+        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm">
+          {prefillLoading ? (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading encounter data into SOAP fields…
+            </p>
+          ) : prefillError ? (
+            <p className="text-destructive">{prefillError}</p>
+          ) : prefillMeta.sectionsPresent?.length ? (
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">Pulled from encounter: </span>
+              {prefillMeta.sectionsPresent.join(', ')}
+            </p>
+          ) : (
+            <p className="text-muted-foreground">
+              No intake or encounter clinical data found yet. Complete Intake (and Problems / Referrals) to prefill
+              these fields, or enter them manually.
+            </p>
+          )}
         </div>
-      </div>
+      )}
 
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-hidden flex flex-col gap-0 p-0 sm:max-w-2xl">
@@ -422,76 +677,59 @@ export function SOAPNotesTab({ onDirtyChange }) {
         </DialogContent>
       </Dialog>
 
-      {/* SOAP Notes listing */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">SOAP Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {soapNotes.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                    No SOAP notes yet. Complete the form below and save as draft or sign & lock.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                soapNotes.map((note) => (
-                  <TableRow key={note.id}>
-                    <TableCell>{note.date}</TableCell>
-                    <TableCell>{note.provider}</TableCell>
-                    <TableCell>
-                      <span className={note.status === 'locked' ? 'text-green-600' : 'text-amber-600'}>
-                        {note.status === 'locked' ? 'Locked' : 'Draft'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {note.status === 'draft' ? (
-                        <Button variant="ghost" size="sm" onClick={() => setEditingNoteId(note.id)}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                      ) : (
-                        <Button variant="outline" size="sm" onClick={() => setAddendumNoteId(note.id)}>
-                          <FileText className="h-4 w-4 mr-1" />
-                          Add addendum
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <NotesListingCard
+        title="Saved SOAP Notes"
+        notes={soapNotes}
+        emptyMessage="No SOAP notes yet. Complete the form below and save as draft or sign & lock."
+        onEdit={handleEditSoapNote}
+        onAddendum={openLockedSoapNote}
+      />
 
-      {/* Addendum modal */}
-      {addendumNoteId && (
-        <Card className="border-primary/50">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Add addendum</CardTitle>
-            <Button variant="ghost" size="sm" onClick={() => { setAddendumNoteId(null); setAddendumText(''); }}>Cancel</Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Addendum text</Label>
-              <Textarea value={addendumText} onChange={(e) => setAddendumText(e.target.value)} placeholder="Enter addendum..." rows={4} />
-            </div>
-            <Button onClick={handleSaveAddendum}>Save addendum</Button>
-          </CardContent>
-        </Card>
-      )}
-
+      {lockedNote ? (
+        <>
+          <SoapNoteReadOnlyView note={lockedNote} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={() => setAddendumNoteId(lockedNote.id)}>
+              Add addendum
+            </Button>
+            <Button type="button" variant="ghost" onClick={closeLockedSoapNote}>
+              Close signed note
+            </Button>
+          </div>
+          {addendumNoteId && (
+            <Card className="border-primary/50">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-base">Add addendum</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setAddendumNoteId(null);
+                    setAddendumText('');
+                  }}
+                >
+                  Cancel
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Addendum text</Label>
+                  <Textarea
+                    value={addendumText}
+                    onChange={(e) => setAddendumText(e.target.value)}
+                    placeholder="Enter addendum..."
+                    rows={4}
+                  />
+                </div>
+                <Button onClick={handleSaveAddendum} disabled={!addendumText.trim()}>
+                  Save addendum
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : (
+        <>
       {/* Note metadata */}
       <Card>
         <CardHeader className="pb-2">
@@ -500,27 +738,27 @@ export function SOAPNotesTab({ onDirtyChange }) {
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-2">
             <Label>Patient</Label>
-            <Input value={header.patientName} onChange={(e) => updateHeader('patientName', e.target.value)} placeholder="Patient name or ID" />
+            <Input value={headerDisplay.patientName} onChange={(e) => updateHeader('patientName', e.target.value)} placeholder="Patient name or ID" />
           </div>
           <div className="space-y-2">
             <Label>Visit / Encounter ID</Label>
-            <Input value={header.encounterId} onChange={(e) => updateHeader('encounterId', e.target.value)} placeholder="Encounter ID" />
+            <Input value={headerDisplay.encounterId} onChange={(e) => updateHeader('encounterId', e.target.value)} placeholder="Encounter ID" />
           </div>
           <div className="space-y-2">
             <Label>Date of service</Label>
-            <Input type="date" value={header.dateOfService} onChange={(e) => updateHeader('dateOfService', e.target.value)} />
+            <Input type="date" value={headerDisplay.dateOfService} onChange={(e) => updateHeader('dateOfService', e.target.value)} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Chief complaint</Label>
-            <Input value={header.chiefComplaint} onChange={(e) => updateHeader('chiefComplaint', e.target.value)} placeholder="Reason for visit" />
+            <Input value={headerDisplay.chiefComplaint} onChange={(e) => updateHeader('chiefComplaint', e.target.value)} placeholder="Reason for visit" />
           </div>
           <div className="space-y-2">
             <Label>Author / Provider</Label>
-            <Input value={header.provider} onChange={(e) => updateHeader('provider', e.target.value)} placeholder="Provider name" />
+            <Input value={headerDisplay.provider} onChange={(e) => updateHeader('provider', e.target.value)} placeholder="Provider name" />
           </div>
           <div className="space-y-2">
             <Label>Location / Clinic</Label>
-            <Input value={header.location} onChange={(e) => updateHeader('location', e.target.value)} placeholder="Clinic or site" />
+            <Input value={headerDisplay.location} onChange={(e) => updateHeader('location', e.target.value)} placeholder="Clinic or site" />
           </div>
         </CardContent>
       </Card>
@@ -605,6 +843,12 @@ export function SOAPNotesTab({ onDirtyChange }) {
         </CardContent>
       </Card>
 
+      <ScreeningScoresPanel
+        patientId={patientId}
+        encounterId={appointmentId}
+        isSampleChart={isSampleChart}
+      />
+
       {/* O – Objective */}
       <Card>
         <CardHeader className="pb-2">
@@ -643,12 +887,50 @@ export function SOAPNotesTab({ onDirtyChange }) {
             <AddVitalsDialog open={showVitalsDialog} onOpenChange={setShowVitalsDialog} onSave={handleAddVitals} />
           </div>
           <div className="space-y-2">
-            <Label>Physical exam</Label>
-            <Textarea value={physicalExam} onChange={(e) => setPhysicalExam(e.target.value)} placeholder="By system: general, HEENT, cardiovascular, lungs, abdomen, extremities, neuro, skin, etc." rows={5} className="min-h-28" />
+            <div className="flex items-center justify-between gap-2">
+              <Label>Physical exam</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setShowPhysicalExamPicker(true)}
+              >
+                <Stethoscope className="h-4 w-4" />
+                Physical exam picker
+              </Button>
+            </div>
+            <Textarea
+              value={physicalExam}
+              onChange={(e) => {
+                markEdited();
+                setPhysicalExam(e.target.value);
+              }}
+              placeholder="By system: general, HEENT, cardiovascular, lungs, abdomen, extremities, neuro, skin, etc. Or use the picker."
+              rows={5}
+              className="min-h-28"
+            />
+            <PhysicalExamPickerDialog
+              open={showPhysicalExamPicker}
+              onOpenChange={setShowPhysicalExamPicker}
+              value={physicalExam}
+              onApply={(narrative) => {
+                markEdited();
+                setPhysicalExam(narrative);
+              }}
+            />
           </div>
           <div className="space-y-2">
             <Label>Diagnostic testing results</Label>
-            <Textarea value={diagnosticTestingResults} onChange={(e) => setDiagnosticTestingResults(e.target.value)} placeholder="Values or links relevant to this visit" rows={2} />
+            <Textarea
+              value={diagnosticTestingResults}
+              onChange={(e) => {
+                markEdited();
+                setDiagnosticTestingResults(e.target.value);
+              }}
+              placeholder="Values or links relevant to this visit"
+              rows={2}
+            />
           </div>
         </CardContent>
       </Card>
@@ -679,11 +961,27 @@ export function SOAPNotesTab({ onDirtyChange }) {
           </div>
           <div className="space-y-2">
             <Label>Differential</Label>
-            <Textarea value={differential} onChange={(e) => setDifferential(e.target.value)} placeholder="When not yet definitive" rows={2} />
+            <Textarea
+              value={differential}
+              onChange={(e) => {
+                markEdited();
+                setDifferential(e.target.value);
+              }}
+              placeholder="When not yet definitive"
+              rows={2}
+            />
           </div>
           <div className="space-y-2">
             <Label>Clinical impression</Label>
-            <Textarea value={clinicalImpression} onChange={(e) => setClinicalImpression(e.target.value)} placeholder="Brief summary of reasoning" rows={2} />
+            <Textarea
+              value={clinicalImpression}
+              onChange={(e) => {
+                markEdited();
+                setClinicalImpression(e.target.value);
+              }}
+              placeholder="Brief summary of reasoning"
+              rows={2}
+            />
           </div>
         </CardContent>
       </Card>
@@ -697,7 +995,16 @@ export function SOAPNotesTab({ onDirtyChange }) {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Plan (per diagnosis or free text)</Label>
-            <Textarea value={planText} onChange={(e) => setPlanText(e.target.value)} placeholder="For each problem: meds, procedures, referrals, etc." rows={4} className="min-h-24" />
+            <Textarea
+              value={planText}
+              onChange={(e) => {
+                markEdited();
+                setPlanText(e.target.value);
+              }}
+              placeholder="For each problem: meds, procedures, referrals, etc."
+              rows={4}
+              className="min-h-24"
+            />
           </div>
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -722,23 +1029,68 @@ export function SOAPNotesTab({ onDirtyChange }) {
           </div>
           <div className="space-y-2">
             <Label>Follow-up</Label>
-            <Input value={followUp} onChange={(e) => setFollowUp(e.target.value)} placeholder="When to return, what to watch for" />
+            <Input
+              value={followUp}
+              onChange={(e) => {
+                markEdited();
+                setFollowUp(e.target.value);
+              }}
+              placeholder="When to return, what to watch for"
+            />
           </div>
           <div className="space-y-2">
             <Label>Patient education</Label>
-            <Textarea value={patientEducation} onChange={(e) => setPatientEducation(e.target.value)} placeholder="Topics discussed" rows={2} />
+            <Textarea
+              value={patientEducation}
+              onChange={(e) => {
+                markEdited();
+                setPatientEducation(e.target.value);
+              }}
+              placeholder="Topics discussed"
+              rows={2}
+            />
           </div>
           <div className="space-y-2">
             <Label>Referrals</Label>
-            <Textarea value={referrals} onChange={(e) => setReferrals(e.target.value)} placeholder="To whom and why" rows={2} />
+            <Textarea
+              value={referrals}
+              onChange={(e) => {
+                markEdited();
+                setReferrals(e.target.value);
+              }}
+              placeholder="To whom and why"
+              rows={2}
+            />
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex gap-2">
-        <Button onClick={handleSaveDraft}>Save as draft</Button>
-        <Button variant="outline" onClick={handleSignAndLock}>Sign & lock note</Button>
-      </div>
+      <NoteSignActions
+        confirmChecked={confirmComplete}
+        onConfirmChange={setConfirmComplete}
+        onSaveDraft={handleSaveDraft}
+        onSignAndLock={handleSignAndLock}
+        onCancelEdit={() => {
+          setEditingNoteId(null);
+          setConfirmComplete(false);
+        }}
+        draftLabel={editingNoteId ? 'Update draft' : 'Save as draft'}
+        showCancelEdit={!!editingNoteId}
+      />
+        </>
+      )}
     </div>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <ChartTabShell
+      title="SOAP Notes"
+      description="Document this encounter in SOAP format. Fields prefill from Intake and other encounter data when available."
+      actions={lockedNote ? null : soapActions}
+    >
+      {content}
+    </ChartTabShell>
   );
 }

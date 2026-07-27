@@ -63,12 +63,13 @@ export function SearchableSelect({
   disabled = false,
   className,
   triggerClassName,
+  preserveOptionOrder = false,
 }) {
   const [query, setQuery] = useState('');
 
   const normalizedOptions = useMemo(
-    () => sortOptionsAZWithOtherLast(options || []),
-    [options]
+    () => (preserveOptionOrder ? (options || []).map(normalizeSelectOption) : sortOptionsAZWithOtherLast(options || [])),
+    [options, preserveOptionOrder]
   );
 
   const filtered = useMemo(() => {

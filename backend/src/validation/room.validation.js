@@ -16,6 +16,7 @@ const createRoomSchema = Joi.object({
   displayName: Joi.string().trim().max(200).allow('', null),
   floor: Joi.string().trim().max(100).allow('', null),
   unit: Joi.string().trim().max(200).allow('', null),
+  departmentId: Joi.string().uuid().allow('', null),
   roomTypeIds: Joi.array().items(Joi.string().uuid()).min(1).required().messages({
     'array.min': 'At least one room type is required',
     'any.required': 'At least one room type is required',
@@ -32,6 +33,7 @@ const updateRoomSchema = Joi.object({
   displayName: Joi.string().trim().max(200).allow('', null),
   floor: Joi.string().trim().max(100).allow('', null),
   unit: Joi.string().trim().max(200).allow('', null),
+  departmentId: Joi.string().uuid().allow('', null),
   roomTypeIds: Joi.array().items(Joi.string().uuid()).min(1).messages({
     'array.min': 'At least one room type is required',
   }),

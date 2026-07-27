@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,14 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { ArrowLeft, Eye, Edit, Printer, FileText } from 'lucide-react';
-import { loadRadiologyStore, getPatientById, getOrdersByPatientId, updateOrder } from '../radiologyStore';
+import { orderApi } from '@/services/api';
+import { mapOrderToRadiologyRow } from '@/lib/orderWorklist';
 import { EditOutsideRadiologyOrderDialog } from './EditOutsideRadiologyOrderDialog';
 import { ViewRadiologyReportDialog } from '../ViewRadiologyReportDialog';
 
@@ -35,7 +30,7 @@ function formatDateTime(isoString) {
   return new Date(isoString).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function OrdersTable({ orders, patient, onViewOrder, onEditOrder, formatDateTime }) {
+function OrdersTable({ orders, patient, onViewOrder, onEditOrder, formatDateTime: fmt }) {
   return (
     <Table>
       <TableHeader>
@@ -56,14 +51,14 @@ function OrdersTable({ orders, patient, onViewOrder, onEditOrder, formatDateTime
             <TableRow key={order.id}>
               <TableCell>
                 <div className="text-sm">
-                  <div className="font-medium">{patient.name}</div>
-                  <div className="text-muted-foreground">MRN: {patient.mrn}</div>
+                  <div className="font-medium">{patient?.name}</div>
+                  <div className="text-muted-foreground">MRN: {patient?.mrn}</div>
                 </div>
               </TableCell>
               <TableCell>
                 <div className="space-y-0.5">
                   <div className="font-medium">{order.orderName}</div>
-                  <div className="text-sm text-muted-foreground">Test ID: {order.id}</div>
+                  <div className="text-sm text-muted-foreground">Code: {order.procedureCode || order.id?.slice(0, 8)}</div>
                 </div>
               </TableCell>
               <TableCell>
@@ -71,8 +66,8 @@ function OrdersTable({ orders, patient, onViewOrder, onEditOrder, formatDateTime
                   {order.status}
                 </span>
               </TableCell>
-              <TableCell className="text-muted-foreground">{formatDateTime(order.orderDateTime)}</TableCell>
-              <TableCell className="text-muted-foreground">{formatDateTime(order.lastUpdatedAt)}</TableCell>
+              <TableCell className="text-muted-foreground">{fmt(order.orderDateTime)}</TableCell>
+              <TableCell className="text-muted-foreground">{fmt(order.lastUpdatedAt)}</TableCell>
               <TableCell>
                 <div className="flex gap-1">
                   <Button variant="ghost" size="sm" onClick={() => onViewOrder(order)} title="View"><Eye className="h-4 w-4 icon-action-view" /></Button>
@@ -92,51 +87,73 @@ function OrdersTable({ orders, patient, onViewOrder, onEditOrder, formatDateTime
 export function PatientOutsideRadiologyDetailPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
-  const [store, setStore] = useState(() => loadRadiologyStore());
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({ testName: '', status: '' });
   const [editOrder, setEditOrder] = useState(null);
   const [viewOrder, setViewOrder] = useState(null);
 
-  const patient = useMemo(() => getPatientById(store, patientId), [store, patientId]);
-  const allOrders = useMemo(() => getOrdersByPatientId(store, patientId), [store, patientId]);
+  const loadOrders = useCallback(async () => {
+    if (!patientId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await orderApi.getOrders({
+        patientId,
+        category: 'Radiology',
+        destination: 'external',
+        limit: 500,
+      });
+      setOrders(
+        (res?.data || [])
+          .filter((o) => o.status !== 'Cancelled')
+          .map(mapOrderToRadiologyRow)
+      );
+    } catch (err) {
+      setOrders([]);
+      setError(err.message || 'Failed to load outside radiology orders');
+    } finally {
+      setLoading(false);
+    }
+  }, [patientId]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  const patient = useMemo(() => (orders.length ? orders[0].patient : null), [orders]);
 
   const filteredOrders = useMemo(() => {
-    return allOrders.filter((o) => {
+    return orders.filter((o) => {
       if (filters.testName && !(o.orderName || '').toLowerCase().includes(filters.testName.toLowerCase())) return false;
       if (filters.status && o.status !== filters.status) return false;
       return true;
     });
-  }, [allOrders, filters]);
+  }, [orders, filters]);
 
-  const handleSaveOrder = useCallback((updatedOrder) => {
-    const patch = {
-      orderAttachmentFileName: updatedOrder.orderAttachmentFileName,
-      orderAttachmentNotes: updatedOrder.orderAttachmentNotes,
-      reportReceivedAt: updatedOrder.reportReceivedAt,
-      reportFileName: updatedOrder.reportFileName,
-      sendOutLocation: updatedOrder.sendOutLocation,
-      reportReceivedNotes: updatedOrder.reportReceivedNotes,
-      status: updatedOrder.status,
-      lastUpdatedAt: updatedOrder.lastUpdatedAt,
-      lastUpdatedBy: updatedOrder.lastUpdatedBy,
-    };
-    const next = updateOrder(updatedOrder.id, patch);
-    setStore(next);
-    setEditOrder(null);
-  }, []);
+  const handleSaveOrder = useCallback(async (updatedOrder) => {
+    try {
+      if (updatedOrder?.id && updatedOrder?.status) {
+        await orderApi.updateOrderStatus(updatedOrder.id, updatedOrder.status);
+      }
+      setEditOrder(null);
+      await loadOrders();
+    } catch (err) {
+      alert(err.message || 'Failed to update order');
+    }
+  }, [loadOrders]);
 
-  if (!patient) {
+  if (!loading && !patient && !error) {
     return (
       <div className="p-6">
-        <p className="text-muted-foreground">Patient not found.</p>
+        <p className="text-muted-foreground">No outside radiology orders found for this patient.</p>
         <Button variant="link" onClick={() => navigate('/radiology-management/outside-radiology-orders')}>
           Back to Outside radiology orders
         </Button>
       </div>
     );
   }
-
-  const chiefComplaint = patient.admission?.chiefComplaint ?? '';
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -146,23 +163,26 @@ export function PatientOutsideRadiologyDetailPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">Patient Order Detail</h1>
-          <p className="text-muted-foreground">Outside radiology orders for {patient.name}</p>
+          <p className="text-muted-foreground">Outside radiology orders for {patient?.name || 'patient'}</p>
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Patient Information</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-6">
-          <div><Label className="text-muted-foreground">MRN</Label><p>{patient.mrn}</p></div>
-          <div><Label className="text-muted-foreground">Name</Label><p className="font-medium">{patient.name}</p></div>
-          <div><Label className="text-muted-foreground">Age</Label><p>{patient.age}</p></div>
-          <div><Label className="text-muted-foreground">DOB</Label><p>{patient.dob}</p></div>
-          <div><Label className="text-muted-foreground">Gender</Label><p>{patient.gender === 'M' ? 'Male' : 'Female'}</p></div>
-          <div><Label className="text-muted-foreground">Chief Complaint</Label><p>{chiefComplaint}</p></div>
-        </CardContent>
-      </Card>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      {patient && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Patient Information</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-6">
+            <div><Label className="text-muted-foreground">MRN</Label><p>{patient.mrn}</p></div>
+            <div><Label className="text-muted-foreground">Name</Label><p className="font-medium">{patient.name}</p></div>
+            <div><Label className="text-muted-foreground">Age</Label><p>{patient.age}</p></div>
+            <div><Label className="text-muted-foreground">DOB</Label><p>{patient.dob}</p></div>
+            <div><Label className="text-muted-foreground">Gender</Label><p>{patient.gender}</p></div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -174,8 +194,10 @@ export function PatientOutsideRadiologyDetailPage() {
             <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="_">All</SelectItem>
+              <SelectItem value="Scheduled">Scheduled</SelectItem>
               <SelectItem value="Pending">Pending</SelectItem>
               <SelectItem value="In Progress">In Progress</SelectItem>
+              <SelectItem value="Resulted">Resulted</SelectItem>
               <SelectItem value="Completed">Completed</SelectItem>
               <SelectItem value="Cancelled">Cancelled</SelectItem>
             </SelectContent>
@@ -189,7 +211,11 @@ export function PatientOutsideRadiologyDetailPage() {
           <CardTitle>Orders</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrdersTable orders={filteredOrders} patient={patient} onViewOrder={setViewOrder} onEditOrder={setEditOrder} formatDateTime={formatDateTime} />
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          ) : (
+            <OrdersTable orders={filteredOrders} patient={patient} onViewOrder={setViewOrder} onEditOrder={setEditOrder} formatDateTime={formatDateTime} />
+          )}
         </CardContent>
       </Card>
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,37 +20,66 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ArrowLeft, Eye, Edit, Printer, FileText } from 'lucide-react';
-import { labApi } from '@/services/api';
+import { orderApi } from '@/services/api';
 import { getLabStatusBadgeClass } from '@/lib/labConstants';
-import { EditResultsDialog } from './EditResultsDialog';
 import { ViewResultDialog } from './ViewResultDialog';
+import { calcAge, mapOrderToLabRow } from '@/lib/orderWorklist';
 
 export function PatientResultDetailPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
   const [tests, setTests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     testId: '',
     testName: '',
     specimenStatus: '',
-    transportStatus: '',
-    receiveStatus: '',
     resultStatus: '',
   });
-  const [editTest, setEditTest] = useState(null);
   const [viewTest, setViewTest] = useState(null);
 
+  const loadTests = async () => {
+    if (!patientId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await orderApi.getOrders({
+        patientId,
+        category: 'Lab',
+        destination: 'onsite',
+        limit: 500,
+      });
+      setTests(
+        (res?.data || [])
+          .filter((o) => o.status !== 'Cancelled')
+          .map(mapOrderToLabRow)
+      );
+    } catch (err) {
+      setTests([]);
+      setError(err.message || 'Failed to load lab results');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    labApi.getResultManagementList({ patientId, ...filters }).then(({ data }) => setTests(data || []));
-  }, [patientId, filters]);
+    loadTests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
+
+  const filteredTests = useMemo(() => {
+    return tests.filter((row) => {
+      if (filters.testId && !(row.testId || '').toLowerCase().includes(filters.testId.toLowerCase())) return false;
+      if (filters.testName && !(row.testName || '').toLowerCase().includes(filters.testName.toLowerCase())) return false;
+      if (filters.specimenStatus && row.specimenStatus !== filters.specimenStatus) return false;
+      if (filters.resultStatus && (row.resultStatus || row.status) !== filters.resultStatus) return false;
+      return true;
+    });
+  }, [tests, filters]);
 
   const handleClearFilters = () =>
-    setFilters({ testId: '', testName: '', specimenStatus: '', transportStatus: '', receiveStatus: '', resultStatus: '' });
-
-  const handleSaved = () => {
-    setEditTest(null);
-    labApi.getResultManagementList({ patientId, ...filters }).then(({ data }) => setTests(data || []));
-  };
+    setFilters({ testId: '', testName: '', specimenStatus: '', resultStatus: '' });
 
   const patient = tests.length > 0 ? tests[0].patient : null;
 
@@ -66,6 +95,8 @@ export function PatientResultDetailPage() {
         </div>
       </div>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       {patient && (
         <Card>
           <CardHeader>
@@ -75,6 +106,7 @@ export function PatientResultDetailPage() {
             <div><Label className="text-muted-foreground">Patient Name</Label><p className="font-medium">{patient.name}</p></div>
             <div><Label className="text-muted-foreground">MRN</Label><p>{patient.mrn}</p></div>
             <div><Label className="text-muted-foreground">DOB</Label><p>{patient.dob}</p></div>
+            <div><Label className="text-muted-foreground">Age</Label><p>{calcAge(patient.dateOfBirth)}</p></div>
             <div><Label className="text-muted-foreground">Gender</Label><p>{patient.gender}</p></div>
           </CardContent>
         </Card>
@@ -92,36 +124,20 @@ export function PatientResultDetailPage() {
             <SelectContent>
               <SelectItem value="_">All</SelectItem>
               <SelectItem value="Pending">Pending</SelectItem>
+              <SelectItem value="Submitted">Submitted</SelectItem>
               <SelectItem value="Collected">Collected</SelectItem>
               <SelectItem value="Completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filters.transportStatus || '_'} onValueChange={(v) => setFilters((f) => ({ ...f, transportStatus: v === '_' ? '' : v }))}>
-            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Transport Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_">All</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="In Transit">In Transit</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filters.receiveStatus || '_'} onValueChange={(v) => setFilters((f) => ({ ...f, receiveStatus: v === '_' ? '' : v }))}>
-            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Receiver Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_">All</SelectItem>
-              <SelectItem value="Accepted">Accepted</SelectItem>
-              <SelectItem value="Pending">Pending</SelectItem>
-              <SelectItem value="Rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filters.resultStatus || '_'} onValueChange={(v) => setFilters((f) => ({ ...f, resultStatus: v === '_' ? '' : v }))}>
             <SelectTrigger className="w-[140px]"><SelectValue placeholder="Result Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="_">All</SelectItem>
+              <SelectItem value="Ordered">Ordered</SelectItem>
+              <SelectItem value="Resulted">Resulted</SelectItem>
               <SelectItem value="Pending">Pending</SelectItem>
               <SelectItem value="In Progress">In Progress</SelectItem>
               <SelectItem value="Completed">Completed</SelectItem>
-              <SelectItem value="Cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={handleClearFilters}>Clear All</Button>
@@ -138,17 +154,18 @@ export function PatientResultDetailPage() {
               <TableRow>
                 <TableHead>Test Information</TableHead>
                 <TableHead>Specimen Status</TableHead>
-                <TableHead>Transport Status</TableHead>
-                <TableHead>Receiver Status</TableHead>
+                <TableHead>Order Status</TableHead>
                 <TableHead>Test Result Status</TableHead>
                 <TableHead className="w-[180px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tests.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No tests</TableCell></TableRow>
+              {loading ? (
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Loading...</TableCell></TableRow>
+              ) : filteredTests.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No tests</TableCell></TableRow>
               ) : (
-                tests.map((row) => (
+                filteredTests.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>
                       <div className="space-y-0.5">
@@ -162,24 +179,30 @@ export function PatientResultDetailPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getLabStatusBadgeClass(row.transportStatus)}`}>
-                        {row.transportStatus || '—'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getLabStatusBadgeClass(row.receiveStatus)}`}>
-                        {row.receiveStatus || '—'}
+                      <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium bg-secondary text-secondary-foreground">
+                        {row.status}
                       </span>
                     </TableCell>
                     <TableCell>
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getLabStatusBadgeClass(row.resultStatus)}`}>
-                        {row.resultStatus || 'Pending'}
+                        {row.resultStatus || 'Ordered'}
                       </span>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="sm" onClick={() => setViewTest(row)} title="View result"><Eye className="h-4 w-4 icon-action-view" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => setEditTest(row)} title="Edit result"><Edit className="h-4 w-4 icon-action-edit" /></Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            navigate(
+                              `/laboratory-management/result-management/patient/${patientId}/edit/${row.id}`
+                            )
+                          }
+                          title="Edit result"
+                        >
+                          <Edit className="h-4 w-4 icon-action-edit" />
+                        </Button>
                         <Button variant="ghost" size="sm" onClick={() => navigate(`/laboratory-management/result-management/report/${row.id}`)} title="Print lab report"><FileText className="h-4 w-4 icon-action-print" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => navigate(`/laboratory-management/specimen-collection/labels?specimenId=${row.id}&count=1`)} title="Print barcode"><Printer className="h-4 w-4 icon-action-print" /></Button>
                       </div>
@@ -191,15 +214,6 @@ export function PatientResultDetailPage() {
           </Table>
         </CardContent>
       </Card>
-
-      {editTest && (
-        <EditResultsDialog
-          open={!!editTest}
-          onOpenChange={(open) => !open && setEditTest(null)}
-          labTest={editTest}
-          onSaved={handleSaved}
-        />
-      )}
 
       {viewTest && (
         <ViewResultDialog

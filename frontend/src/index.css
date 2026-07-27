@@ -3,70 +3,101 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Meta / Facebook design system — #F0F2F5 canvas, #1877F2 primary, white cards */
+/* Clinical EHR design system — Google blue brand, Google white surfaces, 5 semantic statuses */
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
-    sans-serif;
-  line-height: 1.34;
+  font-family: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
   --radius: 0.5rem;
-  --shadow-elevation-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-elevation-md: 0 2px 12px rgba(0, 0, 0, 0.15);
-  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-elevation-sm: 0 1px 2px rgba(60, 64, 67, 0.08), 0 1px 3px rgba(60, 64, 67, 0.06);
+  --shadow-elevation-md: 0 4px 6px -1px rgba(60, 64, 67, 0.1), 0 2px 4px -2px rgba(60, 64, 67, 0.06);
+  --shadow-elevation-lg: 0 10px 15px -3px rgba(60, 64, 67, 0.12), 0 4px 6px -4px rgba(60, 64, 67, 0.06);
+  --shadow-panel: 0 1px 2px rgba(60, 64, 67, 0.08), 0 1px 3px 1px rgba(60, 64, 67, 0.06);
 
-  /* Workspace */
-  --background: #f0f2f5;
-  --foreground: #050505;
+  /* Workspace — Google white surfaces (#fff / #f8f9fa) */
+  --background: #f8f9fa;
+  --foreground: #202124;
   --card: #ffffff;
-  --card-foreground: #050505;
+  --card-foreground: #202124;
   --popover: #ffffff;
-  --popover-foreground: #050505;
+  --popover-foreground: #202124;
 
-  /* Facebook blue */
-  --primary: #1877f2;
+  /* Brand — Google Blue */
+  --primary: #1a73e8;
   --primary-foreground: #ffffff;
-  --primary-hover: #166fe5;
+  --primary-hover: #1765cc;
 
-  --secondary: #e4e6eb;
-  --secondary-foreground: #050505;
-  --muted: #f2f3f5;
-  --muted-foreground: #65676b;
-  --accent: #e7f3ff;
-  --accent-foreground: #1877f2;
-  --destructive: #e41e3f;
+  --secondary: #f1f3f4;
+  --secondary-foreground: #3c4043;
+  --muted: #f8f9fa;
+  --muted-foreground: #5f6368;
+  --accent: #e8f0fe;
+  --accent-foreground: #1967d2;
+
+  /* Semantic actions (solid) */
+  --destructive: #d93025;
   --destructive-foreground: #ffffff;
-  --border: #ced0d4;
-  --input: #e4e6eb;
-  --ring: #1877f2;
+  --success: #188038;
+  --success-foreground: #ffffff;
+  --success-hover: #137333;
+  --warning: #f9ab00;
+  --warning-foreground: #202124;
+  --warning-hover: #e37400;
+  --info: #1a73e8;
+  --info-foreground: #ffffff;
+  --info-hover: #1765cc;
+
+  /* Soft status surfaces — badges, chips, alerts */
+  --status-success-bg: #e6f4ea;
+  --status-success-fg: #137333;
+  --status-success-border: #ceead6;
+  --status-info-bg: #e8f0fe;
+  --status-info-fg: #1967d2;
+  --status-info-border: #d2e3fc;
+  --status-warning-bg: #fef7e0;
+  --status-warning-fg: #b06000;
+  --status-warning-border: #fde293;
+  --status-danger-bg: #fce8e6;
+  --status-danger-fg: #c5221f;
+  --status-danger-border: #f6aea9;
+  --status-muted-bg: #f8f9fa;
+  --status-muted-fg: #5f6368;
+  --status-muted-border: #dadce0;
+
+  --border: #dadce0;
+  --input: #dadce0;
+  --ring: #1a73e8;
 
   --form-section-bg: #ffffff;
-  --form-section-header: #f0f2f5;
-  --chart-1: #1877f2;
-  --chart-2: #42b72a;
-  --chart-3: #f7b928;
-  --chart-4: #e41e3f;
-  --chart-5: #65676b;
+  --form-section-header: #f8f9fa;
+  --chart-1: #1a73e8;
+  --chart-2: #188038;
+  --chart-3: #f9ab00;
+  --chart-4: #d93025;
+  --chart-5: #5f6368;
 
-  /* Sidebar — white panel, blue active state */
+  /* White sidebar — Google surface */
   --sidebar: #ffffff;
-  --sidebar-foreground: #050505;
-  --sidebar-primary: #1877f2;
+  --sidebar-foreground: #202124;
+  --sidebar-primary: #1a73e8;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e7f3ff;
-  --sidebar-accent-foreground: #1877f2;
-  --sidebar-border: #e4e6eb;
-  --sidebar-ring: #1877f2;
-  --sidebar-active-bar: #1877f2;
-  --sidebar-icon: #65676b;
-  --sidebar-icon-hover: #1877f2;
+  --sidebar-accent: #e8f0fe;
+  --sidebar-accent-foreground: #1967d2;
+  --sidebar-border: #dadce0;
+  --sidebar-ring: #1a73e8;
+  --sidebar-active-bar: #1a73e8;
+  --sidebar-icon: #5f6368;
+  --sidebar-icon-hover: #1a73e8;
 
-  --theme-gradient-start: #1877f2;
-  --theme-gradient-mid: #0d65d9;
-  --theme-gradient-end: #0866ff;
+  --theme-gradient-start: #174ea6;
+  --theme-gradient-mid: #1a73e8;
+  --theme-gradient-end: #4285f4;
 }
 
 html {
@@ -77,9 +108,9 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  line-height: 1.34;
-  background-color: #f0f2f5;
-  color: #050505;
+  line-height: 1.5;
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
 #root {
@@ -107,6 +138,12 @@ body {
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -129,40 +166,65 @@ body {
 }
 
 .dark {
-  --background: #18191a;
-  --foreground: #e4e6eb;
-  --card: #242526;
-  --card-foreground: #e4e6eb;
-  --popover: #242526;
-  --popover-foreground: #e4e6eb;
-  --primary: #2d88ff;
-  --primary-foreground: #ffffff;
-  --primary-hover: #1877f2;
-  --secondary: #3a3b3c;
-  --secondary-foreground: #e4e6eb;
-  --muted: #3a3b3c;
-  --muted-foreground: #b0b3b8;
-  --accent: #263951;
-  --accent-foreground: #2d88ff;
-  --destructive: #f02849;
-  --border: #3e4042;
-  --input: #3a3b3c;
-  --ring: #2d88ff;
-  --form-section-bg: #242526;
-  --form-section-header: #3a3b3c;
-  --sidebar: #242526;
-  --sidebar-foreground: #e4e6eb;
-  --sidebar-primary: #2d88ff;
-  --sidebar-accent: #263951;
-  --sidebar-accent-foreground: #2d88ff;
-  --sidebar-border: #3e4042;
-  --sidebar-icon: #b0b3b8;
-  --sidebar-icon-hover: #2d88ff;
-  --sidebar-active-bar: #2d88ff;
-  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --theme-gradient-start: #2d88ff;
-  --theme-gradient-mid: #1877f2;
-  --theme-gradient-end: #0d65d9;
+  --background: #202124;
+  --foreground: #e8eaed;
+  --card: #292a2d;
+  --card-foreground: #e8eaed;
+  --popover: #292a2d;
+  --popover-foreground: #e8eaed;
+  --primary: #8ab4f8;
+  --primary-foreground: #202124;
+  --primary-hover: #aecbfa;
+  --secondary: #3c4043;
+  --secondary-foreground: #e8eaed;
+  --muted: #292a2d;
+  --muted-foreground: #9aa0a6;
+  --accent: rgba(138, 180, 248, 0.16);
+  --accent-foreground: #aecbfa;
+  --destructive: #f28b82;
+  --destructive-foreground: #202124;
+  --success: #81c995;
+  --success-foreground: #202124;
+  --success-hover: #a8dab5;
+  --warning: #fdd663;
+  --warning-foreground: #202124;
+  --warning-hover: #fde293;
+  --info: #8ab4f8;
+  --info-foreground: #202124;
+  --info-hover: #aecbfa;
+  --status-success-bg: rgba(24, 128, 56, 0.35);
+  --status-success-fg: #81c995;
+  --status-success-border: rgba(129, 201, 149, 0.35);
+  --status-info-bg: rgba(26, 115, 232, 0.35);
+  --status-info-fg: #aecbfa;
+  --status-info-border: rgba(138, 180, 248, 0.35);
+  --status-warning-bg: rgba(249, 171, 0, 0.28);
+  --status-warning-fg: #fdd663;
+  --status-warning-border: rgba(253, 214, 99, 0.35);
+  --status-danger-bg: rgba(217, 48, 37, 0.35);
+  --status-danger-fg: #f28b82;
+  --status-danger-border: rgba(242, 139, 130, 0.35);
+  --status-muted-bg: rgba(60, 64, 67, 0.5);
+  --status-muted-fg: #bdc1c6;
+  --status-muted-border: rgba(154, 160, 166, 0.25);
+  --border: #3c4043;
+  --input: #3c4043;
+  --ring: #8ab4f8;
+  --form-section-bg: #292a2d;
+  --form-section-header: #3c4043;
+  --sidebar: #202124;
+  --sidebar-foreground: #e8eaed;
+  --sidebar-primary: #8ab4f8;
+  --sidebar-accent: rgba(138, 180, 248, 0.16);
+  --sidebar-accent-foreground: #aecbfa;
+  --sidebar-border: rgba(154, 160, 166, 0.2);
+  --sidebar-icon: #9aa0a6;
+  --sidebar-icon-hover: #aecbfa;
+  --sidebar-active-bar: #8ab4f8;
+  --shadow-panel: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --theme-gradient-start: #174ea6;
+  --theme-gradient-mid: #1a73e8;
+  --theme-gradient-end: #8ab4f8;
 }
 
 @layer base {
@@ -176,33 +238,87 @@ body {
     @apply text-foreground text-2xl font-bold tracking-tight;
   }
   h2 {
-    @apply text-foreground text-xl font-bold tracking-tight;
+    @apply text-foreground text-xl font-semibold tracking-tight;
   }
   h3 {
-    @apply text-foreground text-[1.0625rem] font-semibold;
+    @apply text-foreground text-lg font-semibold;
   }
 }
 
 @layer utilities {
   .theme-hero-gradient {
     background: linear-gradient(
-      135deg,
+      160deg,
       var(--theme-gradient-start) 0%,
-      var(--theme-gradient-mid) 50%,
+      var(--theme-gradient-mid) 45%,
       var(--theme-gradient-end) 100%
     );
   }
   .icon-action-delete {
-    @apply text-[#e41e3f];
+    @apply text-destructive;
   }
   .icon-action-edit {
-    @apply text-[#42b72a];
+    @apply text-primary;
   }
   .icon-action-view {
-    @apply text-[#1877f2];
+    @apply text-[var(--info)];
   }
   .icon-action-print {
-    @apply text-[#e41e3f];
+    @apply text-muted-foreground;
+  }
+
+  /* Soft status badges / chips — use only these five */
+  .status-soft-success {
+    background-color: var(--status-success-bg);
+    color: var(--status-success-fg);
+    border: 1px solid var(--status-success-border);
+  }
+  .status-soft-info {
+    background-color: var(--status-info-bg);
+    color: var(--status-info-fg);
+    border: 1px solid var(--status-info-border);
+  }
+  .status-soft-warning {
+    background-color: var(--status-warning-bg);
+    color: var(--status-warning-fg);
+    border: 1px solid var(--status-warning-border);
+  }
+  .status-soft-danger {
+    background-color: var(--status-danger-bg);
+    color: var(--status-danger-fg);
+    border: 1px solid var(--status-danger-border);
+  }
+  .status-soft-muted {
+    background-color: var(--status-muted-bg);
+    color: var(--status-muted-fg);
+    border: 1px solid var(--status-muted-border);
+  }
+
+  /* Solid status surfaces — timeline blocks, filled chips */
+  .status-solid-success {
+    background-color: var(--success);
+    color: var(--success-foreground);
+    border-color: var(--success);
+  }
+  .status-solid-info {
+    background-color: var(--info);
+    color: var(--info-foreground);
+    border-color: var(--info);
+  }
+  .status-solid-warning {
+    background-color: var(--warning);
+    color: var(--warning-foreground);
+    border-color: var(--warning);
+  }
+  .status-solid-danger {
+    background-color: var(--destructive);
+    color: var(--destructive-foreground);
+    border-color: var(--destructive);
+  }
+  .status-solid-muted {
+    background-color: #64748b;
+    color: #ffffff;
+    border-color: #64748b;
   }
   .border-l-sidebar-active-bar {
     border-left-color: var(--sidebar-active-bar);
@@ -215,10 +331,10 @@ body {
     box-shadow: var(--shadow-panel);
   }
   .ehr-table-toolbar {
-    @apply flex flex-wrap items-center gap-3 border-b border-border bg-muted/60 px-4 py-2.5;
+    @apply flex flex-wrap items-center gap-4 border-b border-border bg-muted/50 px-5 py-3;
   }
   .nav-section-label {
-    @apply px-3 pt-3 pb-1 text-xs font-semibold text-muted-foreground;
+    @apply px-3 pt-4 pb-1.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-sidebar-foreground/60;
   }
   .tabular-nums {
     font-variant-numeric: tabular-nums;
@@ -228,20 +344,20 @@ body {
     @apply space-y-4;
   }
   .ehr-page-header {
-    @apply rounded-lg border border-border bg-card overflow-hidden px-5 py-4 sm:px-6;
+    @apply rounded-lg border border-border bg-card overflow-hidden px-6 py-5 sm:px-7;
     box-shadow: var(--shadow-panel);
   }
   .ehr-page-header-inner {
-    @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between;
+    @apply flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between;
   }
   .ehr-page-breadcrumb {
-    @apply text-sm font-medium text-primary;
+    @apply text-xs font-semibold uppercase tracking-wider text-primary;
   }
   .ehr-page-title {
     @apply text-2xl font-bold tracking-tight text-foreground;
   }
   .ehr-page-description {
-    @apply max-w-3xl text-[0.9375rem] leading-snug text-muted-foreground;
+    @apply max-w-3xl text-sm leading-relaxed text-muted-foreground;
   }
 
   .ehr-form-section {
@@ -249,38 +365,95 @@ body {
     box-shadow: var(--shadow-panel);
   }
   .ehr-form-section-header {
-    @apply border-b border-border bg-[var(--form-section-header)] px-4 py-3 sm:px-5;
+    @apply border-b border-border bg-[var(--form-section-header)] px-4 py-2.5 sm:px-5;
   }
   .ehr-form-section-title {
-    @apply text-[0.9375rem] font-semibold text-foreground;
+    @apply text-sm font-semibold text-foreground;
   }
   .ehr-form-section-description {
-    @apply mt-0.5 text-sm text-muted-foreground;
+    @apply mt-0.5 text-xs leading-snug text-muted-foreground;
   }
   .ehr-form-section-body {
-    @apply space-y-4 p-4 sm:p-5;
+    @apply space-y-3 p-4 sm:p-5;
   }
   .ehr-field {
-    @apply flex flex-col gap-1.5;
+    @apply flex flex-col gap-1;
   }
   .ehr-field-label {
-    @apply text-[0.8125rem] font-semibold text-foreground;
+    @apply text-xs font-medium leading-none text-foreground;
   }
   .ehr-field-hint {
-    @apply text-xs text-muted-foreground;
+    @apply text-[11px] leading-snug text-muted-foreground;
   }
   .ehr-field-error {
-    @apply text-xs font-medium text-destructive;
+    @apply text-[11px] font-medium text-destructive;
   }
 
   .form-grid-2 {
-    @apply grid grid-cols-1 gap-4 sm:grid-cols-2;
+    @apply grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2;
   }
   .form-grid-3 {
-    @apply grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3;
+    @apply grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3;
   }
   .form-grid-4 {
-    @apply grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4;
+    @apply grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4;
+  }
+
+  /* Stat card accent */
+  .stat-card {
+    @apply relative overflow-hidden rounded-lg border border-border bg-card;
+    box-shadow: var(--shadow-panel);
+  }
+  .stat-card::before {
+    content: "";
+    @apply absolute left-0 top-0 h-full w-1 bg-primary;
+  }
+
+  /* Patient chart dashboard */
+  .patient-chart {
+    --chart-accent-info: var(--info);
+    --chart-accent-success: var(--success);
+    --chart-accent-warning: var(--warning);
+    --chart-accent-danger: var(--destructive);
+    --chart-accent-muted: #64748b;
+  }
+
+  .patient-chart-chrome {
+    @apply bg-card;
+  }
+
+  .chart-tab-nav {
+    @apply flex gap-1 overflow-x-auto rounded-lg border border-border bg-muted/50 p-1;
+    scrollbar-width: none;
+  }
+  .chart-tab-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chart-tab-trigger {
+    @apply inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-muted-foreground transition-all;
+    @apply hover:bg-card hover:text-foreground;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1;
+    @apply data-[state=active]:bg-card data-[state=active]:text-primary data-[state=active]:shadow-sm;
+  }
+
+  .chart-info-tile {
+    @apply flex min-w-0 items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3;
+  }
+
+  .chart-filter-chip {
+    @apply inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors;
+    @apply hover:border-primary/30 hover:bg-primary/5 hover:text-foreground;
+  }
+  .chart-filter-chip[data-active="true"] {
+    @apply border-primary/40 bg-primary/10 text-primary;
+  }
+
+  .chart-table-wrap {
+    @apply overflow-hidden rounded-lg border border-border;
+  }
+  .chart-table-wrap [data-slot="table-container"] {
+    @apply rounded-none border-0 shadow-none;
   }
 }
 
@@ -288,15 +461,15 @@ body {
 .ehr-form h3.text-sm.font-semibold.text-foreground,
 [data-slot="dialog-content"] form > .space-y-4 > h3.text-sm.font-semibold,
 [data-slot="dialog-content"] form h3.text-sm.font-semibold.text-foreground {
-  @apply -mx-0 mb-3 border-b border-border pb-2 text-[0.9375rem] font-semibold text-foreground;
+  @apply -mx-0 mb-2.5 border-b border-border pb-1.5 text-sm font-semibold text-foreground;
 }
 .ehr-form > .space-y-4.border-t,
 .ehr-form .space-y-4.border-t.pt-4,
 [data-slot="dialog-content"] form > .space-y-4.border-t,
 [data-slot="dialog-content"] form .space-y-4.border-t.pt-4 {
-  @apply rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-panel)] sm:p-5;
+  @apply rounded-lg border border-border bg-card p-3.5 shadow-[var(--shadow-panel)] sm:p-4;
   border-top-width: 1px;
-  padding-top: 1rem;
+  padding-top: 0.875rem;
 }
 .ehr-form .space-y-2:has([data-slot="input"]),
 .ehr-form .space-y-2:has([data-slot="select-trigger"]),
@@ -304,18 +477,54 @@ body {
 [data-slot="dialog-content"] form .space-y-2:has([data-slot="input"]),
 [data-slot="dialog-content"] form .space-y-2:has([data-slot="select-trigger"]),
 [data-slot="dialog-content"] form .space-y-2:has([data-slot="textarea"]) {
-  @apply gap-1.5;
+  @apply gap-1;
 }
 .ehr-form .space-y-2 > [data-slot="label"],
 .ehr-form .space-y-2 > label,
 [data-slot="dialog-content"] form .space-y-2 > [data-slot="label"],
 [data-slot="dialog-content"] form .space-y-2 > label {
-  @apply text-[0.8125rem] font-semibold text-foreground;
+  @apply text-xs font-medium leading-none text-foreground;
 }
 
 [data-slot="dialog-content"] > form,
 [data-slot="dialog-content"] > .ehr-dialog-body {
-  @apply bg-background px-5 py-5 sm:px-6;
+  @apply bg-background px-5 py-4 sm:px-6;
+}
+
+/* Compact native selects and buttons sitting beside form controls */
+[data-slot="dialog-content"] form select,
+.ehr-form select {
+  height: 2rem;
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
+  font-size: 13px;
+  line-height: 1.25;
+  border-radius: 0.375rem;
+}
+
+/* Denser vertical rhythm inside form dialogs and ehr-form wrappers */
+.ehr-form.space-y-4 > :not([hidden]) ~ :not([hidden]),
+.ehr-form .space-y-4 > :not([hidden]) ~ :not([hidden]),
+[data-slot="dialog-content"] form.space-y-4 > :not([hidden]) ~ :not([hidden]),
+[data-slot="dialog-content"] form .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.75rem;
+}
+.ehr-form .space-y-5 > :not([hidden]) ~ :not([hidden]),
+[data-slot="dialog-content"] form.space-y-5 > :not([hidden]) ~ :not([hidden]),
+[data-slot="dialog-content"] form .space-y-5 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.875rem;
+}
+.ehr-form .space-y-6 > :not([hidden]) ~ :not([hidden]),
+[data-slot="dialog-content"] form .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1rem;
+}
+.ehr-form .grid.gap-4,
+[data-slot="dialog-content"] form .grid.gap-4 {
+  gap: 0.625rem 0.75rem;
+}
+.ehr-form .grid.gap-6,
+[data-slot="dialog-content"] form .grid.gap-6 {
+  gap: 0.75rem 1rem;
 }
 [data-slot="dialog-content"]:has([data-slot="dialog-header"]) {
   @apply gap-0 p-0;
@@ -326,22 +535,22 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #bcc0c4 transparent;
+  scrollbar-color: #dadce0 transparent;
 }
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #bcc0c4;
-  border-radius: 4px;
+  background: #dadce0;
+  border-radius: 9999px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #8a8d91;
+  background: #bdc1c6;
 }
 
 .dialog-form-min {
-  min-width: 800px;
+  min-width: min(800px, calc(100vw - 2rem));
 }
 
 [data-slot="dialog-content"] [data-slot="input"],
@@ -349,9 +558,6 @@ body {
 [data-slot="dialog-content"] select {
   width: 100%;
   min-width: 0;
-}
-[data-slot="dialog-content"] select {
-  height: 2.5rem;
 }
 .form-same-width [data-slot="input"],
 .form-same-width [data-slot="select-trigger"],

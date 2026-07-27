@@ -17,9 +17,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { Search, Trash2, Plus, Eye, Pencil } from 'lucide-react';
+import { Search, Trash2, Plus, Eye, Pencil, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import procedureCodesData from '@/data/procedureCodes.json';
+import {
+  labTestApi,
+  radiologyStudyApi,
+  medicationCatalogApi,
+} from '@/services/api';
 
 const MIN_SEARCH_LENGTH = 2;
 const DEBOUNCE_MS = 300;
@@ -28,7 +32,6 @@ const CATEGORY_TAG_CLASSES = {
   Radiology: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary border-primary/30 dark:border-primary/50',
   Lab: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-green-200 dark:border-green-800',
   Pharmacy: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800',
-  Procedures: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border-orange-200 dark:border-orange-800',
 };
 
 function useDebounce(value, delay) {
@@ -46,7 +49,7 @@ function CategoryTag({ category }) {
     <span
       className={cn(
         'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium',
-        classes
+        classes,
       )}
     >
       {category}
@@ -59,6 +62,64 @@ function formatDate(isoString) {
   return new Date(isoString).toLocaleDateString(undefined, {
     dateStyle: 'short',
   });
+}
+
+function mapMedicineToOrderItem(med) {
+  const strengthLabel = [med.strength, med.strengthUnit].filter(Boolean).join(' ').trim();
+  const baseName = med.name || med.genericName || med.brandName || 'Medication';
+  const name =
+    strengthLabel && !String(baseName).toLowerCase().includes(String(med.strength || '').toLowerCase())
+      ? `${baseName} ${strengthLabel}`
+      : baseName;
+  return {
+    id: `pharmacy:${med.id}`,
+    sourceId: med.id,
+    code: med.code || med.ndc || med.id,
+    name,
+    category: 'Pharmacy',
+    subcategory: med.medicationClass || med.dosageForm || undefined,
+    genericName: med.genericName,
+    brandName: med.brandName,
+  };
+}
+
+function mapLabToOrderItem(lt) {
+  return {
+    id: `lab:${lt.id}`,
+    sourceId: lt.id,
+    code: lt.code,
+    name: lt.name,
+    category: 'Lab',
+    subcategory: lt.category,
+    specimenType: lt.specimenType,
+  };
+}
+
+function mapRadiologyToOrderItem(study) {
+  return {
+    id: `radiology:${study.id}`,
+    sourceId: study.id,
+    code: study.code,
+    name: study.name,
+    category: 'Radiology',
+    subcategory: study.modality,
+    bodyPart: study.bodyPart,
+  };
+}
+
+function matchesSearch(item, q) {
+  const code = String(item.code || '').toLowerCase();
+  const name = String(item.name || '').toLowerCase();
+  const generic = String(item.genericName || '').toLowerCase();
+  const brand = String(item.brandName || '').toLowerCase();
+  const subcategory = String(item.subcategory || '').toLowerCase();
+  return (
+    code.includes(q) ||
+    name.includes(q) ||
+    generic.includes(q) ||
+    brand.includes(q) ||
+    subcategory.includes(q)
+  );
 }
 
 // Persist order sets in localStorage for demo (key used by this page)
@@ -85,7 +146,6 @@ export function CustomOrderSetPage() {
   const [viewingSet, setViewingSet] = useState(null);
   const [editingId, setEditingId] = useState(null);
 
-  // Form state for add/edit
   const [formName, setFormName] = useState('');
   const [formOrders, setFormOrders] = useState([]);
   const [searchRaw, setSearchRaw] = useState('');
@@ -93,19 +153,107 @@ export function CustomOrderSetPage() {
   const [highlightedResultIndex, setHighlightedResultIndex] = useState(0);
   const searchContainerRef = useRef(null);
 
-  const procedures = useMemo(() => procedureCodesData, []);
+  const [catalogItems, setCatalogItems] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState(null);
+  const [medicineSearchLoading, setMedicineSearchLoading] = useState(false);
+
   const debouncedSearch = useDebounce(searchRaw.trim(), DEBOUNCE_MS);
+
+  useEffect(() => {
+    if (!addModalOpen) return undefined;
+
+    let cancelled = false;
+    setCatalogLoading(true);
+    setCatalogError(null);
+
+    (async () => {
+      try {
+        const [medRes, labRes, radRes] = await Promise.allSettled([
+          medicationCatalogApi.searchActive({ limit: 200 }),
+          labTestApi.getActive(),
+          radiologyStudyApi.getActive(),
+        ]);
+
+        if (cancelled) return;
+
+        const medicines =
+          medRes.status === 'fulfilled' && Array.isArray(medRes.value?.data)
+            ? medRes.value.data.map(mapMedicineToOrderItem)
+            : [];
+        const labs =
+          labRes.status === 'fulfilled' && Array.isArray(labRes.value?.data)
+            ? labRes.value.data.map(mapLabToOrderItem)
+            : [];
+        const radiology =
+          radRes.status === 'fulfilled' && Array.isArray(radRes.value?.data)
+            ? radRes.value.data.map(mapRadiologyToOrderItem)
+            : [];
+
+        setCatalogItems([...radiology, ...labs, ...medicines]);
+
+        const failed = [medRes, labRes, radRes].filter((r) => r.status === 'rejected');
+        if (failed.length === 3) {
+          setCatalogError('Failed to load medicine, lab, and radiology masters.');
+        } else if (failed.length > 0) {
+          setCatalogError('Some catalogs failed to load. Search results may be incomplete.');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setCatalogItems([]);
+          setCatalogError(err.message || 'Failed to load order catalogs.');
+        }
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addModalOpen]);
+
+  // Live medicine search as the user types (catalog can be large)
+  useEffect(() => {
+    if (!addModalOpen || debouncedSearch.length < MIN_SEARCH_LENGTH) {
+      setMedicineSearchLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setMedicineSearchLoading(true);
+
+    (async () => {
+      try {
+        const res = await medicationCatalogApi.searchActive({
+          search: debouncedSearch,
+          limit: 40,
+        });
+        if (cancelled) return;
+        const searched = (Array.isArray(res?.data) ? res.data : []).map(mapMedicineToOrderItem);
+        setCatalogItems((prev) => {
+          const byId = new Map(prev.map((item) => [item.id, item]));
+          searched.forEach((item) => byId.set(item.id, item));
+          return Array.from(byId.values());
+        });
+      } catch {
+        // Keep existing catalog items on search failure
+      } finally {
+        if (!cancelled) setMedicineSearchLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [addModalOpen, debouncedSearch]);
 
   const searchResults = useMemo(() => {
     if (debouncedSearch.length < MIN_SEARCH_LENGTH) return [];
     const q = debouncedSearch.toLowerCase();
     const addedIds = new Set(formOrders.map((o) => o.id));
-    return procedures.filter(
-      (p) =>
-        !addedIds.has(p.id) &&
-        (p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))
-    );
-  }, [procedures, debouncedSearch, formOrders]);
+    return catalogItems.filter((item) => !addedIds.has(item.id) && matchesSearch(item, q));
+  }, [catalogItems, debouncedSearch, formOrders]);
 
   const openAddModal = useCallback(() => {
     setEditingId(null);
@@ -113,6 +261,7 @@ export function CustomOrderSetPage() {
     setFormOrders([]);
     setSearchRaw('');
     setResultsVisible(false);
+    setCatalogError(null);
     setAddModalOpen(true);
   }, []);
 
@@ -122,6 +271,7 @@ export function CustomOrderSetPage() {
     setFormOrders(set.orders.map((o) => ({ ...o })));
     setSearchRaw('');
     setResultsVisible(false);
+    setCatalogError(null);
     setAddModalOpen(true);
   }, []);
 
@@ -135,16 +285,18 @@ export function CustomOrderSetPage() {
     setEditingId(null);
     setFormName('');
     setFormOrders([]);
-  }, []);
-
-  const addProcedureToForm = useCallback((procedure) => {
-    setFormOrders((prev) => [...prev, { ...procedure }]);
     setSearchRaw('');
     setResultsVisible(false);
   }, []);
 
-  const removeOrderFromForm = useCallback((procedureId) => {
-    setFormOrders((prev) => prev.filter((o) => o.id !== procedureId));
+  const addOrderToForm = useCallback((order) => {
+    setFormOrders((prev) => [...prev, { ...order }]);
+    setSearchRaw('');
+    setResultsVisible(false);
+  }, []);
+
+  const removeOrderFromForm = useCallback((orderId) => {
+    setFormOrders((prev) => prev.filter((o) => o.id !== orderId));
   }, []);
 
   const handleSaveOrderSet = useCallback(() => {
@@ -161,7 +313,7 @@ export function CustomOrderSetPage() {
                 orders: [...formOrders],
                 updatedAt: now,
               }
-            : s
+            : s,
         );
         saveOrderSets(next);
         return next;
@@ -183,35 +335,36 @@ export function CustomOrderSetPage() {
     closeAddModal();
   }, [formName, formOrders, editingId, closeAddModal]);
 
-  const handleDelete = useCallback((id) => {
-    if (!window.confirm('Delete this order set?')) return;
-    setOrderSets((prev) => {
-      const next = prev.filter((s) => s.id !== id);
-      saveOrderSets(next);
-      return next;
-    });
-    if (viewingSet?.id === id) setViewModalOpen(false);
-  }, [viewingSet?.id]);
+  const handleDelete = useCallback(
+    (id) => {
+      if (!window.confirm('Delete this order set?')) return;
+      setOrderSets((prev) => {
+        const next = prev.filter((s) => s.id !== id);
+        saveOrderSets(next);
+        return next;
+      });
+      if (viewingSet?.id === id) setViewModalOpen(false);
+    },
+    [viewingSet?.id],
+  );
 
   const onSearchKeyDown = useCallback(
     (e) => {
       if (!resultsVisible || searchResults.length === 0) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setHighlightedResultIndex((i) =>
-          i < searchResults.length - 1 ? i + 1 : i
-        );
+        setHighlightedResultIndex((i) => (i < searchResults.length - 1 ? i + 1 : i));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setHighlightedResultIndex((i) => (i > 0 ? i - 1 : 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        addProcedureToForm(searchResults[highlightedResultIndex]);
+        addOrderToForm(searchResults[highlightedResultIndex]);
       } else if (e.key === 'Escape') {
         setResultsVisible(false);
       }
     },
-    [resultsVisible, searchResults, highlightedResultIndex, addProcedureToForm]
+    [resultsVisible, searchResults, highlightedResultIndex, addOrderToForm],
   );
 
   useEffect(() => {
@@ -220,10 +373,7 @@ export function CustomOrderSetPage() {
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (
-        searchContainerRef.current &&
-        !searchContainerRef.current.contains(e.target)
-      ) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setResultsVisible(false);
       }
     }
@@ -270,9 +420,7 @@ export function CustomOrderSetPage() {
                 <TableBody>
                   {orderSets.map((set, index) => (
                     <TableRow key={set.id}>
-                      <TableCell className="font-medium text-muted-foreground">
-                        {index + 1}
-                      </TableCell>
+                      <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                       <TableCell className="font-medium">{set.name}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {formatDate(set.createdAt)}
@@ -320,7 +468,6 @@ export function CustomOrderSetPage() {
         </CardContent>
       </Card>
 
-      {/* Add / Edit modal */}
       <Dialog open={addModalOpen} onOpenChange={(open) => !open && closeAddModal()}>
         <DialogContent className="min-w-[800px] sm:max-w-lg">
           <DialogHeader>
@@ -330,7 +477,10 @@ export function CustomOrderSetPage() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <label htmlFor="order-set-name" className="text-sm font-medium text-foreground block mb-1.5">
+              <label
+                htmlFor="order-set-name"
+                className="text-sm font-medium text-foreground block mb-1.5"
+              >
                 Order set name
               </label>
               <Input
@@ -342,14 +492,18 @@ export function CustomOrderSetPage() {
             </div>
             <div className="relative" ref={searchContainerRef}>
               <label className="text-sm font-medium text-foreground block mb-1.5">
-                Search and add orders (min 2 characters)
+                Search medicines, labs, and radiology (min 2 characters)
               </label>
               <div className="flex items-center gap-2 rounded-md border bg-transparent overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
                 <span className="flex items-center justify-center pl-3 text-muted-foreground shrink-0">
-                  <Search className="h-4 w-4" />
+                  {catalogLoading || medicineSearchLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
                 </span>
                 <Input
-                  placeholder="Search orders..."
+                  placeholder="Search by name or code..."
                   value={searchRaw}
                   onChange={(e) => {
                     setSearchRaw(e.target.value);
@@ -357,31 +511,51 @@ export function CustomOrderSetPage() {
                   }}
                   onFocus={() => searchResults.length > 0 && setResultsVisible(true)}
                   onKeyDown={onSearchKeyDown}
+                  disabled={catalogLoading && catalogItems.length === 0}
                   className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-0 pr-3 py-2"
                 />
               </div>
+              {catalogError && (
+                <p className="mt-1.5 text-xs text-destructive">{catalogError}</p>
+              )}
               {resultsVisible && searchResults.length > 0 && (
                 <ul
                   className="absolute left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto rounded-md border bg-background shadow-lg z-20 py-1"
                   role="listbox"
                 >
-                  {searchResults.map((p, i) => (
+                  {searchResults.map((item, i) => (
                     <li
-                      key={p.id}
+                      key={item.id}
                       role="option"
                       aria-selected={highlightedResultIndex === i}
                       className={cn(
                         'flex items-center justify-between gap-2 cursor-pointer px-3 py-2 text-sm hover:bg-muted/50',
-                        highlightedResultIndex === i && 'bg-muted'
+                        highlightedResultIndex === i && 'bg-muted',
                       )}
-                      onClick={() => addProcedureToForm(p)}
+                      onClick={() => addOrderToForm(item)}
                     >
-                      <span className="font-medium">{p.name}</span>
-                      <CategoryTag category={p.category} />
+                      <div className="min-w-0">
+                        <span className="font-medium block truncate">{item.name}</span>
+                        {item.code && (
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {item.code}
+                          </span>
+                        )}
+                      </div>
+                      <CategoryTag category={item.category} />
                     </li>
                   ))}
                 </ul>
               )}
+              {resultsVisible &&
+                debouncedSearch.length >= MIN_SEARCH_LENGTH &&
+                !catalogLoading &&
+                !medicineSearchLoading &&
+                searchResults.length === 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 rounded-md border bg-background shadow-lg z-20 px-3 py-2 text-sm text-muted-foreground">
+                    No matching medicines, labs, or radiology studies.
+                  </div>
+                )}
             </div>
             {formOrders.length > 0 && (
               <div>
@@ -394,8 +568,15 @@ export function CustomOrderSetPage() {
                       key={order.id}
                       className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 bg-muted/50 text-sm"
                     >
-                      <span className="font-medium">{order.name}</span>
-                      <div className="flex items-center gap-1">
+                      <div className="min-w-0">
+                        <span className="font-medium block truncate">{order.name}</span>
+                        {order.code && (
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {order.code}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
                         <CategoryTag category={order.category} />
                         <Button
                           type="button"
@@ -418,17 +599,13 @@ export function CustomOrderSetPage() {
             <Button variant="outline" onClick={closeAddModal}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSaveOrderSet}
-              disabled={!formName.trim()}
-            >
+            <Button onClick={handleSaveOrderSet} disabled={!formName.trim()}>
               Save
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* View modal */}
       <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
         <DialogContent className="min-w-[800px] sm:max-w-md">
           <DialogHeader>
@@ -450,7 +627,14 @@ export function CustomOrderSetPage() {
                       key={order.id}
                       className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 bg-muted/30 text-sm"
                     >
-                      <span className="font-medium">{order.name}</span>
+                      <div className="min-w-0">
+                        <span className="font-medium block truncate">{order.name}</span>
+                        {order.code && (
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {order.code}
+                          </span>
+                        )}
+                      </div>
                       <CategoryTag category={order.category} />
                     </li>
                   ))}
@@ -463,7 +647,13 @@ export function CustomOrderSetPage() {
               Close
             </Button>
             {viewingSet && (
-              <Button variant="outline" onClick={() => { setViewModalOpen(false); openEditModal(viewingSet); }}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setViewModalOpen(false);
+                  openEditModal(viewingSet);
+                }}
+              >
                 <Pencil className="h-4 w-4 mr-2 icon-action-edit" />
                 Edit
               </Button>

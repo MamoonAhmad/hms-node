@@ -9,13 +9,19 @@ const scheduleInclude = {
     include: {
       specialty: { select: { id: true, name: true } },
       subSpecialty: { select: { id: true, name: true } },
+      departmentLinks: {
+        include: { department: { select: { id: true, departmentName: true, departmentCode: true } } },
+      },
     },
   },
+  department: { select: { id: true, departmentName: true, departmentCode: true } },
   locations: {
     include: { location: { select: { id: true, name: true } } },
   },
   appointmentTypes: {
-    include: { appointmentType: { select: { id: true, name: true } } },
+    include: {
+      appointmentType: { select: { id: true, name: true, isActive: true, deletedAt: true } },
+    },
   },
 };
 
@@ -76,12 +82,170 @@ function computeDisplayStatus(row) {
   return row.status || 'Active';
 }
 
+function normalizeBreakAppliesTo(value) {
+  if (!value) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (['single', 'multiple', 'all'].includes(normalized)) return normalized;
+  const err = new Error('Break applies-to must be single, multiple, or all');
+  err.statusCode = 400;
+  throw err;
+}
+
+function resolveBreakDays(breakAppliesTo, breakDays, scheduleDays) {
+  if (breakAppliesTo === 'all') return [...scheduleDays];
+  return normalizeDays(breakDays);
+}
+
+function validateBreakHours({
+  breakHoursEnabled,
+  breakStartTime,
+  breakEndTime,
+  breakAppliesTo,
+  breakDays,
+  scheduleStartTime,
+  scheduleEndTime,
+  scheduleDays,
+}) {
+  if (!breakHoursEnabled) return;
+
+  if (!breakStartTime || !breakEndTime) {
+    const err = new Error('Break start time and end time are required when break hours are enabled');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const breakApplies = normalizeBreakAppliesTo(breakAppliesTo);
+  if (!breakApplies) {
+    const err = new Error('Break applies-to is required when break hours are enabled');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const resolvedBreakDays = resolveBreakDays(breakApplies, breakDays, scheduleDays);
+  if (breakApplies !== 'all' && !resolvedBreakDays.length) {
+    const err = new Error('Select at least one day for break hours');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const invalidBreakDay = resolvedBreakDays.find((day) => !scheduleDays.includes(day));
+  if (invalidBreakDay) {
+    const err = new Error(`Break day ${invalidBreakDay} must be included in the schedule days`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (timeToMinutes(breakStartTime) >= timeToMinutes(breakEndTime)) {
+    const err = new Error('Break end time must be later than break start time');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (
+    timeToMinutes(breakStartTime) < timeToMinutes(scheduleStartTime) ||
+    timeToMinutes(breakEndTime) > timeToMinutes(scheduleEndTime)
+  ) {
+    const err = new Error('Break hours must fall within the schedule working hours');
+    err.statusCode = 400;
+    throw err;
+  }
+}
+
+async function assertDepartmentForProvider(providerId, departmentId) {
+  if (!departmentId) {
+    const err = new Error('Department is required for provider schedules');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const department = await prisma.department.findUnique({
+    where: { id: departmentId },
+    select: { id: true, departmentName: true, status: true },
+  });
+  if (!department || department.status === 'inactive') {
+    const err = new Error('Department is invalid or inactive');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const link = await prisma.providerDepartment.findUnique({
+    where: {
+      providerId_departmentId: { providerId, departmentId },
+    },
+    select: { providerId: true },
+  });
+
+  if (!link) {
+    const legacy = await prisma.provider.findFirst({
+      where: { id: providerId, departmentId },
+      select: { id: true },
+    });
+    if (!legacy) {
+      const err = new Error('Selected department is not assigned to this provider');
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  return department;
+}
+
+function buildBreakPayload(data, existing, scheduleDays, startTime, endTime) {
+  const breakHoursEnabled =
+    data.breakHoursEnabled !== undefined
+      ? !!data.breakHoursEnabled
+      : existing?.breakHoursEnabled || false;
+
+  if (!breakHoursEnabled) {
+    return {
+      breakHoursEnabled: false,
+      breakStartTime: null,
+      breakEndTime: null,
+      breakAppliesTo: null,
+      breakDays: [],
+    };
+  }
+
+  const breakStartTime = data.breakStartTime !== undefined ? data.breakStartTime : existing?.breakStartTime;
+  const breakEndTime = data.breakEndTime !== undefined ? data.breakEndTime : existing?.breakEndTime;
+  const breakAppliesTo =
+    data.breakAppliesTo !== undefined ? data.breakAppliesTo : existing?.breakAppliesTo;
+  const breakDays =
+    data.breakDays !== undefined ? normalizeDays(data.breakDays) : existing?.breakDays || [];
+
+  validateBreakHours({
+    breakHoursEnabled: true,
+    breakStartTime,
+    breakEndTime,
+    breakAppliesTo,
+    breakDays,
+    scheduleStartTime: startTime,
+    scheduleEndTime: endTime,
+    scheduleDays,
+  });
+
+  const breakApplies = normalizeBreakAppliesTo(breakAppliesTo);
+  return {
+    breakHoursEnabled: true,
+    breakStartTime,
+    breakEndTime,
+    breakAppliesTo: breakApplies,
+    breakDays: resolveBreakDays(breakApplies, breakDays, scheduleDays),
+  };
+}
+
 function formatSchedule(row) {
   const provider = row.provider || {};
   const specialty = provider.specialty?.name || '';
   const subSpecialty = provider.subSpecialty?.name || '';
   const locationRows = (row.locations || []).map((l) => l.location).filter(Boolean);
-  const typeRows = (row.appointmentTypes || []).map((t) => t.appointmentType).filter(Boolean);
+  const typeRows = (row.appointmentTypes || [])
+    .map((t) => t.appointmentType)
+    .filter((t) => t && !t.deletedAt && t.isActive);
+  const providerDepartments = (provider.departmentLinks || [])
+    .map((link) => link.department)
+    .filter(Boolean);
+  const providerDepartmentNames = providerDepartments.map((d) => d.departmentName).filter(Boolean);
 
   return {
     id: row.id,
@@ -91,6 +255,16 @@ function formatSchedule(row) {
     subSpecialty,
     specialtyId: provider.specialty?.id || null,
     subSpecialtyId: provider.subSpecialty?.id || null,
+    departmentId: row.departmentId || row.department?.id || null,
+    departmentName:
+      row.department?.departmentName || providerDepartmentNames.join(', ') || null,
+    departmentCode: row.department?.departmentCode || null,
+    providerDepartmentIds: providerDepartments.map((d) => d.id),
+    providerDepartments: providerDepartments.map((d) => ({
+      id: d.id,
+      name: d.departmentName,
+      code: d.departmentCode,
+    })),
     days: row.days || [],
     startTime: row.startTime,
     endTime: row.endTime,
@@ -99,6 +273,11 @@ function formatSchedule(row) {
     appointmentTypeIds: typeRows.map((t) => t.id),
     maxAppointmentsPerSlot: row.maxAppointmentsPerSlot,
     overBooking: row.overBooking,
+    breakHoursEnabled: !!row.breakHoursEnabled,
+    breakStartTime: row.breakStartTime || null,
+    breakEndTime: row.breakEndTime || null,
+    breakAppliesTo: row.breakAppliesTo || null,
+    breakDays: row.breakDays || [],
     locations: locationRows.map((l) => l.name),
     locationIds: locationRows.map((l) => l.id),
     effectiveStartDate: formatDateOnly(row.effectiveStartDate),
@@ -188,16 +367,17 @@ async function assertProviderActive(providerId) {
 }
 
 async function assertAppointmentTypeIds(ids) {
-  if (!ids?.length) {
+  const uniqueIds = [...new Set((ids || []).filter(Boolean))];
+  if (!uniqueIds.length) {
     const err = new Error('At least one appointment type is required');
     err.statusCode = 400;
     throw err;
   }
   const rows = await prisma.appointmentType.findMany({
-    where: { id: { in: ids }, deletedAt: null, isActive: true },
+    where: { id: { in: uniqueIds }, deletedAt: null, isActive: true },
     select: { id: true },
   });
-  if (rows.length !== ids.length) {
+  if (rows.length !== uniqueIds.length) {
     const err = new Error('One or more appointment types are invalid or inactive');
     err.statusCode = 400;
     throw err;
@@ -219,6 +399,7 @@ async function assertLocationIds(ids) {
 
 async function findOverlappingSchedule({
   providerId,
+  departmentId,
   startTime,
   endTime,
   days,
@@ -230,11 +411,15 @@ async function findOverlappingSchedule({
     where: {
       ...NOT_DELETED,
       providerId,
+      status: 'Active',
+      ...(departmentId ? { departmentId } : {}),
       ...(excludeScheduleId ? { id: { not: excludeScheduleId } } : {}),
     },
   });
 
   return existing.find((s) => {
+    if (excludeScheduleId && s.id === excludeScheduleId) return false;
+    if (departmentId && s.departmentId && s.departmentId !== departmentId) return false;
     if (!daysOverlap(s.days, days)) return false;
     if (
       !dateRangeOverlaps(
@@ -261,6 +446,12 @@ function buildListWhere(filters) {
 
   if (filters.specialtyId) {
     conditions.push({ provider: { specialtyId: filters.specialtyId } });
+  }
+
+  if (filters.departmentId) {
+    conditions.push({
+      OR: [{ departmentId: filters.departmentId }, { departmentId: null }],
+    });
   }
 
   if (filters.days?.length) {
@@ -303,6 +494,8 @@ function buildListWhere(filters) {
         { provider: { lastName: { contains: q, mode: 'insensitive' } } },
         { provider: { specialty: { name: { contains: q, mode: 'insensitive' } } } },
         { provider: { subSpecialty: { name: { contains: q, mode: 'insensitive' } } } },
+        { department: { departmentName: { contains: q, mode: 'insensitive' } } },
+        { department: { departmentCode: { contains: q, mode: 'insensitive' } } },
         { startTime: { contains: q, mode: 'insensitive' } },
         { endTime: { contains: q, mode: 'insensitive' } },
         { status: { contains: q, mode: 'insensitive' } },
@@ -404,6 +597,7 @@ const providerScheduleService = {
 
     const conflict = await findOverlappingSchedule({
       providerId: payload.providerId,
+      departmentId: payload.departmentId || null,
       startTime: payload.startTime,
       endTime: payload.endTime,
       days,
@@ -418,10 +612,12 @@ const providerScheduleService = {
     await assertProviderActive(data.providerId);
     const days = normalizeDays(data.days);
     validateTimes(data.startTime, data.endTime);
+    await assertDepartmentForProvider(data.providerId, data.departmentId);
 
     const effectiveStartDate = parseDateOnly(data.effectiveStartDate);
     const effectiveEndDate = data.effectiveEndDate ? parseDateOnly(data.effectiveEndDate) : null;
     validateEffectiveDates(effectiveStartDate, effectiveEndDate, !!data.endOnEffectiveDate);
+    const breakPayload = buildBreakPayload(data, null, days, data.startTime, data.endTime);
 
     const locationIds = data.locationIds || [];
     const appointmentTypeIds = data.appointmentTypeIds || [];
@@ -451,6 +647,7 @@ const providerScheduleService = {
 
     const conflict = await findOverlappingSchedule({
       providerId: data.providerId,
+      departmentId: data.departmentId,
       startTime: data.startTime,
       endTime: data.endTime,
       days,
@@ -466,12 +663,14 @@ const providerScheduleService = {
     const row = await prisma.providerSchedule.create({
       data: {
         providerId: data.providerId,
+        departmentId: data.departmentId,
         days,
         startTime: data.startTime,
         endTime: data.endTime,
         slotDuration,
         maxAppointmentsPerSlot: max,
         overBooking,
+        ...breakPayload,
         effectiveStartDate,
         effectiveEndDate,
         endOnEffectiveDate: !!data.endOnEffectiveDate,
@@ -501,10 +700,17 @@ const providerScheduleService = {
     const providerId = data.providerId || existing.providerId;
     if (data.providerId) await assertProviderActive(providerId);
 
+    const departmentId =
+      data.departmentId !== undefined ? data.departmentId : existing.departmentId;
+    if (data.departmentId !== undefined || !existing.departmentId) {
+      await assertDepartmentForProvider(providerId, departmentId);
+    }
+
     const days = data.days !== undefined ? normalizeDays(data.days) : existing.days;
     const startTime = data.startTime !== undefined ? data.startTime : existing.startTime;
     const endTime = data.endTime !== undefined ? data.endTime : existing.endTime;
     validateTimes(startTime, endTime);
+    const breakPayload = buildBreakPayload(data, existing, days, startTime, endTime);
 
     const effectiveStartDate =
       data.effectiveStartDate !== undefined
@@ -530,12 +736,14 @@ const providerScheduleService = {
 
     const payload = {
       providerId,
+      departmentId,
       days,
       startTime,
       endTime,
       effectiveStartDate,
       effectiveEndDate,
       endOnEffectiveDate,
+      ...breakPayload,
       updatedBy: userId,
     };
 
@@ -575,6 +783,7 @@ const providerScheduleService = {
 
     const conflict = await findOverlappingSchedule({
       providerId,
+      departmentId,
       startTime,
       endTime,
       days,

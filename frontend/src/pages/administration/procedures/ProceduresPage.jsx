@@ -29,8 +29,18 @@ const PROCEDURE_COLUMNS = [
     label: 'Category',
     render: (row) => row.categoryName || row.categories?.map((c) => c.name).join(', ') || '—',
   },
+  {
+    key: 'procedureDepartment',
+    label: 'Department',
+    render: (row) => row.procedureDepartment || row.department?.departmentName || '—',
+  },
   { key: 'cptCode', label: 'CPT Code', render: (row) => row.cptCode || '—' },
   { key: 'revenueCode', label: 'Revenue Code', render: (row) => row.revenueCode || '—' },
+  {
+    key: 'modifiers',
+    label: 'Modifiers',
+    render: (row) => [row.mod1, row.mod2, row.mod3, row.mod4].filter(Boolean).join(', ') || '—',
+  },
 ];
 
 export function ProceduresPage() {

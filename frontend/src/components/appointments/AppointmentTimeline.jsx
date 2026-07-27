@@ -1,39 +1,36 @@
 import { useMemo, useState, useEffect } from 'react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { formatDob } from '@/pages/patient-dashboard/patientChartUtils';
-import { statusChipStyle } from '@/lib/appointmentStatuses';
+import { statusChipStyle, normalizeAppointmentStatus } from '@/lib/appointmentStatuses';
 import { isHiddenFromTimeline } from '@/lib/appointmentUtils';
+import {
+  getActiveBlockPeriodsForDate,
+  getBlockPeriodPosition,
+  isAppointmentSlotBlocked,
+} from '@/lib/providerBlockHourUtils';
 import { cn } from '@/lib/utils';
+import { STATUS_SOFT } from '@/lib/statusColors';
+import { APPOINTMENT_STATUS } from '@/lib/appointmentStatusWorkflow';
 
 const HOUR_HEIGHT = 80;
 const MIN_CARD_HEIGHT = 8;
 const START_HOUR = 5;
 const END_HOUR = 17;
 
-const statusColors = {
-  Scheduled: 'bg-primary hover:bg-primary/90 border-primary',
-  'Checked-In': 'bg-yellow-500 hover:bg-yellow-600 border-yellow-600',
-  'In Progress': 'bg-purple-500 hover:bg-purple-600 border-purple-600',
-  Completed: 'bg-green-500 hover:bg-green-600 border-green-600',
-  Cancelled: 'bg-red-400 hover:bg-red-500 border-red-500 opacity-60',
-  'No-Show': 'bg-gray-400 hover:bg-gray-500 border-gray-500 opacity-60',
-  Rescheduled: 'bg-orange-500 hover:bg-orange-600 border-orange-600',
-};
-
 const statusBadgeColors = {
-  Scheduled: 'bg-primary/10 text-primary',
-  'Checked-In': 'bg-yellow-100 text-yellow-800',
-  'In Progress': 'bg-purple-100 text-purple-800',
-  Completed: 'bg-green-100 text-green-800',
-  Cancelled: 'bg-red-100 text-red-800',
-  'No-Show': 'bg-gray-100 text-gray-800',
-  Rescheduled: 'bg-orange-100 text-orange-800',
+  [APPOINTMENT_STATUS.SCHEDULED]: STATUS_SOFT.info,
+  [APPOINTMENT_STATUS.CHECKED_IN]: STATUS_SOFT.warning,
+  [APPOINTMENT_STATUS.IN_PROGRESS]: STATUS_SOFT.info,
+  [APPOINTMENT_STATUS.CHECKED_OUT]: STATUS_SOFT.success,
+  [APPOINTMENT_STATUS.COMPLETED]: STATUS_SOFT.success,
+  [APPOINTMENT_STATUS.CANCELLED]: STATUS_SOFT.danger,
+  [APPOINTMENT_STATUS.NO_SHOW]: STATUS_SOFT.muted,
+  [APPOINTMENT_STATUS.RESCHEDULED]: STATUS_SOFT.warning,
+  [APPOINTMENT_STATUS.LWBS]: STATUS_SOFT.danger,
+  // Legacy aliases (normalized before lookup in most paths)
+  'Checked-In': STATUS_SOFT.warning,
+  'No-Show': STATUS_SOFT.muted,
 };
 
 function parseLocalDate(dateStr) {
@@ -182,7 +179,8 @@ function DayTimelineView({
   onTimeSlotClick,
   onAppointmentClick,
   statusCatalog = [],
-  onStatusChange,
+  blockHours = [],
+  filteredProviderId = '',
 }) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -235,6 +233,19 @@ function DayTimelineView({
     return (totalMinutes / 60) * HOUR_HEIGHT;
   }, [selectedDate, currentTime]);
 
+  const blockPeriods = useMemo(() => {
+    if (!filteredProviderId || !selectedDate) return [];
+    const dateStr =
+      selectedDate instanceof Date ? toDateKey(selectedDate) : selectedDate;
+    return getActiveBlockPeriodsForDate(blockHours, dateStr);
+  }, [blockHours, filteredProviderId, selectedDate]);
+
+  const handleHourSlotClick = (hour) => {
+    const time = `${hour.toString().padStart(2, '0')}:00`;
+    if (isAppointmentSlotBlocked(blockPeriods, time)) return;
+    onTimeSlotClick?.(selectedDate, time);
+  };
+
   return (
     <div className="relative flex pt-4">
       <div className="w-20 shrink-0 border-r bg-muted/30">
@@ -262,24 +273,52 @@ function DayTimelineView({
           </div>
         )}
 
-        {hours.map((hour) => (
-          <div
-            key={hour}
-            className="relative cursor-pointer border-b border-dashed transition-colors hover:bg-muted/50"
-            style={{ height: HOUR_HEIGHT }}
-            onClick={() =>
-              onTimeSlotClick?.(
-                selectedDate,
-                `${hour.toString().padStart(2, '0')}:00`,
-              )
-            }
-          >
+        {hours.map((hour) => {
+          const slotTime = `${hour.toString().padStart(2, '0')}:00`;
+          const isBlocked = isAppointmentSlotBlocked(blockPeriods, slotTime);
+
+          return (
             <div
-              className="absolute left-0 right-0 border-b border-dotted border-muted-foreground/20"
-              style={{ top: HOUR_HEIGHT / 2 }}
-            />
-          </div>
-        ))}
+              key={hour}
+              className={cn(
+                'relative border-b border-dashed transition-colors',
+                isBlocked
+                  ? 'cursor-not-allowed bg-muted/60'
+                  : 'cursor-pointer hover:bg-muted/50',
+              )}
+              style={{ height: HOUR_HEIGHT }}
+              onClick={() => handleHourSlotClick(hour)}
+              aria-disabled={isBlocked || undefined}
+            >
+              <div
+                className="absolute left-0 right-0 border-b border-dotted border-muted-foreground/20"
+                style={{ top: HOUR_HEIGHT / 2 }}
+              />
+            </div>
+          );
+        })}
+
+        {blockPeriods.map((period) => {
+          const { top, height } = getBlockPeriodPosition(period.startTime, period.endTime, {
+            startHour: START_HOUR,
+            hourHeight: HOUR_HEIGHT,
+          });
+
+          if (height <= 0) return null;
+
+          return (
+            <div
+              key={period.id || `${period.startTime}-${period.endTime}`}
+              className="pointer-events-none absolute left-0 right-0 z-[5] flex items-start border-l-4 border-muted-foreground/40 bg-muted/80 px-2 py-1"
+              style={{ top: `${top}px`, height: `${height}px` }}
+              title={`Blocked: ${period.startTime} – ${period.endTime}${period.reason ? ` · ${period.reason}` : ''}`}
+            >
+              <span className="truncate text-xs font-medium text-muted-foreground">
+                Blocked {formatTimeShort(period.startTime)} – {formatTimeShort(period.endTime)}
+              </span>
+            </div>
+          );
+        })}
 
         {appointmentLayout.map(({ appointment, column, totalColumns }) => {
           const { top, height } = getAppointmentPosition(appointment);
@@ -322,22 +361,13 @@ function DayTimelineView({
                   </div>
                 )}
               </button>
-              {!isCompact && cardHeight > 56 && onStatusChange && (
-                <Select
-                  value={appointment.status}
-                  onValueChange={(value) => onStatusChange(appointment.id, value)}
+              {!isCompact && cardHeight > 56 && (
+                <span
+                  className="mt-1 inline-flex max-w-full truncate rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
+                  style={statusChipStyle(appointment.status, statusCatalog)}
                 >
-                  <SelectTrigger className="mt-1 h-6 border-0 bg-black/10 text-xs text-inherit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusCatalog.map((statusRow) => (
-                      <SelectItem key={statusRow.id || statusRow.name} value={statusRow.name}>
-                        {statusRow.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {normalizeAppointmentStatus(appointment.status)}
+                </span>
               )}
             </div>
           );
@@ -409,14 +439,11 @@ function WeekTimelineView({ appointments, selectedDate, onAppointmentClick, onDa
                       type="button"
                       className={cn(
                         'w-full rounded-md border px-2 py-1.5 text-left text-xs transition-colors hover:opacity-90',
-                        statusBadgeColors[apt.status] || 'bg-muted',
+                        statusBadgeColors[normalizeAppointmentStatus(apt.status)] || 'bg-muted',
                       )}
                       onClick={() => onAppointmentClick?.(apt)}
                     >
-                      <div className="font-medium truncate">
-                        {formatTimeShort(apt.appointmentTime)}
-                      </div>
-                      <div className="truncate text-muted-foreground">
+                      <div className="truncate font-medium">
                         {apt.patient?.firstName} {apt.patient?.lastName}
                       </div>
                     </button>
@@ -491,16 +518,15 @@ function MonthTimelineView({ appointments, selectedDate, onAppointmentClick, onD
                   <span
                     key={apt.id}
                     className={cn(
-                      'truncate rounded px-1 py-0.5 text-[10px] leading-tight',
-                      statusBadgeColors[apt.status] || 'bg-muted',
+                      'truncate rounded px-1 py-0.5 text-[10px] leading-tight font-medium',
+                      statusBadgeColors[normalizeAppointmentStatus(apt.status)] || 'bg-muted',
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
                       onAppointmentClick?.(apt);
                     }}
                   >
-                    {formatTimeShort(apt.appointmentTime)}{' '}
-                    {apt.patient?.lastName}
+                    {apt.patient?.firstName} {apt.patient?.lastName}
                   </span>
                 ))}
                 {dayAppointments.length > 3 && (
@@ -517,7 +543,7 @@ function MonthTimelineView({ appointments, selectedDate, onAppointmentClick, onD
   );
 }
 
-function TimelineLegend({ statusCatalog = [] }) {
+function TimelineLegend({ statusCatalog = [], showBlockedHours = false }) {
   return (
     <div className="flex flex-wrap gap-3 border-t px-4 py-3">
       {statusCatalog.map((statusRow) => {
@@ -529,6 +555,12 @@ function TimelineLegend({ statusCatalog = [] }) {
           </div>
         );
       })}
+      {showBlockedHours && (
+        <div className="flex items-center gap-1.5">
+          <div className="h-3 w-4 rounded-sm border border-muted-foreground/40 bg-muted" />
+          <span className="text-xs text-muted-foreground">Blocked hours</span>
+        </div>
+      )}
       <div className="ml-4 flex items-center gap-1.5">
         <div className="h-0.5 w-4 rounded bg-red-500" />
         <span className="text-xs text-muted-foreground">Current time</span>
@@ -544,8 +576,11 @@ export function AppointmentTimeline({
   onTimeSlotClick,
   onAppointmentClick,
   onDayClick,
+  onPreviousDay,
+  onNextDay,
   statusCatalog = [],
-  onStatusChange,
+  blockHours = [],
+  filteredProviderId = '',
 }) {
   const headerLabel = useMemo(() => {
     if (!selectedDate) return 'Select a date';
@@ -589,11 +624,49 @@ export function AppointmentTimeline({
     }).length;
   }, [appointments, selectedDate, rangeMode]);
 
+  const navigationLabels = useMemo(() => {
+    if (rangeMode === 'week') {
+      return { previous: 'Previous week', next: 'Next week' };
+    }
+    if (rangeMode === 'month') {
+      return { previous: 'Previous month', next: 'Next month' };
+    }
+    return { previous: 'Previous day', next: 'Next day' };
+  }, [rangeMode]);
+
   return (
     <div className="relative rounded-lg border bg-card">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-4 py-3">
-        <h3 className="font-semibold">{headerLabel}</h3>
-        <span className="text-sm text-muted-foreground">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-card px-4 py-3 gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          {onPreviousDay && onNextDay && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={onPreviousDay}
+                title={navigationLabels.previous}
+                aria-label={navigationLabels.previous}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={onNextDay}
+                title={navigationLabels.next}
+                aria-label={navigationLabels.next}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <h3 className="font-semibold truncate">{headerLabel}</h3>
+        </div>
+        <span className="text-sm text-muted-foreground shrink-0">
           {visibleCount} appointment(s)
         </span>
       </div>
@@ -605,7 +678,8 @@ export function AppointmentTimeline({
           onTimeSlotClick={onTimeSlotClick}
           onAppointmentClick={onAppointmentClick}
           statusCatalog={statusCatalog}
-          onStatusChange={onStatusChange}
+          blockHours={blockHours}
+          filteredProviderId={filteredProviderId}
         />
       )}
       {rangeMode === 'week' && (
@@ -625,7 +699,12 @@ export function AppointmentTimeline({
         />
       )}
 
-      {rangeMode === 'day' && <TimelineLegend statusCatalog={statusCatalog} />}
+      {rangeMode === 'day' && (
+        <TimelineLegend
+          statusCatalog={statusCatalog}
+          showBlockedHours={Boolean(filteredProviderId && blockHours.length)}
+        />
+      )}
     </div>
   );
 }

@@ -24,6 +24,7 @@ const bcrypt = require('bcryptjs');
 /** Custom Prisma output (schema generator `output`): not resolvable via `@prisma/client` */
 const { Prisma } = require('../generated/prisma');
 const prisma = require('../lib/prisma');
+const { generateNextMrn } = require('../utils/generateMrn');
 
 const DEMO_ADMIN = {
   email: 'root@localhost',
@@ -152,6 +153,7 @@ async function runSeed() {
   patients.push(
     await prisma.patient.create({
       data: {
+        mrn: await generateNextMrn(),
         firstName: 'Alex',
         lastName: 'Rivera',
         dateOfBirth: new Date('1988-03-15'),
@@ -170,6 +172,7 @@ async function runSeed() {
   patients.push(
     await prisma.patient.create({
       data: {
+        mrn: await generateNextMrn(),
         firstName: 'Jordan',
         lastName: 'Lee',
         dateOfBirth: new Date('2015-11-02'),
@@ -184,6 +187,7 @@ async function runSeed() {
   patients.push(
     await prisma.patient.create({
       data: {
+        mrn: await generateNextMrn(),
         firstName: 'Sam',
         lastName: 'Nguyen',
         dateOfBirth: new Date('1972-07-08'),

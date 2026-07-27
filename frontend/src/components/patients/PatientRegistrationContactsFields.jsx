@@ -1,6 +1,15 @@
+import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
+import { PhoneNumberInput } from '@/components/ui/phone-number-input';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import {
   Select,
   SelectContent,
@@ -9,24 +18,30 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  buildEmergencyContactsList,
+  buildGuarantorsList,
+  emptyEmergencyContactEntry,
+  emptyGuarantorEntry,
+  GUARANTOR_REQUIRED_MAX_AGE,
+  isPatientMinor,
   NEXT_OF_KIN_RELATIONSHIP_OPTIONS,
-  shouldShowLegalGuardianSection,
+  syncEmergencyContactsToFormData,
+  syncGuarantorsToFormData,
 } from '@/components/patients/patientContactsConstants';
+import {
+  EMAIL_VALIDATION_MESSAGE,
+  isValidEmail,
+} from '@/components/patients/patientRegistrationConstants';
+import { validatePhoneNumber } from '@/lib/phoneNumberUtils';
 
-function RelationshipSelect({
-  id,
-  value,
-  onChange,
-  options = NEXT_OF_KIN_RELATIONSHIP_OPTIONS,
-  placeholder,
-}) {
+function RelationshipSelect({ id, value, onChange, placeholder }) {
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger id={id} className="w-full">
         <SelectValue placeholder={placeholder || 'Select relationship'} />
       </SelectTrigger>
       <SelectContent>
-        {options.map((opt) => (
+        {NEXT_OF_KIN_RELATIONSHIP_OPTIONS.map((opt) => (
           <SelectItem key={opt.value} value={opt.value}>
             {opt.label}
           </SelectItem>
@@ -36,21 +51,215 @@ function RelationshipSelect({
   );
 }
 
-function PhoneField({ id, label, value, onChange, error, required, placeholder = '(123) 123-1234' }) {
+function PhoneField({ id, label, value, onChange, error, required }) {
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>
         {label}
         {required && <span className="text-destructive ml-0.5">*</span>}
       </Label>
-      <Input
+      <PhoneNumberInput
         id={id}
         value={value}
         onChange={onChange}
-        placeholder={placeholder}
+        error={error}
+        placeholder="(213) 324-3248"
+      />
+    </div>
+  );
+}
+
+function EmailField({ id, label, value, onChange, error }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="email"
+        value={value}
+        onChange={onChange}
         className={error ? 'border-destructive' : ''}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function EmergencyContactForm({ entry, index, errors, onFieldChange, idPrefix }) {
+  const field = (name) => `${idPrefix}-${name}-${index}`;
+
+  return (
+    <div className={index > 0 ? 'space-y-4 rounded-lg border border-border/70 bg-muted/20 p-4' : 'space-y-4'}>
+      {index > 0 && (
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Emergency contact {index + 1}
+        </p>
+      )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={field('name')}>Emergency Contact Name</Label>
+          <Input
+            id={field('name')}
+            value={entry.name}
+            onChange={(e) => onFieldChange(index, 'name', e.target.value)}
+            placeholder="Enter full name"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={field('relationship')}>Relationship to patient</Label>
+          <RelationshipSelect
+            id={field('relationship')}
+            value={entry.relationship}
+            onChange={(value) => onFieldChange(index, 'relationship', value)}
+          />
+          {errors[`emergencyContactRelationship_${index}`] && (
+            <p className="text-xs text-destructive">{errors[`emergencyContactRelationship_${index}`]}</p>
+          )}
+        </div>
+        <PhoneField
+          id={field('number')}
+          label="Emergency Contact Number"
+          value={entry.number}
+          onChange={(value) => onFieldChange(index, 'number', value)}
+          error={errors[`emergencyContactNumber_${index}`]}
+        />
+        <EmailField
+          id={field('email')}
+          label="Email"
+          value={entry.email}
+          onChange={(e) => onFieldChange(index, 'email', e.target.value)}
+          error={errors[`emergencyContactEmail_${index}`]}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={field('address')}>Street address</Label>
+        <Input
+          id={field('address')}
+          value={entry.address}
+          onChange={(e) => onFieldChange(index, 'address', e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="space-y-2">
+          <Label htmlFor={field('city')}>City</Label>
+          <Input
+            id={field('city')}
+            value={entry.city}
+            onChange={(e) => onFieldChange(index, 'city', e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={field('state')}>State</Label>
+          <Input
+            id={field('state')}
+            value={entry.state}
+            onChange={(e) => onFieldChange(index, 'state', e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={field('zip')}>ZIP</Label>
+          <Input
+            id={field('zip')}
+            value={entry.zip}
+            onChange={(e) => onFieldChange(index, 'zip', e.target.value)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GuarantorContactForm({ entry, index, errors, onFieldChange, idPrefix, requiresGuarantor }) {
+  const field = (name) => `${idPrefix}-${name}-${index}`;
+
+  return (
+    <div className={index > 0 ? 'space-y-4 rounded-lg border border-border/70 bg-muted/20 p-4' : 'space-y-4'}>
+      {index > 0 && (
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Guarantor {index + 1}
+        </p>
+      )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={field('name')}>
+            Guarantor Name
+            {requiresGuarantor && index === 0 && <span className="text-destructive ml-0.5">*</span>}
+          </Label>
+          <Input
+            id={field('name')}
+            value={entry.name}
+            onChange={(e) => onFieldChange(index, 'name', e.target.value)}
+            placeholder="Enter full name"
+            className={errors[`guarantorName_${index}`] ? 'border-destructive' : ''}
+          />
+          {errors[`guarantorName_${index}`] && (
+            <p className="text-xs text-destructive">{errors[`guarantorName_${index}`]}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={field('relationship')}>
+            Relationship to patient
+            {requiresGuarantor && index === 0 && <span className="text-destructive ml-0.5">*</span>}
+          </Label>
+          <RelationshipSelect
+            id={field('relationship')}
+            value={entry.relationship}
+            onChange={(value) => onFieldChange(index, 'relationship', value)}
+          />
+          {errors[`guarantorRelationship_${index}`] && (
+            <p className="text-xs text-destructive">{errors[`guarantorRelationship_${index}`]}</p>
+          )}
+        </div>
+        <PhoneField
+          id={field('phone')}
+          label="Guarantor Phone"
+          value={entry.phone}
+          onChange={(value) => onFieldChange(index, 'phone', value)}
+          error={errors[`guarantorPhone_${index}`]}
+          required={requiresGuarantor && index === 0}
+        />
+        <EmailField
+          id={field('email')}
+          label="Email"
+          value={entry.email}
+          onChange={(e) => onFieldChange(index, 'email', e.target.value)}
+          error={errors[`guarantorEmail_${index}`]}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={field('address')}>Street address</Label>
+        <Input
+          id={field('address')}
+          value={entry.address}
+          onChange={(e) => onFieldChange(index, 'address', e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="space-y-2">
+          <Label htmlFor={field('city')}>City</Label>
+          <Input
+            id={field('city')}
+            value={entry.city}
+            onChange={(e) => onFieldChange(index, 'city', e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={field('state')}>State</Label>
+          <Input
+            id={field('state')}
+            value={entry.state}
+            onChange={(e) => onFieldChange(index, 'state', e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={field('zip')}>ZIP</Label>
+          <Input
+            id={field('zip')}
+            value={entry.zip}
+            onChange={(e) => onFieldChange(index, 'zip', e.target.value)}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -60,269 +269,134 @@ export function PatientRegistrationContactsFields({
   errors,
   onChange,
   dateOfBirth,
+  requiresGuarantor = false,
 }) {
-  const showLegalGuardian = shouldShowLegalGuardianSection(dateOfBirth, formData.patientIsMinor);
+  const patientIsMinor = isPatientMinor(dateOfBirth);
+  const guarantorRequired = requiresGuarantor || patientIsMinor;
+  const emergencyContacts = buildEmergencyContactsList(formData);
+  const guarantors = buildGuarantorsList(formData);
+
+  const defaultAccordion = guarantorRequired
+    ? ['emergency', 'guarantor']
+    : ['emergency'];
+  const [openSections, setOpenSections] = useState(defaultAccordion);
+
+  const updateEmergencyContacts = (nextContacts) => {
+    onChange(syncEmergencyContactsToFormData(nextContacts));
+  };
+
+  const updateGuarantors = (nextGuarantors) => {
+    onChange(syncGuarantorsToFormData(nextGuarantors));
+  };
+
+  const handleEmergencyFieldChange = (index, fieldName, value) => {
+    const next = emergencyContacts.map((entry, i) =>
+      i === index ? { ...entry, [fieldName]: value } : entry,
+    );
+    updateEmergencyContacts(next);
+  };
+
+  const handleGuarantorFieldChange = (index, fieldName, value) => {
+    const next = guarantors.map((entry, i) =>
+      i === index ? { ...entry, [fieldName]: value } : entry,
+    );
+    updateGuarantors(next);
+  };
+
+  const addEmergencyContact = () => {
+    updateEmergencyContacts([...emergencyContacts, emptyEmergencyContactEntry()]);
+    setOpenSections((prev) => (prev.includes('emergency') ? prev : [...prev, 'emergency']));
+  };
+
+  const addGuarantor = () => {
+    updateGuarantors([...guarantors, emptyGuarantorEntry()]);
+    setOpenSections((prev) => (prev.includes('guarantor') ? prev : [...prev, 'guarantor']));
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-foreground">Emergency Contact</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactName">Emergency Contact Name</Label>
-            <Input
-              id="emergencyContactName"
-              value={formData.emergencyContactName}
-              onChange={(e) => onChange('emergencyContactName', e.target.value)}
-              placeholder="Enter full name"
+    <Accordion
+      type="multiple"
+      value={openSections}
+      onValueChange={setOpenSections}
+      className="w-full space-y-2"
+    >
+      <AccordionItem value="emergency" className="overflow-hidden rounded-xl border border-border/80">
+        <AccordionTrigger className="rounded-t-xl px-4">
+          <span className="text-sm font-semibold text-primary-foreground">Emergency Contact</span>
+        </AccordionTrigger>
+        <AccordionContent className="space-y-4 px-4 pb-4">
+          {emergencyContacts.map((entry, index) => (
+            <EmergencyContactForm
+              key={`emergency-${index}`}
+              entry={entry}
+              index={index}
+              errors={errors}
+              idPrefix="emergency"
+              onFieldChange={handleEmergencyFieldChange}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactRelationship">Relationship to patient</Label>
-            <RelationshipSelect
-              id="emergencyContactRelationship"
-              value={formData.emergencyContactRelationship}
-              onChange={(value) => onChange('emergencyContactRelationship', value)}
-            />
-            {errors.emergencyContactRelationship && (
-              <p className="text-xs text-destructive">{errors.emergencyContactRelationship}</p>
-            )}
-          </div>
-          <PhoneField
-            id="emergencyContactNumber"
-            label="Emergency Contact Number"
-            value={formData.emergencyContactNumber}
-            onChange={(e) => onChange('emergencyContactNumber', e.target.value)}
-            error={errors.emergencyContactNumber}
-          />
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactEmail">Email</Label>
-            <Input
-              id="emergencyContactEmail"
-              type="email"
-              value={formData.emergencyContactEmail}
-              onChange={(e) => onChange('emergencyContactEmail', e.target.value)}
-              className={errors.emergencyContactEmail ? 'border-destructive' : ''}
-            />
-            {errors.emergencyContactEmail && (
-              <p className="text-xs text-destructive">{errors.emergencyContactEmail}</p>
-            )}
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="emergencyContactAddress">Street address</Label>
-          <Input
-            id="emergencyContactAddress"
-            value={formData.emergencyContactAddress}
-            onChange={(e) => onChange('emergencyContactAddress', e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactCity">City</Label>
-            <Input
-              id="emergencyContactCity"
-              value={formData.emergencyContactCity}
-              onChange={(e) => onChange('emergencyContactCity', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactState">State</Label>
-            <Input
-              id="emergencyContactState"
-              value={formData.emergencyContactState}
-              onChange={(e) => onChange('emergencyContactState', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactZip">ZIP</Label>
-            <Input
-              id="emergencyContactZip"
-              value={formData.emergencyContactZip}
-              onChange={(e) => onChange('emergencyContactZip', e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={addEmergencyContact}
+          >
+            <Plus className="h-4 w-4" />
+            Add more
+          </Button>
+        </AccordionContent>
+      </AccordionItem>
 
-      <div className="space-y-4 rounded-lg border p-4">
-        <h3 className="text-sm font-semibold text-foreground">Secondary Emergency Contact</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="secondaryEmergencyContactName">Name</Label>
-            <Input
-              id="secondaryEmergencyContactName"
-              value={formData.secondaryEmergencyContactName}
-              onChange={(e) => onChange('secondaryEmergencyContactName', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="secondaryEmergencyContactRelationship">Relationship</Label>
-            <RelationshipSelect
-              id="secondaryEmergencyContactRelationship"
-              value={formData.secondaryEmergencyContactRelationship}
-              onChange={(value) => onChange('secondaryEmergencyContactRelationship', value)}
-            />
-          </div>
-          <PhoneField
-            id="secondaryEmergencyContactNumber"
-            label="Phone"
-            value={formData.secondaryEmergencyContactNumber}
-            onChange={(e) => onChange('secondaryEmergencyContactNumber', e.target.value)}
-            error={errors.secondaryEmergencyContactNumber}
-          />
-          <div className="space-y-2">
-            <Label htmlFor="secondaryEmergencyContactEmail">Email</Label>
-            <Input
-              id="secondaryEmergencyContactEmail"
-              type="email"
-              value={formData.secondaryEmergencyContactEmail}
-              onChange={(e) => onChange('secondaryEmergencyContactEmail', e.target.value)}
-              className={errors.secondaryEmergencyContactEmail ? 'border-destructive' : ''}
-            />
-            {errors.secondaryEmergencyContactEmail && (
-              <p className="text-xs text-destructive">{errors.secondaryEmergencyContactEmail}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4 border-t pt-4">
-        <h3 className="text-sm font-semibold text-foreground">Authorized Representative</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="authorizedRepresentativeName">Authorized representative name</Label>
-            <Input
-              id="authorizedRepresentativeName"
-              value={formData.authorizedRepresentativeName}
-              onChange={(e) => onChange('authorizedRepresentativeName', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="authorizedRepresentativeRelationship">Relationship</Label>
-            <RelationshipSelect
-              id="authorizedRepresentativeRelationship"
-              value={formData.authorizedRepresentativeRelationship}
-              onChange={(value) => onChange('authorizedRepresentativeRelationship', value)}
-            />
-          </div>
-          <PhoneField
-            id="authorizedRepresentativePhone"
-            label="Phone"
-            value={formData.authorizedRepresentativePhone}
-            onChange={(e) => onChange('authorizedRepresentativePhone', e.target.value)}
-            error={errors.authorizedRepresentativePhone}
-          />
-          <div className="space-y-2">
-            <Label htmlFor="authorizedRepresentativeEmail">Email</Label>
-            <Input
-              id="authorizedRepresentativeEmail"
-              type="email"
-              value={formData.authorizedRepresentativeEmail}
-              onChange={(e) => onChange('authorizedRepresentativeEmail', e.target.value)}
-              className={errors.authorizedRepresentativeEmail ? 'border-destructive' : ''}
-            />
-            {errors.authorizedRepresentativeEmail && (
-              <p className="text-xs text-destructive">{errors.authorizedRepresentativeEmail}</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {(showLegalGuardian || !dateOfBirth) && (
-        <div className="space-y-4 border-t pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-foreground">Legal Guardian</h3>
-            {!dateOfBirth && (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="patientIsMinor"
-                  checked={formData.patientIsMinor}
-                  onCheckedChange={(checked) => onChange('patientIsMinor', checked)}
-                />
-                <Label htmlFor="patientIsMinor" className="text-sm font-normal cursor-pointer">
-                  Patient is a minor
-                </Label>
-              </div>
-            )}
-          </div>
-          {showLegalGuardian && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="legalGuardianName">Legal guardian name</Label>
-                <Input
-                  id="legalGuardianName"
-                  value={formData.legalGuardianName}
-                  onChange={(e) => onChange('legalGuardianName', e.target.value)}
-                  className={errors.legalGuardianName ? 'border-destructive' : ''}
-                />
-                {errors.legalGuardianName && (
-                  <p className="text-xs text-destructive">{errors.legalGuardianName}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="legalGuardianRelationship">Relationship</Label>
-                <RelationshipSelect
-                  id="legalGuardianRelationship"
-                  value={formData.legalGuardianRelationship}
-                  onChange={(value) => onChange('legalGuardianRelationship', value)}
-                />
-                {errors.legalGuardianRelationship && (
-                  <p className="text-xs text-destructive">{errors.legalGuardianRelationship}</p>
-                )}
-              </div>
-              <PhoneField
-                id="legalGuardianPhone"
-                label="Phone"
-                value={formData.legalGuardianPhone}
-                onChange={(e) => onChange('legalGuardianPhone', e.target.value)}
-                error={errors.legalGuardianPhone}
-              />
-              <div className="space-y-2">
-                <Label htmlFor="legalGuardianEmail">Email</Label>
-                <Input
-                  id="legalGuardianEmail"
-                  type="email"
-                  value={formData.legalGuardianEmail}
-                  onChange={(e) => onChange('legalGuardianEmail', e.target.value)}
-                  className={errors.legalGuardianEmail ? 'border-destructive' : ''}
-                />
-                {errors.legalGuardianEmail && (
-                  <p className="text-xs text-destructive">{errors.legalGuardianEmail}</p>
-                )}
-              </div>
+      <AccordionItem value="guarantor" className="overflow-hidden rounded-xl border border-border/80">
+        <AccordionTrigger className="rounded-t-xl px-4">
+          <span className="text-sm font-semibold text-primary-foreground">Guarantor Information</span>
+        </AccordionTrigger>
+        <AccordionContent className="space-y-4 px-4 pb-4">
+          {guarantorRequired && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Patient is less than {GUARANTOR_REQUIRED_MAX_AGE} years old — guarantor information is
+              required.
             </div>
           )}
-        </div>
-      )}
-
-      <div className="space-y-4 border-t pt-4 rounded-lg border p-4">
-        <h3 className="text-sm font-semibold text-foreground">Secondary Next of Kin</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="secondaryNextOfKinName">Name</Label>
-            <Input
-              id="secondaryNextOfKinName"
-              value={formData.secondaryNextOfKinName}
-              onChange={(e) => onChange('secondaryNextOfKinName', e.target.value)}
+          {guarantors.map((entry, index) => (
+            <GuarantorContactForm
+              key={`guarantor-${index}`}
+              entry={entry}
+              index={index}
+              errors={errors}
+              idPrefix="guarantor"
+              requiresGuarantor={guarantorRequired}
+              onFieldChange={handleGuarantorFieldChange}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="secondaryNextOfKinRelationship">Relationship</Label>
-            <RelationshipSelect
-              id="secondaryNextOfKinRelationship"
-              value={formData.secondaryNextOfKinRelationship}
-              onChange={(value) => onChange('secondaryNextOfKinRelationship', value)}
-            />
-          </div>
-          <PhoneField
-            id="secondaryNextOfKinPhone"
-            label="Phone"
-            value={formData.secondaryNextOfKinPhone}
-            onChange={(e) => onChange('secondaryNextOfKinPhone', e.target.value)}
-            error={errors.secondaryNextOfKinPhone}
-          />
-        </div>
-      </div>
-    </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={addGuarantor}
+          >
+            <Plus className="h-4 w-4" />
+            Add more
+          </Button>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
+}
+
+export function validateContactPhoneField(value, fieldName, newErrors) {
+  if (!value?.trim()) return;
+  const check = validatePhoneNumber(value);
+  if (!check.valid) {
+    newErrors[fieldName] = check.message || 'Enter a valid phone number for the selected country';
+  }
+}
+
+export function validateContactEmailField(value, fieldName, newErrors) {
+  if (!value?.trim()) return;
+  if (!isValidEmail(value)) {
+    newErrors[fieldName] = EMAIL_VALIDATION_MESSAGE;
+  }
 }

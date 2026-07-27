@@ -1,120 +1,170 @@
-/** Sample chart data for /patient-dashboard (no live API). */
+/** Sample chart data for /patient-dashboard and department encounter demos. */
+
+import { getDepartmentBySlug } from '@/pages/others/departmentEncounterDepartments';
 
 export const SAMPLE_PATIENT_ID = 'sample';
 
-export function getSampleChartData() {
-  const patient = {
-    id: SAMPLE_PATIENT_ID,
-    mrn: 'MRN-001234',
-    firstName: 'John',
-    middleName: null,
-    lastName: 'Doe',
-    preferredName: 'Johnny',
-    dateOfBirth: '1979-03-15T00:00:00.000Z',
-    gender: 'Male',
-    genderIdentity: 'Male',
-    contactNumber: '(555) 123-4567',
-    cellPhone: '(555) 123-4567',
-    email: 'john.doe@email.example',
-    address: '123 Oak Street',
-    city: 'Springfield',
-    state: 'IL',
-    zip: '62701',
-    language: 'English',
-    interpreterRequired: true,
-    interpreterLanguageRequired: 'Spanish',
-    generalNotes: 'Diabetes – monitor A1C; fall risk',
-    policyNumber: 'XYZ-1234567890',
-    copay: 25,
-    insuranceProvider: { id: 'ins-1', name: 'Blue Cross PPO' },
-    primaryCarePhysician: 'Dr. Robert Williams, MD',
-  };
+function todayKey() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
-  const appointments = [
+/** Demo patient on Encounters listing — opens a chart with every specialty tab visible. */
+export const SAMPLE_PATIENT = {
+  id: SAMPLE_PATIENT_ID,
+  mrn: 'MRN-SAMPLE-0001',
+  firstName: 'Sample',
+  middleName: null,
+  lastName: 'Patient',
+  preferredName: 'Sample Patient',
+  dateOfBirth: '2018-06-12T00:00:00.000Z',
+  gender: 'Female',
+  genderIdentity: 'Female',
+  contactNumber: '(555) 123-4567',
+  cellPhone: '(555) 123-4567',
+  email: 'sample.patient@email.example',
+  address: '123 Oak Street',
+  city: 'Springfield',
+  state: 'IL',
+  zip: '62701',
+  language: 'English',
+  interpreterRequired: true,
+  interpreterLanguageRequired: 'Spanish',
+  generalNotes: null,
+  policyNumber: 'BC123456',
+  copay: 25,
+  billingType: 'insurance',
+  insuranceProvider: { name: 'Blue Cross PPO' },
+  insuranceList: [
     {
-      id: 'apt-sample-today',
-      patientId: SAMPLE_PATIENT_ID,
-      appointmentDate: '2026-05-15T00:00:00.000Z',
-      appointmentTime: '09:30',
-      duration: 30,
+      insuranceTypeKey: 'primary',
+      payerName: 'Blue Cross PPO',
+      memberId: 'BC123456',
+    },
+  ],
+  emergencyContactName: 'Jordan Patient',
+  emergencyContactRelationship: 'Parent',
+  emergencyContactNumber: '(555) 987-6543',
+  emergencyContactEmail: 'jordan.patient@email.example',
+  emergencyContactAddress: '123 Oak Street',
+  emergencyContactCity: 'Springfield',
+  emergencyContactState: 'IL',
+  emergencyContactZip: '62701',
+  noKnownDrugAllergies: false,
+  primaryCarePhysician: 'Dr. Robert Williams, MD',
+  /** Bypass department/age/gender gates so every chart tab is available. */
+  showAllChartTabs: true,
+};
+
+/** Demo row(s) prepended to the main Encounters worklist. */
+export function getEncountersListSampleRows() {
+  const patient = { ...SAMPLE_PATIENT };
+  return [
+    {
+      id: 'sample-appt-encounters-1',
+      encounterNumber: 'ENC-DEMO-SAMPLE-001',
+      appointmentDate: todayKey(),
+      appointmentTime: '10:30 AM',
       appointmentType: 'Office Visit',
-      visitReason: 'Follow-up diabetes and hypertension',
-      department: 'Ambulatory Clinic – North',
+      visitReason: 'Full chart demo — all specialty tabs',
       provider: 'Dr. Sarah Chen, MD',
+      department: 'Internal Medicine',
       status: 'In Progress',
-      notes: null,
-    },
-    {
-      id: 'apt-sample-past',
-      patientId: SAMPLE_PATIENT_ID,
-      appointmentDate: '2026-02-10T00:00:00.000Z',
-      appointmentTime: '10:00',
-      duration: 30,
-      appointmentType: 'Follow-up',
-      visitReason: 'Chronic disease management',
-      department: 'Ambulatory Clinic – North',
-      provider: 'Dr. Sarah Chen, MD',
-      status: 'Completed',
-      notes: null,
-    },
-    {
-      id: 'apt-sample-future',
-      patientId: SAMPLE_PATIENT_ID,
-      appointmentDate: '2026-06-12T00:00:00.000Z',
-      appointmentTime: '09:30',
-      duration: 30,
-      appointmentType: 'Follow-up',
-      visitReason: 'Diabetes review',
-      department: 'Ambulatory Clinic – North',
-      provider: 'Dr. Sarah Chen, MD',
-      status: 'Scheduled',
-      notes: null,
+      isDemo: true,
+      patient,
     },
   ];
+}
 
-  const orders = [
+function samplePatientForDepartment(dept) {
+  // Specialty department demos keep department-gated tabs (not the all-tabs showcase).
+  const base = {
+    ...SAMPLE_PATIENT,
+    showAllChartTabs: false,
+  };
+  if (dept?.slug === 'pediatrics') {
+    return { ...base, mrn: 'MRN-PEDS-0042' };
+  }
+  return base;
+}
+
+/** Two demo encounters for a specialty department listing + sample chart. */
+export function getDepartmentSampleEncounters(department) {
+  const dept =
+    typeof department === 'string'
+      ? getDepartmentBySlug(department) || { name: 'Internal Medicine', slug: 'internal-medicine' }
+      : department || { name: 'Internal Medicine', slug: 'internal-medicine' };
+  const patient = samplePatientForDepartment(dept);
+  const focus = dept.focus || 'Office visit';
+  const reason =
+    Array.isArray(dept.clinicalChecks) && dept.clinicalChecks[0]
+      ? dept.clinicalChecks[0]
+      : focus;
+
+  return [
     {
-      id: 'ord-sample-1',
-      patientId: SAMPLE_PATIENT_ID,
-      appointmentId: 'apt-sample-today',
-      category: 'Lab',
-      procedureCode: '80053',
-      procedureName: 'Comprehensive metabolic panel',
-      status: 'Scheduled',
-      destination: 'onsite',
-      orderedBy: 'Dr. Sarah Chen, MD',
-      orderDateTime: '2026-05-15T09:20:00.000Z',
+      id: `sample-appt-${dept.slug}-1`,
+      encounterNumber: `ENC-DEMO-${(dept.slug || 'dept').slice(0, 8).toUpperCase()}-001`,
+      appointmentDate: todayKey(),
+      appointmentTime: '10:30 AM',
+      appointmentType: 'Office Visit',
+      visitReason: reason,
+      provider: 'Dr. Sarah Chen, MD',
+      department: dept.name,
+      status: 'In Progress',
+      isDemo: true,
+      patient,
     },
     {
-      id: 'ord-sample-2',
-      patientId: SAMPLE_PATIENT_ID,
-      appointmentId: 'apt-sample-today',
-      category: 'Radiology',
-      procedureCode: '71046',
-      procedureName: 'Chest X-ray 2 views',
-      status: 'Scheduled',
-      destination: 'onsite',
-      orderedBy: 'Dr. Sarah Chen, MD',
-      orderDateTime: '2026-05-15T09:22:00.000Z',
-    },
-    {
-      id: 'ord-sample-3',
-      patientId: SAMPLE_PATIENT_ID,
-      appointmentId: 'apt-sample-past',
-      category: 'Lab',
-      procedureCode: '83036',
-      procedureName: 'HbA1c',
-      status: 'Completed',
-      destination: 'onsite',
-      orderedBy: 'Dr. Sarah Chen, MD',
-      orderDateTime: '2026-02-10T10:05:00.000Z',
+      id: `sample-appt-${dept.slug}-2`,
+      encounterNumber: `ENC-DEMO-${(dept.slug || 'dept').slice(0, 8).toUpperCase()}-002`,
+      appointmentDate: todayKey(),
+      appointmentTime: '2:15 PM',
+      appointmentType: 'Follow-up',
+      visitReason: focus,
+      provider: 'Dr. Sarah Chen, MD',
+      department: dept.name,
+      status: 'Checked In',
+      isDemo: true,
+      patient,
     },
   ];
+}
+
+export function getSampleChartData(options = {}) {
+  const department =
+    (options.departmentSlug && getDepartmentBySlug(options.departmentSlug)) ||
+    options.department ||
+    null;
+
+  const appointments = department
+    ? getDepartmentSampleEncounters(department).map(({ patient, isDemo, ...appt }) => appt)
+    : getEncountersListSampleRows().map(({ patient, isDemo, ...appt }) => appt);
+
+  const patient = department
+    ? samplePatientForDepartment(department)
+    : { ...SAMPLE_PATIENT };
+
+  const orders = [];
+  const chartSummary = {
+    allergies: [
+      { id: 'a1', allergenName: 'Penicillin', reaction: 'Rash', severity: 'Moderate' },
+    ],
+    noKnownDrugAllergies: false,
+    provider: {
+      name: 'Dr. Sarah Chen, MD',
+      specialty: department?.name || 'Internal Medicine',
+    },
+  };
 
   return {
     patient,
     appointments,
     orders,
-    defaultAppointmentId: 'apt-sample-today',
+    chartSummary,
+    defaultAppointmentId: appointments[0]?.id || 'sample-appt-encounters-1',
   };
 }

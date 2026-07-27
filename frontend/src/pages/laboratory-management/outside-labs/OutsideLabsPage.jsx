@@ -3,17 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Eye, Printer } from 'lucide-react';
-import { labApi } from '@/services/api';
-
-function calcAge(dob) {
-  if (!dob) return '-';
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-}
+import { orderApi } from '@/services/api';
+import {
+  calcAge,
+  mapOrderToOutsideLabRow,
+  groupOrdersByPatient,
+} from '@/lib/orderWorklist';
 
 function formatDateTime(dateTimeString) {
   if (!dateTimeString) return '-';
@@ -31,36 +26,37 @@ function formatDateTime(dateTimeString) {
 export function OutsideLabsPage() {
   const navigate = useNavigate();
   const [list, setList] = useState([]);
-
-  const groupedByPatient = useMemo(() => {
-    const byPatient = new Map();
-    list.forEach((row) => {
-      const pid = row.patientId;
-      if (!byPatient.has(pid)) {
-        byPatient.set(pid, {
-          patientId: pid,
-          patient: row.patient,
-          tests: [],
-        });
-      }
-      byPatient.get(pid).tests.push(row);
-    });
-    return Array.from(byPatient.values()).map((g) => ({
-      ...g,
-      totalOrders: g.tests.length,
-      lastUpdated: g.tests.reduce(
-        (max, t) => (t.createdAt && (!max || new Date(t.createdAt) > new Date(max)) ? t.createdAt : max),
-        null
-      ),
-    }));
-  }, [list]);
-
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [pagination, setPagination] = useState({ page: 1, limit: 10 });
 
   useEffect(() => {
-    labApi.getOutsideLabsList({}).then(({ data }) => setList(data || []));
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await orderApi.getOrders({ category: 'Lab', destination: 'external', limit: 500 });
+        const rows = (res?.data || [])
+          .filter((o) => o.status !== 'Cancelled')
+          .map(mapOrderToOutsideLabRow);
+        if (!cancelled) setList(rows);
+      } catch (err) {
+        if (!cancelled) {
+          setList([]);
+          setError(err.message || 'Failed to load outside lab orders');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const groupedByPatient = useMemo(() => groupOrdersByPatient(list, 'createdAt'), [list]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -99,8 +95,10 @@ export function OutsideLabsPage() {
     <div className="space-y-6 p-4 sm:p-6">
       <div className="space-y-2">
         <h1 className="text-2xl font-bold">Outside Labs management</h1>
-        <p className="text-muted-foreground">Manage outside lab orders and tracking</p>
+        <p className="text-muted-foreground">External lab orders from patient encounters</p>
       </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <DataTable
         columns={[
@@ -112,7 +110,7 @@ export function OutsideLabsPage() {
                 <div className="text-xs text-muted-foreground">MRN: {group.patient?.mrn ?? '-'}</div>
                 <div className="font-medium">{group.patient?.name ?? '-'}</div>
                 <div className="text-sm text-muted-foreground">
-                  {group.patient?.gender ?? '-'} · {calcAge(group.patient?.dob)} yrs
+                  {group.patient?.gender ?? '-'} · {calcAge(group.patient?.dateOfBirth)} yrs
                 </div>
               </div>
             ),
@@ -142,7 +140,7 @@ export function OutsideLabsPage() {
         onPageSizeChange={handlePageSizeChange}
         getRowId={(row) => row.patientId}
         searchPlaceholder="Search by patient name or MRN..."
-        emptyMessage="No outside lab orders found"
+        emptyMessage={loading ? 'Loading...' : 'No outside lab orders found'}
         actions={(group) => (
           <div className="flex items-center justify-end gap-1">
             <Button variant="ghost" size="sm" onClick={() => handleViewDetail(group.patientId)} className="h-8 w-8 p-0" title="View order detail">

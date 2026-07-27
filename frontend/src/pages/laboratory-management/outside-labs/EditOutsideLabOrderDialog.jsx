@@ -146,8 +146,16 @@ export function EditOutsideLabOrderDialog({ open, onOpenChange, labTest, patient
         // In a real app you would upload the report file and set payload.reportFileUrl = url;
       }
 
-      await labApi.updateLabTest(labTest.id, payload);
-      onSaved?.();
+      if (labTest.source === 'order') {
+        await onSaved?.({
+          ...labTest,
+          ...payload,
+          orderStatus: receivingReport ? 'Received report' : labTest.orderStatus,
+        });
+      } else {
+        await labApi.updateLabTest(labTest.id, payload);
+        onSaved?.();
+      }
       onOpenChange?.(false);
     } catch (e) {
       alert(e?.message || 'Failed to save');

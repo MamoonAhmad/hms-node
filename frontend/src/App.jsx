@@ -4,11 +4,14 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Layout } from '@/components/layout/Layout';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
-import { PatientsPage } from '@/pages/PatientsPage';
+import { PatientsPage, PATIENT_WORKLISTS } from '@/pages/PatientsPage';
+import { PatientEncountersPage } from '@/pages/patients/PatientEncountersPage';
 import { PatientFormPage } from '@/pages/PatientFormPage';
+import { WaitlistPage } from '@/pages/patient-management/WaitlistPage';
 import { AppointmentsPage } from '@/pages/AppointmentsPage';
+import { AppointmentFormPage } from '@/pages/appointments/AppointmentFormPage';
+import { PatientAppointmentHistoryPage } from '@/pages/appointments/PatientAppointmentHistoryPage';
 import { InsuranceProvidersPage } from '@/pages/InsuranceProvidersPage';
-import { NurseDashboard } from '@/pages/nurses/NurseDashboard';
 import { ProvidersPage } from '@/pages/providers/ProvidersPage';
 import { DepartmentsPage } from '@/pages/departments/DepartmentsPage';
 import ChiefComplaint from '@/components/Administration/ChiefComplaint';
@@ -26,12 +29,13 @@ import { ConsentFormsPage } from '@/pages/administration/consent-forms/ConsentFo
 import { HcpcsCodesPage } from '@/pages/administration/hcpcs-codes/HcpcsCodesPage';
 import { DiagnosisCodesPage } from '@/pages/administration/diagnosis-codes/DiagnosisCodesPage';
 import { TriageTrackingBoard } from '@/pages/triage-tracking-board/TriageTrackingBoard';
-import { NurseTrackingBoardPage } from '@/pages/nurse-tracking-board/NurseTrackingBoardPage';
 import { PatientDashboard } from '@/pages/patient-dashboard/PatientDashboard';
+import { PatientChartPage } from '@/pages/patient-chart/PatientChartPage';
+import { EmarPage } from '@/pages/patient-dashboard/EmarPage';
 import { CustomOrderSetPage } from '@/pages/custom-order-set/CustomOrderSetPage';
 import { ManageInventoryPage } from '@/pages/medication-management/manage-inventory/ManageInventoryPage';
 import { MedicationOrdersPage } from '@/pages/medication-management/medication-orders/MedicationOrdersPage';
-import { LaboratoryDashboardPage } from '@/pages/laboratory-management/LaboratoryDashboardPage';
+import { LaboratoryMasterPage } from '@/pages/laboratory-management/laboratory-master/LaboratoryMasterPage';
 import { SpecimenCollectionPage } from '@/pages/laboratory-management/specimen-collection/SpecimenCollectionPage';
 import { PatientSpecimenDetailPage } from '@/pages/laboratory-management/specimen-collection/PatientSpecimenDetailPage';
 import { LabBarcodeLabelsPage } from '@/pages/laboratory-management/specimen-collection/LabBarcodeLabelsPage';
@@ -41,6 +45,7 @@ import { SpecimenReceiverPage } from '@/pages/laboratory-management/specimen-rec
 import { PatientReceiverDetailPage } from '@/pages/laboratory-management/specimen-receiver/PatientReceiverDetailPage';
 import { ResultManagementPage } from '@/pages/laboratory-management/result-management/ResultManagementPage';
 import { PatientResultDetailPage } from '@/pages/laboratory-management/result-management/PatientResultDetailPage';
+import { EditResultPage } from '@/pages/laboratory-management/result-management/EditResultPage';
 import { LabReportPrintPage } from '@/pages/laboratory-management/result-management/LabReportPrintPage';
 import { TestCatalogPage } from '@/pages/laboratory-management/test-catalog/TestCatalogPage';
 import { LabOrderTransportPage } from '@/pages/laboratory-management/lab-order-transport/LabOrderTransportPage';
@@ -57,9 +62,13 @@ import { PatientLabelsPreviewPage } from '@/pages/radiology-management/PatientLa
 import { PrintableLabelsPage } from '@/pages/radiology-management/PrintableLabelsPage';
 import { PrintableReportPage } from '@/pages/radiology-management/PrintableReportPage';
 import { OrderFilesPage } from '@/pages/radiology-management/OrderFilesPage';
+import { RadiologyMasterPage } from '@/pages/radiology-management/RadiologyMasterPage';
 import { MedicationPrescriptionsPage } from '@/pages/pharmacy/MedicationPrescriptionsPage';
 import { PatientMedicationViewPage } from '@/pages/pharmacy/PatientMedicationViewPage';
 import { PharmacyBarcodeLabelsPage } from '@/pages/pharmacy/PharmacyBarcodeLabelsPage';
+import { VaccineMasterPage } from '@/pages/pharmacy/vaccine-master/VaccineMasterPage';
+import { MedicinesMasterPage } from '@/pages/pharmacy/medicines-master/MedicinesMasterPage';
+import { MedicationFormularyPage } from '@/pages/pharmacy/medication-formulary/MedicationFormularyPage';
 import { PharmacyInventoryPage } from '@/pages/pharmacy/PharmacyInventoryPage';
 import { ProviderSchedulesPage } from '@/pages/providers/schedule/ProviderSchedulesPage';
 import { SpecialitiesPage } from '@/pages/providers/specialities/SpecialitiesPage';
@@ -71,20 +80,19 @@ import { OutsideLabOrdersPage } from '@/pages/outpatient/outside-labs/OutsideLab
 import { ExternalLabMasterPage } from '@/pages/outpatient/outside-labs/ExternalLabMasterPage';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ClaimsListingPage } from '@/pages/rcm/ClaimsListingPage';
+import { ClaimsWorklistPage } from '@/pages/rcm/ClaimsWorklistPage';
 import { ClaimTrackerPage } from '@/pages/rcm/ClaimTrackerPage';
 import { FollowUpManagementPage } from '@/pages/rcm/FollowUpManagementPage';
 import { CMS1500Page } from '@/pages/rcm/CMS1500Page';
 import { ClaimUB04Page } from '@/pages/rcm/ClaimUB04Page';
 import { RcmReportPage } from '@/pages/rcm/reports/RcmReportPage';
 import { ReportingDashboardPage } from '@/pages/rcm/reports/ReportingDashboardPage';
-import { PhysiologicalOrderManagementPage } from '@/pages/physiological-tests/PhysiologicalOrderManagementPage';
-import { PatientPhysiologicalOrderDetailPage } from '@/pages/physiological-tests/PatientPhysiologicalOrderDetailPage';
-import { OutsidePhysiologicalTestsPage } from '@/pages/physiological-tests/outside/OutsidePhysiologicalTestsPage';
-import { PatientOutsidePhysiologicalDetailPage } from '@/pages/physiological-tests/outside/PatientOutsidePhysiologicalDetailPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { RoomsPage } from '@/pages/patient-management/rooms/RoomsPage';
 import { BedsPage } from '@/pages/patient-management/beds/BedsPage';
 import { RoomTypesPage } from '@/pages/patient-management/room-types/RoomTypesPage';
+import { EncountersPage } from '@/pages/patient-management/encounters/EncountersPage';
+import { OutpatientTrackingBoard } from '@/pages/outpatient-tracking-board/OutpatientTrackingBoard';
 
 function PharmacyPage() {
   const [searchParams] = useSearchParams();
@@ -105,11 +113,24 @@ function App() {
           <Route path="patients" element={<PatientsPage />} />
           <Route path="patients/new" element={<PatientFormPage />} />
           <Route path="patients/edit/:id" element={<PatientFormPage />} />
+          <Route path="patients/:patientId/encounters" element={<PatientEncountersPage />} />
+          <Route path="patients/:patientId/chart" element={<PatientChartPage />} />
+          <Route
+            path="patient-management/registration-queue"
+            element={<PatientsPage worklist={PATIENT_WORKLISTS.REGISTRATION_QUEUE} />}
+          />
+          <Route path="patient-management/waitlist" element={<WaitlistPage />} />
+          <Route
+            path="patient-management/consent-worklist"
+            element={<PatientsPage worklist={PATIENT_WORKLISTS.CONSENT_WORKLIST} />}
+          />
           <Route path="appointments" element={<AppointmentsPage />} />
+          <Route path="appointments/new" element={<AppointmentFormPage />} />
+          <Route path="appointments/:appointmentId/edit" element={<AppointmentFormPage />} />
+          <Route path="appointments/patient/:patientId" element={<PatientAppointmentHistoryPage />} />
           <Route path="appointments/block-hours" element={<BlockHoursPage />} />
           <Route path="appointments/appointment-status" element={<AppointmentStatusPage />} />
           <Route path="insurance-providers" element={<InsuranceProvidersPage />} />
-          <Route path="nurse-assessment" element={<NurseDashboard />} />
           <Route path="providers" element={<ProvidersPage />} />
           <Route path="providers/schedule" element={<ProviderSchedulesPage />} />
           <Route path="providers/specialities" element={<SpecialitiesPage />} />
@@ -134,30 +155,26 @@ function App() {
           <Route path="administration/permissions" element={<PermissionsPage />} />
           <Route path="administration/permission-headers" element={<PermissionHeadersPage />} />
           <Route path="triage-tracking-board" element={<TriageTrackingBoard />} />
-          <Route path="nurse-tracking-board" element={<NurseTrackingBoardPage />} />
+          <Route path="nurse-tracking-board" element={<EncountersPage />} />
+          <Route path="outpatient_tracking_board" element={<OutpatientTrackingBoard />} />
           <Route path="patient-dashboard/:patientId?" element={<PatientDashboard />} />
           <Route path="custom-order-set" element={<CustomOrderSetPage />} />
+          <Route path="patient-management/encounters" element={<EncountersPage />} />
           <Route path="patient-management/rooms" element={<RoomsPage />} />
           <Route path="patient-management/beds" element={<BedsPage />} />
           <Route path="patient-management/room-types" element={<RoomTypesPage />} />
-          {/* Physiological tests */}
-          <Route path="physiological-tests/order-management" element={<PhysiologicalOrderManagementPage />} />
-          <Route path="physiological-tests/order-management/patient/:patientId" element={<PatientPhysiologicalOrderDetailPage />} />
-          <Route path="physiological-tests/order-management/patient/:patientId/labels" element={<PlaceholderPage title="Physiological test labels" />} />
-          <Route path="physiological-tests/outside" element={<OutsidePhysiologicalTestsPage />} />
-          <Route path="physiological-tests/outside/patient/:patientId" element={<PatientOutsidePhysiologicalDetailPage />} />
-          <Route path="physiological-tests/outside/patient/:patientId/labels" element={<PlaceholderPage title="Outside physiological test labels" />} />
           <Route path="orders" element={<PlaceholderPage title="Orders & Order Sets" />} />
           <Route path="clinical-notes" element={<PlaceholderPage title="Clinical Notes" />} />
           <Route path="ai-dictation" element={<PlaceholderPage title="AI Dictation" />} />
           <Route path="billing" element={<PlaceholderPage title="Billing & Encounter" />} />
+          <Route path="emar/:patientId" element={<EmarPage />} />
           <Route path="emar" element={<PlaceholderPage title="eMAR" />} />
           <Route path="results" element={<PlaceholderPage title="Results" />} />
           {/* Medication Management Routes */}
           <Route path="medication-management/manage-inventory" element={<ManageInventoryPage />} />
           <Route path="medication-management/medication-orders" element={<MedicationOrdersPage />} />
           {/* Laboratory Management Routes */}
-          <Route path="laboratory-management" element={<LaboratoryDashboardPage />} />
+          <Route path="laboratory-management/laboratory-master" element={<LaboratoryMasterPage />} />
           <Route path="laboratory-management/specimen-collection" element={<SpecimenCollectionPage />} />
           <Route path="laboratory-management/specimen-collection/patient/:patientId" element={<PatientSpecimenDetailPage />} />
           <Route path="laboratory-management/specimen-collection/labels" element={<LabBarcodeLabelsPage />} />
@@ -169,6 +186,7 @@ function App() {
           <Route path="laboratory-management/lab-report-received" element={<LabReportReceivedPage />} />
           <Route path="laboratory-management/result-management" element={<ResultManagementPage />} />
           <Route path="laboratory-management/result-management/patient/:patientId" element={<PatientResultDetailPage />} />
+          <Route path="laboratory-management/result-management/patient/:patientId/edit/:labTestId" element={<EditResultPage />} />
           <Route path="laboratory-management/result-management/report/:labTestId" element={<LabReportPrintPage />} />
           <Route path="laboratory-management/test-catalog" element={<TestCatalogPage />} />
           <Route path="laboratory-management/outside-labs" element={<OutsideLabsPage />} />
@@ -181,7 +199,11 @@ function App() {
           <Route path="pharmacy/e-prescribe-med-reconciliation" element={<MedicationPrescriptionsPage />} />
           <Route path="pharmacy/e-prescribe-med-reconciliation/patient/:patientId" element={<PatientMedicationViewPage />} />
           <Route path="pharmacy/barcode-labels" element={<PharmacyBarcodeLabelsPage />} />
+          <Route path="pharmacy/medicines-master" element={<MedicinesMasterPage />} />
+          <Route path="pharmacy/medication-formulary" element={<MedicationFormularyPage />} />
+          <Route path="pharmacy/vaccine-master" element={<VaccineMasterPage />} />
           {/* Radiology Management Routes */}
+          <Route path="radiology-management/master" element={<RadiologyMasterPage />} />
           <Route path="radiology-management/order-management" element={<OrderManagementPage />} />
           <Route path="radiology-management/order-management/patient/:patientId" element={<PatientOrderDetailPage />} />
           <Route path="radiology-management/outside-radiology-orders" element={<OutsideRadiologyOrdersPage />} />
@@ -199,6 +221,7 @@ function App() {
           <Route path="outpatient/outside-labs/external-labs" element={<ExternalLabMasterPage />} />
           {/* RCM */}
           <Route path="rcm/claims" element={<ClaimsListingPage />} />
+          <Route path="rcm/claims-worklist" element={<ClaimsWorklistPage />} />
           <Route path="rcm/claim-tracker" element={<ClaimTrackerPage />} />
           <Route path="rcm/follow-up-management" element={<FollowUpManagementPage />} />
           <Route path="rcm/cms-1500" element={<CMS1500Page />} />

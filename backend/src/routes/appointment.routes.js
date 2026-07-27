@@ -9,6 +9,7 @@ const {
   availabilityDatesQuerySchema,
   availabilitySlotsQuerySchema,
   updateStatusSchema,
+  assignRoomSchema,
   appointmentIdSchema,
   validate,
 } = require('../validation/appointment.validation');
@@ -44,6 +45,17 @@ router.patch(
   validate(appointmentIdSchema, 'params'),
   validate(updateStatusSchema, 'body'),
   appointmentController.updateStatus,
+);
+router.patch(
+  '/:id/check-in',
+  validate(appointmentIdSchema, 'params'),
+  appointmentController.checkIn,
+);
+router.patch(
+  '/:id/room',
+  validate(appointmentIdSchema, 'params'),
+  validate(assignRoomSchema, 'body'),
+  appointmentController.assignRoom,
 );
 router.delete('/:id', validate(appointmentIdSchema, 'params'), appointmentController.delete);
 

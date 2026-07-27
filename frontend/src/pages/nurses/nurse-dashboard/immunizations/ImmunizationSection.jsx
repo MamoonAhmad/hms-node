@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 export function ImmunizationSection() {
   const [immunizations, setImmunizations] = useState([]);
+  const [editingIndex, setEditingIndex] = useState(null);
   const [immunizationForm, setImmunizationForm] = useState({
     immunization: '',
     date: '',
@@ -15,17 +17,43 @@ export function ImmunizationSection() {
   });
   const [noCurrentImmunizations, setNoCurrentImmunizations] = useState(false);
 
-  const handleImmunizationSave = () => {
-    const timestamp = new Intl.DateTimeFormat('en-US', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date());
-    setImmunizations((prev) => [...prev, { ...immunizationForm, timestamp }]);
+  const resetForm = () => {
     setImmunizationForm({
       immunization: '',
       date: '',
       location: '',
     });
+    setEditingIndex(null);
+  };
+
+  const openEdit = (im, idx) => {
+    setEditingIndex(idx);
+    setImmunizationForm({
+      immunization: im.immunization || '',
+      date: im.date || '',
+      location: im.location || '',
+    });
+  };
+
+  const handleImmunizationSave = () => {
+    if (!immunizationForm.immunization?.trim()) return;
+    const timestamp = new Intl.DateTimeFormat('en-US', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date());
+
+    if (editingIndex != null) {
+      setImmunizations((prev) =>
+        prev.map((item, i) =>
+          i === editingIndex
+            ? { ...immunizationForm, timestamp: item.timestamp || timestamp }
+            : item,
+        ),
+      );
+    } else {
+      setImmunizations((prev) => [...prev, { ...immunizationForm, timestamp }]);
+    }
+    resetForm();
   };
 
   return (
@@ -52,6 +80,7 @@ export function ImmunizationSection() {
                 <Label htmlFor="immunization">Immunization</Label>
                 <Input
                   id="immunization"
+                  className="h-9 w-full"
                   placeholder="Immunization"
                   value={immunizationForm.immunization}
                   onChange={(e) => setImmunizationForm((p) => ({ ...p, immunization: e.target.value }))}
@@ -62,6 +91,7 @@ export function ImmunizationSection() {
                 <Input
                   id="immunization-date"
                   type="date"
+                  className="h-9 w-full"
                   value={immunizationForm.date}
                   onChange={(e) => setImmunizationForm((p) => ({ ...p, date: e.target.value }))}
                 />
@@ -70,15 +100,23 @@ export function ImmunizationSection() {
                 <Label htmlFor="immunization-location">Location</Label>
                 <Input
                   id="immunization-location"
+                  className="h-9 w-full"
                   placeholder="Location"
                   value={immunizationForm.location}
                   onChange={(e) => setImmunizationForm((p) => ({ ...p, location: e.target.value }))}
                 />
               </div>
             </div>
-            <Button size="sm" onClick={handleImmunizationSave}>
-              Add Immunization
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={handleImmunizationSave}>
+                {editingIndex != null ? 'Save Changes' : 'Add Immunization'}
+              </Button>
+              {editingIndex != null && (
+                <Button size="sm" variant="outline" onClick={resetForm}>
+                  Cancel
+                </Button>
+              )}
+            </div>
           </>
         )}
 
@@ -91,6 +129,7 @@ export function ImmunizationSection() {
                   <TableHead>Date</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Added</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -100,6 +139,19 @@ export function ImmunizationSection() {
                     <TableCell>{im.date || '-'}</TableCell>
                     <TableCell>{im.location || '-'}</TableCell>
                     <TableCell>{im.timestamp}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5"
+                        onClick={() => openEdit(im, idx)}
+                        aria-label="Edit"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -110,5 +162,3 @@ export function ImmunizationSection() {
     </Card>
   );
 }
-
-

@@ -1,13 +1,9 @@
 /**
  * Laboratory module – shared status colors and constants.
- * Use these across Specimen Collection, Transport, Receiver, and Result Management.
- *
- * Pending = Yellow
- * Completed = Green
- * Rejected = Red
- * In Progress = Blue
- * Cancelled = Gray
+ * Aligns with the clinical 5-tone system (success / info / warning / danger / muted).
  */
+import { STATUS_SOFT } from '@/lib/statusColors';
+
 export const LAB_SPECIMEN_STATUS = {
   PENDING: 'Pending',
   SUBMITTED: 'Submitted',
@@ -30,22 +26,22 @@ export const LAB_RESULT_STATUS = {
   COMPLETED: 'Completed',
 };
 
-/** Tailwind classes for status badges – consistent across all lab pages */
+/** Soft status badge classes – consistent across all lab pages */
 export const LAB_STATUS_BADGE_CLASSES = {
-  Pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  Submitted: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  Collected: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
-  'In Progress': 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary',
-  Completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  Received: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  Accepted: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  Rejected: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  Cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400',
+  Pending: STATUS_SOFT.warning,
+  Submitted: STATUS_SOFT.warning,
+  Collected: STATUS_SOFT.info,
+  'In Progress': STATUS_SOFT.info,
+  Completed: STATUS_SOFT.success,
+  Received: STATUS_SOFT.success,
+  Accepted: STATUS_SOFT.success,
+  Rejected: STATUS_SOFT.danger,
+  Cancelled: STATUS_SOFT.danger,
 };
 
 export function getLabStatusBadgeClass(status) {
-  if (!status) return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400';
-  return LAB_STATUS_BADGE_CLASSES[status] ?? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400';
+  if (!status) return STATUS_SOFT.muted;
+  return LAB_STATUS_BADGE_CLASSES[status] ?? STATUS_SOFT.muted;
 }
 
 export const COLLECTION_SITES = [
@@ -73,6 +69,18 @@ export const SPECIMEN_TYPES = [
   'Swab',
   'Tissue',
   'CSF',
+  'Other',
+];
+
+export const LAB_TEST_CATEGORIES = [
+  'Hematology',
+  'Chemistry',
+  'Urinalysis',
+  'Microbiology',
+  'Immunology',
+  'Serology',
+  'Coagulation',
+  'Toxicology',
   'Other',
 ];
 

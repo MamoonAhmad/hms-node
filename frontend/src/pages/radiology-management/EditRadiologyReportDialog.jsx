@@ -104,7 +104,7 @@ export function EditRadiologyReportDialog({ open, onClose, order, patient, onSav
         <DialogHeader>
           <DialogTitle>Edit Radiology Report</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="ehr-form space-y-4">
           <div>
             <Label className="text-muted-foreground">Order name</Label>
             <Input value={order.orderName ?? ''} readOnly className="bg-muted" />
@@ -251,9 +251,11 @@ export function EditRadiologyReportDialog({ open, onClose, order, patient, onSav
               <Select value={formData.status} onValueChange={(v) => setFormData((f) => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="Scheduled">Scheduled</SelectItem>
                   <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="In Progress">In Progress</SelectItem>
+                  <SelectItem value="Resulted">Resulted</SelectItem>
                   <SelectItem value="Completed">Completed</SelectItem>
-                  <SelectItem value="In Progress">In progress</SelectItem>
                   <SelectItem value="Cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>

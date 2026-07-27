@@ -20,6 +20,7 @@ export function MultiSelect({
   searchPlaceholder = 'Search...',
   selectAllLabel = 'Select all',
   emptySearchMessage = 'No matches',
+  disabled = false,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -54,32 +55,42 @@ export function MultiSelect({
     );
   }, [options, search, searchable]);
 
-  const filteredValues = useMemo(() => new Set(filteredOptions.map((o) => o.value)), [filteredOptions]);
+  const normalizedValue = useMemo(
+    () => (Array.isArray(value) ? value.map((v) => String(v)) : []),
+    [value],
+  );
+  const valueSet = useMemo(() => new Set(normalizedValue), [normalizedValue]);
+
+  const filteredValues = useMemo(
+    () => new Set(filteredOptions.map((o) => String(o.value))),
+    [filteredOptions],
+  );
 
   const allFilteredSelected =
-    filteredOptions.length > 0 && filteredOptions.every((o) => value.includes(o.value));
-  const someFilteredSelected = filteredOptions.some((o) => value.includes(o.value));
+    filteredOptions.length > 0 && filteredOptions.every((o) => valueSet.has(String(o.value)));
+  const someFilteredSelected = filteredOptions.some((o) => valueSet.has(String(o.value)));
 
   const toggleOption = (optionValue) => {
-    const newValue = value.includes(optionValue)
-      ? value.filter((v) => v !== optionValue)
-      : [...value, optionValue];
+    const key = String(optionValue);
+    const newValue = valueSet.has(key)
+      ? normalizedValue.filter((v) => v !== key)
+      : [...normalizedValue, key];
     onChange(newValue);
   };
 
   const handleSelectAllFiltered = () => {
     if (filteredOptions.length === 0) return;
     if (allFilteredSelected) {
-      onChange(value.filter((v) => !filteredValues.has(v)));
+      onChange(normalizedValue.filter((v) => !filteredValues.has(v)));
     } else {
-      const next = new Set(value);
-      filteredOptions.forEach((o) => next.add(o.value));
+      const next = new Set(normalizedValue);
+      filteredOptions.forEach((o) => next.add(String(o.value)));
       onChange([...next]);
     }
   };
 
   const selectedLabels = options
-    .filter((opt) => value.includes(opt.value))
+    .filter((opt) => valueSet.has(String(opt.value)))
     .map((opt) => opt.label)
     .join(', ');
 
@@ -95,17 +106,18 @@ export function MultiSelect({
         id={id}
         type="button"
         variant="outline"
-        onClick={() => setOpen(!open)}
-        className="w-full justify-between font-normal"
+        onClick={() => !disabled && setOpen(!open)}
+        disabled={disabled}
+        className="h-8 w-full justify-between px-2.5 text-[13px] font-normal"
         aria-expanded={open}
         aria-haspopup="listbox"
       >
-        <span className={cn('truncate text-left', value.length === 0 && 'text-muted-foreground')}>
-          {value.length === 0
+        <span className={cn('truncate text-left', normalizedValue.length === 0 && 'text-muted-foreground')}>
+          {normalizedValue.length === 0
             ? placeholder
-            : value.length === options.length && options.length > 0
-              ? `All selected (${value.length})`
-              : `${value.length} selected${
+            : normalizedValue.length === options.length && options.length > 0
+              ? `All selected (${normalizedValue.length})`
+              : `${normalizedValue.length} selected${
                   selectedLabels ? `: ${selectedLabels.substring(0, 40)}${selectedLabels.length > 40 ? '…' : ''}` : ''
                 }`}
         </span>
@@ -149,7 +161,7 @@ export function MultiSelect({
                   className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
                 >
                   <Checkbox
-                    checked={value.includes(option.value)}
+                    checked={valueSet.has(String(option.value))}
                     onCheckedChange={() => toggleOption(option.value)}
                   />
                   <span className="flex-1 leading-snug">{option.label}</span>

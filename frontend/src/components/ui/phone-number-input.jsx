@@ -31,8 +31,12 @@ export function PhoneNumberInput({
   const containerRef = useRef(null);
   const lastEmittedRef = useRef(value);
 
-  const [country, setCountry] = useState(defaultCountry);
-  const [nationalInput, setNationalInput] = useState('');
+  const [country, setCountry] = useState(
+    () => parseStoredPhoneNumber(value, defaultCountry).country,
+  );
+  const [nationalInput, setNationalInput] = useState(
+    () => parseStoredPhoneNumber(value, defaultCountry).nationalInput,
+  );
   const [countryOpen, setCountryOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
 
@@ -130,18 +134,18 @@ export function PhoneNumberInput({
             aria-haspopup="listbox"
             aria-controls={countryOpen ? listId : undefined}
             className={cn(
-              'flex h-10 items-center gap-1.5 rounded-l-lg border border-r-0 border-input bg-card px-2.5 text-sm transition-[border-color,box-shadow]',
-              'hover:border-[#bcc0c4] focus-visible:border-primary focus-visible:ring-primary/25 focus-visible:ring-[3px] focus-visible:outline-none',
+              'flex h-8 items-center gap-1 rounded-l-md border border-r-0 border-gray-300 bg-white px-1.5 text-[13px] text-black transition-[border-color,box-shadow]',
+              'hover:border-gray-400 focus-visible:border-primary focus-visible:ring-primary/25 focus-visible:ring-[3px] focus-visible:outline-none',
               'disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60',
               invalid && 'border-destructive aria-invalid:border-destructive',
             )}
             onClick={() => !disabled && setCountryOpen((open) => !open)}
           >
-            <span className="text-base leading-none" aria-hidden>
+            <span className="text-sm leading-none" aria-hidden>
               {countryCodeToFlag(country)}
             </span>
             <span className="text-muted-foreground tabular-nums">+{selectedCountry?.callingCode}</span>
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </button>
 
           {countryOpen && (
@@ -158,7 +162,7 @@ export function PhoneNumberInput({
                     value={countrySearch}
                     onChange={(e) => setCountrySearch(e.target.value)}
                     placeholder="Search country..."
-                    className="h-9 w-full rounded-md border border-input bg-background py-1 pl-8 pr-2 text-sm outline-none focus-visible:border-primary focus-visible:ring-primary/25 focus-visible:ring-[3px]"
+                    className="h-9 w-full rounded-md border border-gray-300 bg-white py-1 pl-8 pr-2 text-sm text-black placeholder:text-muted-foreground outline-none focus-visible:border-primary focus-visible:ring-primary/25 focus-visible:ring-[3px]"
                     autoFocus
                   />
                 </div>

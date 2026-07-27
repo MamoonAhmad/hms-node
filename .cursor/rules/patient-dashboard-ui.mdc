@@ -1,0 +1,71 @@
+---
+description: Patient dashboard UI/UX — polished, scannable clinical workspace with color coding
+globs: frontend/src/pages/patient-dashboard/**/*
+alwaysApply: false
+---
+
+# Patient Dashboard UI
+
+When editing the patient dashboard (`PatientDashboard.jsx`, `PatientChartHeader`, tabs, checkout, intake, etc.), prioritize **clinical clarity over density**. The page should feel calm, scannable, and trustworthy — not overloaded.
+
+## Layout & hierarchy
+
+- **Chrome** (header + encounter bar + tabs): fixed structure; content scrolls below.
+- **Header**: 2–3 visual zones max — identity (photo, name, MRN, encounter #), quick demographics (phone, email, address), and alert chips (allergies, insurance, care team, emergency contact).
+- **Tab content**: one primary action per section; use cards with clear titles and short descriptions.
+- **Whitespace**: prefer `gap-4`/`gap-6` between sections; avoid stacking 6+ dense blocks without grouping.
+- **Grid**: use responsive grids (`sm:grid-cols-2`, `lg:grid-cols-3`) — never cram 4+ columns of text on mobile.
+
+## Color coding (semantic, consistent)
+
+Use only the five clinical tones from `@/lib/statusColors` / CSS classes `status-soft-*`:
+
+| Meaning | Tone | Treatment |
+|---------|------|-----------|
+| Allergies / critical alerts | danger | Soft danger badge, left border `border-l-4 border-destructive` |
+| Active encounter / in progress | info | Soft info badge or primary accent |
+| Completed / verified | success | Soft success badge |
+| Pending / due / needs attention | warning | Soft warning badge |
+| Draft / inactive / self-pay | muted | Soft muted badge |
+| Destructive actions | danger | `variant="destructive"` only for irreversible actions |
+
+Reuse design tokens (`primary`, `success`, `warning`, `info`, `destructive`, `muted`) — do not invent purple/orange/cyan/rainbow status colors.
+
+## Components & buttons
+
+- Use shadcn `Button`, `Badge`, `Card`, `Tabs` — match patterns from `EncountersPage` and `PatientsPage`.
+- **Primary button**: one per card/section (main action). Secondary actions: `variant="outline"` or `ghost`.
+- **Icon buttons**: always include `aria-label`.
+- **Tables**: zebra optional; status as colored `Badge`, not raw text.
+- **Empty states**: icon + one-line message + optional CTA — never a bare "—".
+
+## Reduce overload
+
+- Collapse secondary detail into tooltips, popovers, or "View more" — e.g. emergency contact on hover.
+- Group related fields in labeled **info tiles** (icon + label + value), not long label:value paragraphs.
+- Long forms: use stepped sections or accordion cards, not one scrolling wall.
+- Tab badges: only for counts that need attention (pending orders, unsigned notes).
+
+## Typography
+
+- Section titles: `text-base font-semibold` inside cards; page title only in header.
+- Labels: `text-xs uppercase tracking-wider text-muted-foreground`.
+- Values: `text-sm font-medium text-foreground`.
+- Monospace for MRN, encounter #, codes only.
+
+## Do not
+
+- Add new dependencies for styling.
+- Duplicate patient demographics in every tab — link back to header/profile.
+- Use more than 2 font weights per section.
+- Return `null` for empty chart/header — show skeleton, error, or guided empty state.
+
+## Reference files
+
+- Shell: `PatientDashboard.jsx`, `PatientChartHeader.jsx`, `PatientChartEncounterBar.jsx`
+- Patterns: `checkout/CheckoutWorkspace.jsx`, `PatientSummaryTab.jsx`, `encounters/EncountersPage.jsx`
+- Utils: `patientChartUtils.js`, existing `Badge` status maps in `checkoutConstants.js`
+
+## Acceptance check
+
+Before finishing UI work on this area: header readable in 5s; each tab has clear visual sections; status/color consistent; mobile does not horizontal-scroll except tab bar; no wall of ungrouped fields.

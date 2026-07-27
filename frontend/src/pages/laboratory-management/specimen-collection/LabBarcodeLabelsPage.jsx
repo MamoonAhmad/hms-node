@@ -1,7 +1,18 @@
 import { useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { labApi } from '@/services/api';
+import { orderApi } from '@/services/api';
+import { mapOrderToLabRow } from '@/lib/orderWorklist';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function loadSpecimenById(id) {
+  if (!UUID_RE.test(String(id))) return null;
+  const res = await orderApi.getOrderById(id);
+  const order = res?.data || res;
+  if (!order?.id) return null;
+  return mapOrderToLabRow(order);
+}
 
 export function LabBarcodeLabelsPage() {
   const [searchParams] = useSearchParams();
@@ -19,19 +30,19 @@ export function LabBarcodeLabelsPage() {
   useEffect(() => {
     if (ids.length === 0) return;
     setLoading(true);
-    if (ids.length === 1) {
-      labApi.getLabTestById(ids[0]).then((data) => {
-        setSpecimen(data);
-        setSpecimens([]);
-        setLoading(false);
-      });
-    } else {
-      Promise.all(ids.map((id) => labApi.getLabTestById(id))).then((results) => {
-        setSpecimens(results.filter(Boolean));
-        setSpecimen(null);
-        setLoading(false);
-      });
-    }
+    Promise.all(ids.map((id) => loadSpecimenById(id).catch(() => null)))
+      .then((results) => {
+        const found = results.filter(Boolean);
+        if (ids.length === 1) {
+          setSpecimen(found[0] || null);
+          setSpecimens([]);
+        } else {
+          setSpecimens(found);
+          setSpecimen(null);
+        }
+      })
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids.join(',')]);
 
   const handlePrint = () => window.print();
@@ -73,7 +84,7 @@ export function LabBarcodeLabelsPage() {
 }
 
 function LabelCard({ specimen }) {
-  const specimenNo = specimen.specimenNo || `SP-${specimen.id}`;
+  const specimenNo = specimen.specimenNo || `SP-${String(specimen.id || '').slice(0, 8)}`;
   const mrn = specimen.patient?.mrn || '';
   return (
     <div className="rounded border border-border p-4 space-y-2 print:break-inside-avoid">

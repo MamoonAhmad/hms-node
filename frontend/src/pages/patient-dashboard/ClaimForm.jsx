@@ -100,7 +100,7 @@ export function ClaimForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="ehr-form space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">Insurance Claim Form</h2>
         <div className="flex gap-2">

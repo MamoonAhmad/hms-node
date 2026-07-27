@@ -1,3 +1,5 @@
+import { isRegistrationOnlyChannel } from '@/components/patients/patientRegistrationConstants';
+
 /** Stored on `referredBy`; labels shown in UI and review. */
 export const REFERRAL_SOURCES = [
   { value: 'physician-referral', label: 'Physician referral' },
@@ -65,6 +67,14 @@ export function formatDepartmentForReview(value) {
 
 export const GENERAL_APPOINTMENT_VISIT_TYPE = 'general';
 
+export const VISIT_MODALITY_OPTIONS = [
+  { value: 'in-house', label: 'In Person' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'telehealth', label: 'Telehealth' },
+];
+
+export const DEFAULT_VISIT_MODALITY = 'in-house';
+
 export const APPOINTMENT_VISIT_TYPE_OPTIONS = [
   { value: 'new-patient', label: 'New Patient' },
   { value: 'follow-up', label: 'Follow-up' },
@@ -85,8 +95,15 @@ export const VISIT_TYPE_TO_API_TYPE = {
   urgent: 'New',
   telehealth: 'Televisit',
   procedure: 'New',
-  [GENERAL_APPOINTMENT_VISIT_TYPE]: 'New',
+  [GENERAL_APPOINTMENT_VISIT_TYPE]: 'General',
 };
+
+function minutesToHhMm(totalMinutes) {
+  const mins = Math.max(0, Math.min(24 * 60 - 1, totalMinutes));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
 
 export const API_TYPE_TO_VISIT_TYPE = {
   New: 'new-patient',
@@ -210,11 +227,30 @@ function validateGeneralAppointmentTimes(formData, newErrors) {
 
 /** Validates appointment fields on patient registration forms; mutates `newErrors`. */
 export function validateRegistrationAppointmentFields(formData, newErrors, options = {}) {
-  const { requireProvider = false, timeSlotOptions } = options;
+  const {
+    requireProvider = false,
+    requireDepartment = false,
+    timeSlotOptions,
+    skipAppointment = false,
+  } = options;
+
+  if (skipAppointment) return;
+
+  if (!formData.visitModality) {
+    newErrors.visitModality = 'Visit type is required';
+  }
 
   if (!formData.appointmentDate) newErrors.appointmentDate = 'Date is required';
   if (!formData.appointmentVisitType) {
     newErrors.appointmentVisitType = 'Appointment type is required';
+  }
+
+  if (
+    requireDepartment &&
+    !formData.appointmentDepartmentId &&
+    !formData.appointmentDepartment
+  ) {
+    newErrors.appointmentDepartment = 'Department is required';
   }
 
   if (requireProvider && !formData.appointmentProviderId && !formData.appointmentProvider) {
@@ -231,9 +267,19 @@ export function validateRegistrationAppointmentFields(formData, newErrors, optio
 }
 
 /** Build API appointment create payload from patient registration form data. */
-export function buildAppointmentSubmitPayloadFromRegistration(formData, patientId, { defaultStatus } = {}) {
-  const apiAppointmentType =
+export function buildAppointmentSubmitPayloadFromRegistration(
+  formData,
+  patientId,
+  { defaultStatus, evaluateRegistrationStatus = false, timeSlotOptions } = {},
+) {
+  const catalogTypeName =
     formData.appointmentTypeName ||
+    (formData.appointmentVisitType &&
+    !VISIT_TYPE_TO_API_TYPE[formData.appointmentVisitType]
+      ? formData.appointmentVisitType
+      : null);
+  const apiAppointmentType =
+    catalogTypeName ||
     VISIT_TYPE_TO_API_TYPE[formData.appointmentVisitType] ||
     formData.appointmentVisitType ||
     'New';
@@ -251,6 +297,20 @@ export function buildAppointmentSubmitPayloadFromRegistration(formData, patientI
       formData.appointmentStartTime,
       formData.appointmentEndTime,
     );
+  } else if (!isGeneral && formData.appointmentTime) {
+    const selectedSlot = (timeSlotOptions || []).find(
+      (slot) => slot.value === formData.appointmentTime,
+    );
+    const typeDuration = Number(formData.appointmentTypeDefaultTime);
+    if (selectedSlot?.duration && Number(selectedSlot.duration) >= 5) {
+      duration = Math.round(Number(selectedSlot.duration));
+    } else if (Number.isFinite(typeDuration) && typeDuration >= 5) {
+      duration = Math.round(typeDuration);
+    }
+    const startMins = parseTimeToMinutes(formData.appointmentTime);
+    appointmentEndTime =
+      selectedSlot?.endTime ||
+      (startMins != null ? minutesToHhMm(startMins + duration) : null);
   }
 
   let notes = buildNotesWithReferral(formData.appointmentNotes, referral);
@@ -266,12 +326,71 @@ export function buildAppointmentSubmitPayloadFromRegistration(formData, patientI
     appointmentEndTime,
     duration,
     appointmentType: apiAppointmentType,
+    appointmentTypeId: formData.appointmentTypeId || undefined,
     visitReason: formData.appointmentReason?.trim() || null,
     department: formData.appointmentDepartment?.trim() || null,
     departmentId: formData.appointmentDepartmentId || null,
     provider: formData.appointmentProvider?.trim() || null,
     providerId: formData.appointmentProviderId || null,
     status: formData.status || defaultStatus || null,
+    visitModality: formData.visitModality || DEFAULT_VISIT_MODALITY,
+    accessibilityRequirements: formData.accessibilityRequirements || [],
+    accessibilityRequirementsNotes: formData.accessibilityRequirementsNotes?.trim() || null,
+    evaluateRegistrationStatus,
     notes,
   };
+}
+
+/** Whether registration should create a linked outpatient appointment/encounter. */
+export function shouldCreateAppointmentFromRegistration(formData) {
+  if (!formData) return false;
+  if (formData.bookAppointment) return true;
+  if (isRegistrationOnlyChannel(formData.registrationChannel)) return false;
+  return Boolean(String(formData.appointmentDate || '').trim());
+}
+
+function normalizeAppointmentDateKey(value) {
+  if (!value) return '';
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const y = parsed.getFullYear();
+  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+  const d = String(parsed.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Create a linked appointment after registration when details were captured. */
+export async function createAppointmentFromRegistrationIfNeeded(
+  patientId,
+  formData,
+  {
+    appointmentApi,
+    defaultStatus,
+    evaluateRegistrationStatus = true,
+    existingAppointments = [],
+    timeSlotOptions,
+  } = {},
+) {
+  if (!patientId || !appointmentApi || !shouldCreateAppointmentFromRegistration(formData)) {
+    return null;
+  }
+
+  const targetDate = normalizeAppointmentDateKey(formData.appointmentDate);
+  const targetTime = String(formData.appointmentTime || formData.appointmentStartTime || '').trim();
+  const alreadyBooked = (existingAppointments || []).some((row) => {
+    const rowDate = normalizeAppointmentDateKey(row.appointmentDate);
+    const rowTime = String(row.appointmentTime || '').trim();
+    return rowDate === targetDate && (!targetTime || rowTime === targetTime);
+  });
+  if (alreadyBooked) return null;
+
+  const payload = buildAppointmentSubmitPayloadFromRegistration(formData, patientId, {
+    defaultStatus,
+    evaluateRegistrationStatus,
+    timeSlotOptions,
+  });
+  const response = await appointmentApi.create(payload);
+  return response?.data ?? response;
 }

@@ -17,17 +17,64 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Trash2, Save, Pencil } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Search, Trash2, Save, Pencil, BookmarkPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STATUS_SOFT } from '@/lib/statusColors';
 import procedureCodesData from '@/data/procedureCodes.json';
 import { useAuth } from '@/contexts/AuthContext';
-import { orderApi } from '@/services/api';
+import { orderApi, vaccineApi, radiologyStudyApi, labTestApi } from '@/services/api';
+import { medicationCatalogApi } from '@/services/api/medicationCatalog.api';
 import { usePatientChart } from './PatientChartContext';
 import { apiOrderToRow } from './patientChartUtils';
+import { ChartTabShell } from './components/chart-ui';
+import { CUSTOM_ORDER_SETS_STORAGE_KEY, HANDLING_LABELS } from './medications/medicationConstants';
+import { MedicationOrderDetailSidebar } from './medications/MedicationOrderDetailSidebar';
+import { procedureToMedication } from './medications/medicationFormUtils';
+
+function mapMedicineToOrderItem(med) {
+  const strengthLabel = [med.strength, med.strengthUnit].filter(Boolean).join(' ').trim();
+  const baseName = med.name || med.genericName || med.brandName || 'Medication';
+  const name =
+    strengthLabel && !String(baseName).toLowerCase().includes(String(med.strength || '').toLowerCase())
+      ? `${baseName} ${strengthLabel}`
+      : baseName;
+  return {
+    id: med.id,
+    code: med.code || med.ndc || med.rxNorm || med.id,
+    name,
+    category: 'Pharmacy',
+    subcategory:
+      med.therapeuticCategory || med.medicationClass || med.dosageForm || undefined,
+    strength: med.strength,
+    strengthUnit: med.strengthUnit,
+    dosageForm: med.dosageForm,
+    route: med.route,
+    genericName: med.genericName,
+    brandName: med.brandName,
+    medicationClass: med.medicationClass,
+    therapeuticCategory: med.therapeuticCategory,
+    formularyStatus: med.formularyStatus,
+    formularyTier: med.formularyTier,
+    preferredDrug: med.preferredDrug,
+    ndcSafetyFlag: med.ndcSafetyFlag,
+    defaultDose: med.defaultDose,
+    defaultDoseUnit: med.defaultDoseUnit,
+    defaultFrequency: med.defaultFrequency,
+    defaultDuration: med.defaultDuration,
+    durationUnit: med.durationUnit,
+    source: 'medication-formulary',
+  };
+}
 
 const MIN_SEARCH_LENGTH = 2;
 const DEBOUNCE_MS = 300;
-const CUSTOM_ORDER_SETS_STORAGE_KEY = 'hms-custom-order-sets';
 
 function loadCustomOrderSets() {
   try {
@@ -38,11 +85,22 @@ function loadCustomOrderSets() {
   }
 }
 
+function saveCustomOrderSets(sets) {
+  localStorage.setItem(CUSTOM_ORDER_SETS_STORAGE_KEY, JSON.stringify(sets));
+}
+
+function procedureKey(procedure) {
+  if (!procedure) return '';
+  return String(procedure.id || `${procedure.category || ''}:${procedure.code || procedure.name || ''}`);
+}
+
+/** Categories use muted/info only — not a rainbow of unrelated hues. */
 const CATEGORY_TAG_CLASSES = {
-  Radiology: 'bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary border-primary/30 dark:border-primary/50',
-  Lab: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-green-200 dark:border-green-800',
-  Pharmacy: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200 dark:border-purple-800',
-  Procedures: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border-orange-200 dark:border-orange-800',
+  Radiology: STATUS_SOFT.info,
+  Lab: STATUS_SOFT.success,
+  Pharmacy: STATUS_SOFT.info,
+  Procedures: STATUS_SOFT.muted,
+  Immunization: STATUS_SOFT.success,
 };
 
 function useDebounce(value, delay) {
@@ -68,20 +126,23 @@ function CategoryTag({ category }) {
   );
 }
 
-const STATUS_OPTIONS = ['Scheduled', 'Discontinue', 'Cancelled', 'Completed'];
-
-const SITE_PLACEHOLDER = 'select';
-const SITE_OPTIONS = [
-  { value: SITE_PLACEHOLDER, label: 'Select' },
-  { value: 'onsite', label: 'Onsite' },
-  { value: 'sendout', label: 'Send out' },
+/** Keep in sync with backend ORDER_STATUS_VALUES (incl. Results tab updates). */
+const STATUS_OPTIONS = [
+  'Scheduled',
+  'Pending',
+  'In Progress',
+  'On Hold',
+  'Cancelled',
+  'Completed',
+  'Resulted',
 ];
 
-const CATEGORY_DISPLAY_ORDER = ['Radiology', 'Lab', 'Pharmacy', 'Procedures'];
+const CATEGORY_DISPLAY_ORDER = ['Radiology', 'Lab', 'Pharmacy', 'Immunization', 'Procedures'];
 const CATEGORY_HEADING_LABELS = {
   Radiology: 'Radiology',
   Lab: 'Lab',
   Pharmacy: 'Medicines',
+  Immunization: 'Immunizations / Vaccines',
   Procedures: 'Procedures',
 };
 
@@ -110,6 +171,21 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
   const [customOrderResultsVisible, setCustomOrderResultsVisible] = useState(false);
   const [customOrderHighlightedIndex, setCustomOrderHighlightedIndex] = useState(0);
   const [customOrderSetsRefresh, setCustomOrderSetsRefresh] = useState(0);
+  const [loadedFromCustomSet, setLoadedFromCustomSet] = useState(false);
+  const [customSetProcedureKeys, setCustomSetProcedureKeys] = useState(() => new Set());
+  const [hasExtraItemsBeyondCustomSet, setHasExtraItemsBeyondCustomSet] = useState(false);
+  const [saveAsCustomOpen, setSaveAsCustomOpen] = useState(false);
+  const [saveAsCustomName, setSaveAsCustomName] = useState('');
+  const [saveAsCustomError, setSaveAsCustomError] = useState(null);
+  const [vaccineResults, setVaccineResults] = useState([]);
+  const [vaccineSearchLoading, setVaccineSearchLoading] = useState(false);
+  const [medicines, setMedicines] = useState([]);
+  const [radiologyStudies, setRadiologyStudies] = useState([]);
+  const [labTests, setLabTests] = useState([]);
+  const [medDetailOpen, setMedDetailOpen] = useState(false);
+  const [medDetailMedication, setMedDetailMedication] = useState(null);
+  const [medDetailOrderId, setMedDetailOrderId] = useState(null);
+  const [medDetailInitial, setMedDetailInitial] = useState(null);
   const searchContainerRef = useRef(null);
   const customOrderContainerRef = useRef(null);
 
@@ -131,7 +207,7 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
         const res = await orderApi.getOrders({
           patientId,
           appointmentId: appointmentId || undefined,
-          limit: 200,
+          limit: 500,
         });
         if (!cancelled) setOrders((res?.data ?? []).map(apiOrderToRow));
       } catch {
@@ -142,16 +218,165 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
       cancelled = true;
     };
   }, [patientId, appointmentId, isSampleChart, contextOrders]);
-  const procedures = useMemo(() => procedureCodesData, []);
+
+  useEffect(() => {
+    if (isSampleChart) {
+      setRadiologyStudies([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await radiologyStudyApi.getActive();
+        if (!cancelled) setRadiologyStudies(res?.data ?? []);
+      } catch {
+        if (!cancelled) setRadiologyStudies([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSampleChart]);
+
+  useEffect(() => {
+    if (isSampleChart) {
+      setLabTests([]);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await labTestApi.getActive();
+        if (!cancelled) setLabTests(res?.data ?? []);
+      } catch {
+        if (!cancelled) setLabTests([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSampleChart]);
+
+  useEffect(() => {
+    // Always load Medication Formulary catalog for order search (all patients/departments).
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await medicationCatalogApi.searchActive({ limit: 100 });
+        if (!cancelled) {
+          setMedicines((Array.isArray(res?.data) ? res.data : []).map(mapMedicineToOrderItem));
+        }
+      } catch {
+        if (!cancelled) setMedicines([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const procedures = useMemo(() => {
+    if (isSampleChart) {
+      const nonPharmacySample = procedureCodesData.filter((p) => p.category !== 'Pharmacy');
+      return [...nonPharmacySample, ...medicines];
+    }
+    const staticProcedures = procedureCodesData.filter(
+      (p) => p.category !== 'Radiology' && p.category !== 'Lab' && p.category !== 'Pharmacy',
+    );
+    const radiologyFromMaster = radiologyStudies.map((study) => ({
+      id: study.id,
+      code: study.code,
+      name: study.name,
+      category: 'Radiology',
+      subcategory: study.modality,
+      bodyPart: study.bodyPart,
+    }));
+    const labFromMaster = labTests.map((lt) => ({
+      id: lt.id,
+      code: lt.code,
+      name: lt.name,
+      category: 'Lab',
+      subcategory: lt.category,
+      specimenType: lt.specimenType,
+    }));
+    return [...staticProcedures, ...radiologyFromMaster, ...labFromMaster, ...medicines];
+  }, [radiologyStudies, labTests, medicines, isSampleChart]);
+
+  useEffect(() => {
+    if (debouncedSearch.length < MIN_SEARCH_LENGTH) {
+      setVaccineResults([]);
+      return undefined;
+    }
+    let cancelled = false;
+    setVaccineSearchLoading(true);
+    (async () => {
+      try {
+        const [vaccineRes, medicineRes] = await Promise.allSettled([
+          vaccineApi.getActiveForOrders({ search: debouncedSearch, limit: 25 }),
+          medicationCatalogApi.searchActive({ search: debouncedSearch, limit: 50 }),
+        ]);
+        if (cancelled) return;
+        setVaccineResults(
+          vaccineRes.status === 'fulfilled' && Array.isArray(vaccineRes.value?.data)
+            ? vaccineRes.value.data
+            : [],
+        );
+        if (medicineRes.status === 'fulfilled' && Array.isArray(medicineRes.value?.data)) {
+          const searched = medicineRes.value.data.map(mapMedicineToOrderItem);
+          setMedicines((prev) => {
+            const byId = new Map(prev.map((m) => [m.id, m]));
+            searched.forEach((m) => byId.set(m.id, m));
+            return Array.from(byId.values());
+          });
+        }
+      } catch {
+        if (!cancelled) setVaccineResults([]);
+      } finally {
+        if (!cancelled) setVaccineSearchLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearch]);
 
   const searchResults = useMemo(() => {
     if (debouncedSearch.length < MIN_SEARCH_LENGTH) return [];
     const q = debouncedSearch.toLowerCase();
-    return procedures.filter(
-      (p) =>
-        p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
-    );
-  }, [procedures, debouncedSearch]);
+    const matchesFormulary = (p) => {
+      const code = String(p.code || '').toLowerCase();
+      const name = String(p.name || '').toLowerCase();
+      const generic = String(p.genericName || '').toLowerCase();
+      const brand = String(p.brandName || '').toLowerCase();
+      const medClass = String(p.medicationClass || '').toLowerCase();
+      const therapeutic = String(p.therapeuticCategory || '').toLowerCase();
+      return (
+        code.includes(q) ||
+        name.includes(q) ||
+        generic.includes(q) ||
+        brand.includes(q) ||
+        medClass.includes(q) ||
+        therapeutic.includes(q)
+      );
+    };
+    const procedureMatches = procedures.filter((p) => {
+      if (p.category === 'Pharmacy') return matchesFormulary(p);
+      const code = String(p.code || '').toLowerCase();
+      const name = String(p.name || '').toLowerCase();
+      return code.includes(q) || name.includes(q);
+    });
+    const seen = new Set(procedureMatches.map((p) => `${p.category}:${p.id || p.code}`));
+    const vaccineMatches = vaccineResults.filter((v) => {
+      const key = `${v.category}:${v.id || v.code}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    // Prefer formulary medicines first in results.
+    const pharmacy = procedureMatches.filter((p) => p.category === 'Pharmacy');
+    const other = procedureMatches.filter((p) => p.category !== 'Pharmacy');
+    return [...pharmacy, ...other, ...vaccineMatches];
+  }, [procedures, debouncedSearch, vaccineResults]);
 
   const customOrderSets = useMemo(
     () => loadCustomOrderSets(),
@@ -191,46 +416,265 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
     return result;
   }, [orders]);
 
+  const openMedicationDetail = useCallback((procedure, order = null) => {
+    const medication = procedureToMedication(procedure) || procedureToMedication({
+      id: procedure?.id,
+      name: procedure?.name,
+      code: procedure?.code,
+    });
+    setMedDetailMedication(medication);
+    setMedDetailOrderId(order?.id || null);
+    setMedDetailInitial(order?.medicationDetails || null);
+    setMedDetailOpen(true);
+  }, []);
+
+  const closeMedicationDetail = useCallback(() => {
+    setMedDetailOpen(false);
+    setMedDetailMedication(null);
+    setMedDetailOrderId(null);
+    setMedDetailInitial(null);
+  }, []);
+
   const addToOrder = useCallback((procedure) => {
-    const now = new Date().toISOString();
-    setOrders((prev) => [
-      ...prev,
-      { id: `${procedure.id}-${Date.now()}`, procedure, dateTime: now, status: 'Scheduled', site: '', orderedBy: null },
-    ]);
     setResultsVisible(false);
     setSearchRaw('');
-  }, []);
+
+    // Pharmacy / medication formulary items open the detail form first.
+    if (procedure?.category === 'Pharmacy') {
+      openMedicationDetail(procedure, null);
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const key = procedureKey(procedure);
+    setOrders((prev) => [
+      ...prev,
+      {
+        id: `${procedure.id}-${Date.now()}`,
+        procedure,
+        dateTime: now,
+        status: 'Scheduled',
+        orderedBy: null,
+        _fromCustomSet: false,
+      },
+    ]);
+    // Adding via Search orders after a custom set re-enables "Save as custom Order"
+    setHasExtraItemsBeyondCustomSet((prev) => {
+      if (!loadedFromCustomSet) return prev;
+      return prev || !customSetProcedureKeys.has(key);
+    });
+  }, [loadedFromCustomSet, customSetProcedureKeys, openMedicationDetail]);
+
+  const handleMedicationDetailConfirm = useCallback((details) => {
+    const medication = medDetailMedication;
+    if (!medication) return;
+
+    const procedure = {
+      id: medication.id,
+      code: medication.code,
+      name: medication.name,
+      category: 'Pharmacy',
+      subcategory: medication.medicationClass || medication.dosageForm,
+      strength: medication.strength,
+      strengthUnit: medication.strengthUnit,
+      dosageForm: medication.dosageForm,
+      route: medication.route,
+      genericName: medication.genericName,
+      brandName: medication.brandName,
+      medicationClass: medication.medicationClass,
+      therapeuticCategory: medication.therapeuticCategory,
+      formularyStatus: medication.formularyStatus,
+      formularyTier: medication.formularyTier,
+      preferredDrug: medication.preferredDrug,
+      defaultDose: medication.defaultDose,
+      defaultDoseUnit: medication.defaultDoseUnit,
+      defaultFrequency: medication.defaultFrequency,
+      defaultDuration: medication.defaultDuration,
+      durationUnit: medication.durationUnit,
+      instructions: medication.instructions,
+      ndc: medication.ndc,
+      rxNorm: medication.rxNorm,
+      source: 'medication-formulary',
+    };
+
+    const key = procedureKey(procedure);
+
+    if (medDetailOrderId) {
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === medDetailOrderId
+            ? {
+                ...o,
+                procedure: { ...o.procedure, ...procedure },
+                medicationDetails: details,
+                _medicationSigned: details.status === 'Signed',
+              }
+            : o,
+        ),
+      );
+    } else {
+      const now = new Date().toISOString();
+      setOrders((prev) => [
+        ...prev,
+        {
+          id: `${procedure.id}-${Date.now()}`,
+          procedure,
+          dateTime: now,
+          status: 'Scheduled',
+          orderedBy: null,
+          _fromCustomSet: false,
+          medicationDetails: details,
+          _medicationSigned: false,
+        },
+      ]);
+      setHasExtraItemsBeyondCustomSet((prev) => {
+        if (!loadedFromCustomSet) return prev;
+        return prev || !customSetProcedureKeys.has(key);
+      });
+    }
+
+    closeMedicationDetail();
+  }, [
+    medDetailMedication,
+    medDetailOrderId,
+    loadedFromCustomSet,
+    customSetProcedureKeys,
+    closeMedicationDetail,
+  ]);
 
   const addCustomOrderSet = useCallback((orderSet) => {
     const now = new Date().toISOString();
-    const newOrders = (orderSet.orders || []).map((proc) => ({
+    const setOrdersList = orderSet.orders || [];
+    const newOrders = setOrdersList.map((proc) => ({
       id: `${proc.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       procedure: proc,
       dateTime: now,
       status: 'Scheduled',
-      site: '',
       orderedBy: null,
+      _fromCustomSet: true,
     }));
     setOrders((prev) => [...prev, ...newOrders]);
     setCustomOrderResultsVisible(false);
     setCustomOrderSearchRaw('');
+    setLoadedFromCustomSet(true);
+    setHasExtraItemsBeyondCustomSet(false);
+    setCustomSetProcedureKeys((prev) => {
+      const next = new Set(prev);
+      setOrdersList.forEach((proc) => next.add(procedureKey(proc)));
+      return next;
+    });
   }, []);
 
-  const updateStatus = useCallback((orderId, status) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status } : o))
-    );
-  }, []);
+  const updateStatus = useCallback(
+    async (orderId, status) => {
+      const current = orders.find((o) => o.id === orderId);
+      if (!current || current.status === status) return;
+      const previousStatus = current.status;
 
-  const updateSite = useCallback((orderId, site) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, site } : o))
-    );
-  }, []);
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status } : o)),
+      );
+      setSaveError(null);
+
+      if (!current._persisted) return;
+
+      if (isSampleChart) {
+        setContextOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, status } : o)),
+        );
+        return;
+      }
+
+      try {
+        await orderApi.updateOrderStatus(orderId, status);
+        refreshChart?.();
+      } catch (err) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, status: previousStatus } : o)),
+        );
+        setSaveError(err?.message || 'Failed to update order status.');
+      }
+    },
+    [orders, isSampleChart, setContextOrders, refreshChart],
+  );
 
   const removeOrder = useCallback((orderId) => {
-    setOrders((prev) => prev.filter((o) => o.id !== orderId));
-  }, []);
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.id !== orderId);
+      const unsaved = next.filter((o) => !o._persisted);
+      if (unsaved.length === 0) {
+        setLoadedFromCustomSet(false);
+        setCustomSetProcedureKeys(new Set());
+        setHasExtraItemsBeyondCustomSet(false);
+      } else if (loadedFromCustomSet) {
+        const hasExtra = unsaved.some(
+          (o) => !o._fromCustomSet || !customSetProcedureKeys.has(procedureKey(o.procedure)),
+        );
+        setHasExtraItemsBeyondCustomSet(hasExtra);
+      }
+      return next;
+    });
+  }, [loadedFromCustomSet, customSetProcedureKeys]);
+
+  const unsavedOrdersForCustomSet = useMemo(
+    () => orders.filter((o) => !o._persisted),
+    [orders],
+  );
+
+  const canSaveAsCustomOrder = useMemo(() => {
+    if (unsavedOrdersForCustomSet.length === 0) return false;
+    // Search-orders path: always allow saving as a new custom order set
+    if (!loadedFromCustomSet) return true;
+    // Custom-order path: enable only after user adds at least one new item
+    return hasExtraItemsBeyondCustomSet;
+  }, [unsavedOrdersForCustomSet.length, loadedFromCustomSet, hasExtraItemsBeyondCustomSet]);
+
+  const openSaveAsCustomDialog = useCallback(() => {
+    if (!canSaveAsCustomOrder) return;
+    setSaveAsCustomName('');
+    setSaveAsCustomError(null);
+    setSaveAsCustomOpen(true);
+  }, [canSaveAsCustomOrder]);
+
+  const handleSaveAsCustomOrder = useCallback(() => {
+    const name = saveAsCustomName.trim();
+    if (!name) {
+      setSaveAsCustomError('Enter a name for this custom order set.');
+      return;
+    }
+    if (unsavedOrdersForCustomSet.length === 0) {
+      setSaveAsCustomError('Add at least one order before saving as a custom order set.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const seen = new Set();
+    const setOrdersList = [];
+    unsavedOrdersForCustomSet.forEach((order) => {
+      const key = procedureKey(order.procedure);
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      setOrdersList.push({ ...order.procedure });
+    });
+
+    const existing = loadCustomOrderSets();
+    const newSet = {
+      id: `set-${Date.now()}`,
+      name,
+      orders: setOrdersList,
+      createdAt: now,
+      updatedAt: now,
+    };
+    saveCustomOrderSets([...existing, newSet]);
+    setCustomOrderSetsRefresh((r) => r + 1);
+    setSaveAsCustomOpen(false);
+    setSaveAsCustomName('');
+    setSaveAsCustomError(null);
+    // After saving a new set from an amended custom set, treat as search-built again
+    setLoadedFromCustomSet(false);
+    setCustomSetProcedureKeys(new Set());
+    setHasExtraItemsBeyondCustomSet(false);
+  }, [saveAsCustomName, unsavedOrdersForCustomSet]);
 
   const startEditMode = useCallback(() => {
     setIsEditMode(true);
@@ -279,7 +723,9 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
           setSaveError('Open a patient chart (patient context required) to persist orders.');
           return;
         }
-        const payload = {
+
+        // Pharmacy orders are synced to signed give-in-clinic medication/MAR rows on the backend.
+        await orderApi.createOrders({
           patientId,
           appointmentId: appointmentId || null,
           locationId: null,
@@ -289,17 +735,46 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
             procedureName: o.procedure?.name ?? '',
             category: o.procedure?.category ?? 'Procedures',
             status: o.status ?? 'Scheduled',
-            site: o.site ?? '',
           })),
-        };
-        await orderApi.createOrders(payload);
-        await refreshChart();
-        const res = await orderApi.getOrders({
-          patientId,
-          appointmentId: appointmentId || undefined,
-          limit: 200,
         });
-        setOrders((res?.data ?? []).map(apiOrderToRow));
+
+        await refreshChart();
+        try {
+          const res = await orderApi.getOrders({
+            patientId,
+            appointmentId: appointmentId || undefined,
+            limit: 500,
+          });
+          const detailByKey = new Map(
+            newOrders
+              .filter((o) => o.medicationDetails)
+              .map((o) => [
+                `${o.procedure?.category || ''}:${o.procedure?.code || ''}:${o.procedure?.name || ''}`,
+                {
+                  medicationDetails: o.medicationDetails,
+                  _medicationSigned: !!o._medicationSigned,
+                  procedure: o.procedure,
+                },
+              ]),
+          );
+          setOrders(
+            (res?.data ?? []).map((row) => {
+              const mapped = apiOrderToRow(row);
+              const key = `${mapped.procedure?.category || ''}:${mapped.procedure?.code || ''}:${mapped.procedure?.name || ''}`;
+              const local = detailByKey.get(key);
+              if (!local) return mapped;
+              return {
+                ...mapped,
+                procedure: { ...mapped.procedure, ...local.procedure },
+                medicationDetails: local.medicationDetails,
+                // Chart Save persists the order; treat as signed for eMAR sync path.
+                _medicationSigned: true,
+              };
+            }),
+          );
+        } catch {
+          setOrders((prev) => prev.filter((o) => o._persisted));
+        }
       }
       const savedAt = new Date().toISOString();
       setLastSavedConsent({
@@ -382,18 +857,16 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
   }, []);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Patient Order Entry</h1>
-      <p className="text-muted-foreground text-sm">
-        Search procedure codes and add orders. Set date/time and status per order.
-      </p>
-
+    <ChartTabShell
+      title="Order entry"
+      description="Search procedure codes and add orders. Set date/time and status per order."
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-4">
         <div className="relative w-full sm:max-w-md flex-1 min-w-0" ref={searchContainerRef}>
           <label className="text-sm font-medium text-foreground block mb-1.5">Search orders</label>
-          <div className="flex h-10 items-center gap-2 rounded-md border bg-transparent shadow-xs overflow-hidden focus-within:ring-[3px] focus-within:ring-ring/50 focus-within:border-ring">
-            <span className="flex items-center justify-center pl-3 text-muted-foreground shrink-0" aria-hidden>
-              <Search className="h-4 w-4" />
+          <div className="flex h-8 items-center gap-2 rounded-md border bg-transparent shadow-xs overflow-hidden focus-within:ring-[3px] focus-within:ring-ring/50 focus-within:border-ring">
+            <span className="flex items-center justify-center pl-2.5 text-muted-foreground shrink-0" aria-hidden>
+              <Search className="h-3.5 w-3.5" />
             </span>
             <Input
               placeholder="Search orders (min 2 characters)"
@@ -404,7 +877,7 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
               }}
               onFocus={() => searchResults.length > 0 && setResultsVisible(true)}
               onKeyDown={onSearchKeyDown}
-              className="h-10 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-0 pr-3 py-2"
+              className="h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-0 pr-2.5 py-1"
             />
           </div>
           {resultsVisible && searchResults.length > 0 && (
@@ -432,9 +905,9 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
         </div>
         <div className="relative w-full sm:max-w-md flex-1 min-w-0" ref={customOrderContainerRef}>
           <label className="text-sm font-medium text-foreground block mb-1.5">Search a custom order</label>
-          <div className="flex h-10 items-center gap-2 rounded-md border bg-transparent shadow-xs overflow-hidden focus-within:ring-[3px] focus-within:ring-ring/50 focus-within:border-ring">
-            <span className="flex items-center justify-center pl-3 text-muted-foreground shrink-0" aria-hidden>
-              <Search className="h-4 w-4" />
+          <div className="flex h-8 items-center gap-2 rounded-md border bg-transparent shadow-xs overflow-hidden focus-within:ring-[3px] focus-within:ring-ring/50 focus-within:border-ring">
+            <span className="flex items-center justify-center pl-2.5 text-muted-foreground shrink-0" aria-hidden>
+              <Search className="h-3.5 w-3.5" />
             </span>
             <Input
               placeholder="Search custom order set (min 2 characters)"
@@ -448,7 +921,7 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
                 if (customOrderSearchResults.length > 0) setCustomOrderResultsVisible(true);
               }}
               onKeyDown={onCustomOrderKeyDown}
-              className="h-10 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-0 pr-3 py-2"
+              className="h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 pl-0 pr-2.5 py-1"
             />
           </div>
           {customOrderResultsVisible && customOrderSearchResults.length > 0 && (
@@ -482,7 +955,23 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={openSaveAsCustomDialog}
+                  disabled={!canSaveAsCustomOrder}
+                  title={
+                    loadedFromCustomSet && !hasExtraItemsBeyondCustomSet
+                      ? 'Add a new item via Search orders to save as a new custom order set'
+                      : unsavedOrdersForCustomSet.length === 0
+                        ? 'Add orders via Search orders to save as a custom order set'
+                        : 'Save current orders as a custom order set'
+                  }
+                >
+                  <BookmarkPlus className="h-4 w-4 mr-2" />
+                  Save as custom Order
+                </Button>
                 <Button onClick={handleSaveOrder} disabled={saving}>
                   <Save className="h-4 w-4 mr-2" />
                   {saving ? 'Saving…' : 'Save Order'}
@@ -518,17 +1007,32 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
                           <TableRow>
                             <TableHead>Order name</TableHead>
                             <TableHead>Order status</TableHead>
-                            <TableHead>Site</TableHead>
                             <TableHead>Order date and time</TableHead>
                             <TableHead>Ordered by</TableHead>
-                            <TableHead className="w-10" />
+                            <TableHead className="min-w-[140px] text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {categoryOrders.map((order) => (
+                          {categoryOrders.map((order) => {
+                            const isPharmacy = order.procedure?.category === 'Pharmacy';
+                            const showViewDetail =
+                              isPharmacy &&
+                              order.medicationDetails &&
+                              !order._medicationSigned &&
+                              order.medicationDetails.status !== 'Signed';
+                            return (
                             <TableRow key={order.id}>
                               <TableCell className="font-medium">
-                                {order.procedure.name}
+                                <div>
+                                  {order.procedure.name}
+                                  {isPharmacy && order.medicationDetails?.sigPreview ? (
+                                    <p className="mt-0.5 text-xs font-normal text-muted-foreground">
+                                      {HANDLING_LABELS[order.medicationDetails.handlingMethod] || 'Medication'}
+                                      {' · '}
+                                      {order.medicationDetails.sigPreview}
+                                    </p>
+                                  ) : null}
+                                </div>
                               </TableCell>
                               <TableCell>
                                 <Select
@@ -547,23 +1051,6 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
                                   </SelectContent>
                                 </Select>
                               </TableCell>
-                              <TableCell>
-                                <Select
-                                  value={order.site && order.site !== '' ? order.site : SITE_PLACEHOLDER}
-                                  onValueChange={(value) => updateSite(order.id, value === SITE_PLACEHOLDER ? '' : value)}
-                                >
-                                  <SelectTrigger className="h-8 w-full min-w-[120px] max-w-[160px]">
-                                    <SelectValue placeholder="Select" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {SITE_OPTIONS.map((opt) => (
-                                      <SelectItem key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </TableCell>
                               <TableCell className="text-muted-foreground">
                                 {formatDateTime(order.dateTime)}
                               </TableCell>
@@ -571,21 +1058,37 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
                                 {getOrderedBy(order)}
                               </TableCell>
                               <TableCell>
-                                {!isSavedOrder(order.id) && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                    onClick={() => removeOrder(order.id)}
-                                    title="Remove"
-                                  >
-                                    <Trash2 className="h-4 w-4 icon-action-delete" />
-                                  </Button>
-                                )}
+                                <div className="flex items-center justify-end gap-1">
+                                  {showViewDetail && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8"
+                                      onClick={() =>
+                                        openMedicationDetail(order.procedure, order)
+                                      }
+                                    >
+                                      View Detail
+                                    </Button>
+                                  )}
+                                  {!isSavedOrder(order.id) && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                      onClick={() => removeOrder(order.id)}
+                                      title="Remove"
+                                    >
+                                      <Trash2 className="h-4 w-4 icon-action-delete" />
+                                    </Button>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
-                          ))}
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
@@ -609,7 +1112,23 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
                   </p>
                 </div>
               )}
-              <div className="flex justify-end">
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={openSaveAsCustomDialog}
+                  disabled={!canSaveAsCustomOrder}
+                  title={
+                    loadedFromCustomSet && !hasExtraItemsBeyondCustomSet
+                      ? 'Add a new item via Search orders to save as a new custom order set'
+                      : unsavedOrdersForCustomSet.length === 0
+                        ? 'Add orders via Search orders to save as a custom order set'
+                        : 'Save current orders as a custom order set'
+                  }
+                >
+                  <BookmarkPlus className="h-4 w-4 mr-2" />
+                  Save as custom Order
+                </Button>
                 <Button onClick={handleSaveOrder} disabled={saving}>
                   <Save className="h-4 w-4 mr-2" />
                   {saving ? 'Saving…' : 'Save Order'}
@@ -619,6 +1138,65 @@ export function PatientOrderEntryTab({ patientId, appointmentId }) {
           </CardContent>
         </Card>
       </div>
-    </div>
+
+      <Dialog open={saveAsCustomOpen} onOpenChange={setSaveAsCustomOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save as custom Order</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label
+                htmlFor="save-as-custom-name"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
+                Custom order set name
+              </label>
+              <Input
+                id="save-as-custom-name"
+                placeholder="Enter order set name"
+                value={saveAsCustomName}
+                onChange={(e) => {
+                  setSaveAsCustomName(e.target.value);
+                  setSaveAsCustomError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveAsCustomOrder();
+                  }
+                }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {unsavedOrdersForCustomSet.length} order
+              {unsavedOrdersForCustomSet.length === 1 ? '' : 's'} will be saved in this set.
+            </p>
+            {saveAsCustomError && (
+              <p className="text-sm text-destructive">{saveAsCustomError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setSaveAsCustomOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleSaveAsCustomOrder} disabled={!saveAsCustomName.trim()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <MedicationOrderDetailSidebar
+        open={medDetailOpen}
+        onClose={closeMedicationDetail}
+        medication={medDetailMedication}
+        initialDetails={medDetailInitial}
+        existingOrders={orders
+          .filter((o) => o.procedure?.category === 'Pharmacy' && o.medicationDetails)
+          .map((o) => o.medicationDetails)}
+        onConfirm={handleMedicationDetailConfirm}
+      />
+    </ChartTabShell>
   );
 }

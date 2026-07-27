@@ -24,10 +24,10 @@ import { insuranceProviderApi } from '@/services/api';
 
 const COLUMNS = [
   {
-    key: 'id',
+    key: 'code',
     label: 'Payer ID',
     cellClassName: 'font-mono text-xs',
-    render: (row) => row.id,
+    render: (row) => row.code || '—',
   },
   { key: 'name', label: 'Payer Name', cellClassName: 'font-medium' },
   {

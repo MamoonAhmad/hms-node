@@ -175,13 +175,24 @@ export function DiagnosisCodesPage() {
           },
           {
             key: 'code',
-            label: 'Code',
+            label: 'ICD Code',
             cellClassName: 'font-mono font-medium',
+          },
+          {
+            key: 'description',
+            label: 'Description',
+            cellClassName: 'max-w-xs truncate',
+            render: (row) => row.description || '—',
           },
           {
             key: 'effectiveDate',
             label: 'Effective Date',
             render: (row) => formatDisplayDate(row.effectiveDate),
+          },
+          {
+            key: 'expiryDate',
+            label: 'Expiry Date',
+            render: (row) => formatDisplayDate(row.expiryDate),
           },
           {
             key: 'status',

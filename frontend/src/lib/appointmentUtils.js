@@ -1,9 +1,18 @@
 import { calcAge, formatDob } from '@/pages/patient-dashboard/patientChartUtils';
 
-export const HIDDEN_TIMELINE_STATUSES = ['Cancelled', 'No Show', 'No-Show', 'Deleted'];
+import { normalizeAppointmentStatus, APPOINTMENT_STATUS } from '@/lib/appointmentStatusWorkflow';
+
+export const HIDDEN_TIMELINE_STATUSES = [
+  APPOINTMENT_STATUS.CANCELLED,
+  APPOINTMENT_STATUS.NO_SHOW,
+  'No-Show',
+  APPOINTMENT_STATUS.LWBS,
+  'Deleted',
+];
 
 export function isHiddenFromTimeline(status) {
-  return HIDDEN_TIMELINE_STATUSES.includes(status);
+  const canonical = normalizeAppointmentStatus(status);
+  return HIDDEN_TIMELINE_STATUSES.includes(status) || HIDDEN_TIMELINE_STATUSES.includes(canonical);
 }
 
 export function formatPatientListName(patient) {

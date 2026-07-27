@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { FacilityConfigProvider } from '@/contexts/FacilityConfigContext';
+import { TopbarDepartmentProvider } from '@/contexts/TopbarDepartmentContext';
 import { Sidebar } from './Sidebar';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 import { Topbar } from './Topbar';
@@ -9,22 +10,37 @@ function LayoutContent() {
   const { isCollapsed } = useSidebar();
   const { pathname } = useLocation();
   const isFullBleedWorkspace = pathname.startsWith('/patient-dashboard');
+  const isPrintView =
+    /^\/laboratory-management\/result-management\/report\//.test(pathname);
+
+  if (isPrintView) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Outlet />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen overflow-hidden bg-background">
       <Sidebar />
       <main
         className={cn(
-          'transition-all duration-300 flex min-h-screen flex-col',
+          'flex h-screen flex-col overflow-hidden transition-all duration-300',
           isCollapsed ? 'pl-16' : 'pl-[17.6rem]'
         )}
       >
         <Topbar />
-        <div className="app-shell-bg flex-1 overflow-auto min-h-0">
+        <div
+          className={cn(
+            'app-shell-bg min-h-0 flex-1',
+            isFullBleedWorkspace ? 'overflow-hidden' : 'overflow-auto',
+          )}
+        >
           <div
             className={
               isFullBleedWorkspace
-                ? 'mx-auto w-full max-w-[1600px]'
+                ? 'h-full w-full'
                 : 'mx-auto w-full max-w-[1600px] p-5 lg:p-7'
             }
           >
@@ -39,9 +55,11 @@ function LayoutContent() {
 export function Layout() {
   return (
     <FacilityConfigProvider>
-      <SidebarProvider>
-        <LayoutContent />
-      </SidebarProvider>
+      <TopbarDepartmentProvider>
+        <SidebarProvider>
+          <LayoutContent />
+        </SidebarProvider>
+      </TopbarDepartmentProvider>
     </FacilityConfigProvider>
   );
 }

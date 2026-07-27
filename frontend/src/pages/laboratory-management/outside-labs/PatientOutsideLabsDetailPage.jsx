@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,24 +26,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ArrowLeft, Eye, Edit, Printer } from 'lucide-react';
-import { labApi } from '@/services/api';
+import { orderApi } from '@/services/api';
 import { EditOutsideLabOrderDialog } from './EditOutsideLabOrderDialog';
-
-const ORDER_STATUS_OPTIONS = ['Send out', 'Received report'];
+import {
+  calcAge,
+  mapOrderToOutsideLabRow,
+  outsideLabStatusToOrderStatus,
+} from '@/lib/orderWorklist';
 
 function formatDateTime(str) {
   if (!str) return '-';
   return new Date(str).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function calcAge(dob) {
-  if (!dob) return '-';
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
 }
 
 function OrderStatusBadge({ status }) {
@@ -62,6 +55,8 @@ export function PatientOutsideLabsDetailPage() {
   const { patientId } = useParams();
   const navigate = useNavigate();
   const [tests, setTests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
     testId: '',
     testName: '',
@@ -70,19 +65,61 @@ export function PatientOutsideLabsDetailPage() {
   const [viewTest, setViewTest] = useState(null);
   const [editTest, setEditTest] = useState(null);
 
+  const loadTests = async () => {
+    if (!patientId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await orderApi.getOrders({
+        patientId,
+        category: 'Lab',
+        destination: 'external',
+        limit: 500,
+      });
+      setTests(
+        (res?.data || [])
+          .filter((o) => o.status !== 'Cancelled')
+          .map(mapOrderToOutsideLabRow)
+      );
+    } catch (err) {
+      setTests([]);
+      setError(err.message || 'Failed to load outside lab orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    labApi.getPatientOutsideLabs(patientId, filters).then(({ data }) => setTests(data || []));
-  }, [patientId, filters]);
+    loadTests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
+
+  const filteredTests = useMemo(() => {
+    return tests.filter((row) => {
+      if (filters.testId && !(row.testId || '').toLowerCase().includes(filters.testId.toLowerCase())) return false;
+      if (filters.testName && !(row.testName || '').toLowerCase().includes(filters.testName.toLowerCase())) return false;
+      if (filters.orderStatus && row.orderStatus !== filters.orderStatus) return false;
+      return true;
+    });
+  }, [tests, filters]);
 
   const handleClearFilters = () =>
     setFilters({ testId: '', testName: '', orderStatus: '' });
 
-  const handleSaved = () => {
+  const handleSaved = async (updated) => {
+    if (updated?.id && updated?.orderStatus) {
+      try {
+        await orderApi.updateOrderStatus(updated.id, outsideLabStatusToOrderStatus(updated.orderStatus));
+      } catch (err) {
+        alert(err.message || 'Failed to update order status');
+        return;
+      }
+    }
     setEditTest(null);
-    labApi.getPatientOutsideLabs(patientId, filters).then(({ data }) => setTests(data || []));
+    await loadTests();
   };
 
-  const patient = tests.length > 0 ? { ...tests[0].patient, admission: tests[0].admission } : null;
+  const patient = tests.length > 0 ? tests[0].patient : null;
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -96,6 +133,8 @@ export function PatientOutsideLabsDetailPage() {
         </div>
       </div>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       {patient && (
         <Card>
           <CardHeader>
@@ -105,10 +144,8 @@ export function PatientOutsideLabsDetailPage() {
             <div><Label className="text-muted-foreground">Patient Name</Label><p className="font-medium">{patient.name}</p></div>
             <div><Label className="text-muted-foreground">MRN</Label><p>{patient.mrn}</p></div>
             <div><Label className="text-muted-foreground">DOB</Label><p>{patient.dob}</p></div>
-            <div><Label className="text-muted-foreground">Age</Label><p>{calcAge(patient.dob)}</p></div>
+            <div><Label className="text-muted-foreground">Age</Label><p>{calcAge(patient.dateOfBirth)}</p></div>
             <div><Label className="text-muted-foreground">Gender</Label><p>{patient.gender}</p></div>
-            <div><Label className="text-muted-foreground">Chief Complaint</Label><p>{patient.admission?.chiefComplaint ?? '-'}</p></div>
-            <div><Label className="text-muted-foreground">Patient Status</Label><p>{patient.admission?.admissionStatus ?? 'Active'}</p></div>
           </CardContent>
         </Card>
       )}
@@ -148,10 +185,12 @@ export function PatientOutsideLabsDetailPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tests.length === 0 ? (
+              {loading ? (
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading...</TableCell></TableRow>
+              ) : filteredTests.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No outside lab orders</TableCell></TableRow>
               ) : (
-                tests.map((row) => (
+                filteredTests.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell>
                       <div className="space-y-0.5">

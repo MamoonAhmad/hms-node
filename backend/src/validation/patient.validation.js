@@ -18,6 +18,13 @@ const demographicsFields = {
     .valid('male', 'female', 'non-binary', 'transgender-male', 'transgender-female', 'other', 'prefer-not-to-say')
     .allow('', null),
   pronouns: optionalString(50),
+  ssn: Joi.string()
+    .trim()
+    .pattern(/^\d{3}-?\d{2}-?\d{4}$|^$/)
+    .allow('', null)
+    .messages({
+      'string.pattern.base': 'SSN must be 9 digits (XXX-XX-XXXX)',
+    }),
   preferredContactMethod: Joi.string().valid('cell', 'home', 'work', 'email')
     .messages({
       'any.only': 'Preferred contact method must be cell, home, work, or email',
@@ -29,16 +36,22 @@ const demographicsFields = {
   country: Joi.string().trim().max(50).default('US'),
   homePhone: optionalString(30),
   workPhone: optionalString(30),
-  cellPhone: optionalString(30),
+  cellPhone: Joi.string().trim().min(1).max(30).required()
+    .messages({
+      'string.empty': 'Cell phone is required',
+      'any.required': 'Cell phone is required',
+    }),
   governmentIdType: Joi.string()
     .valid('drivers-license', 'state-id', 'passport', 'other')
     .allow('', null),
   governmentIdNumber: optionalString(50),
   birthPlace: optionalString(200),
   veteranStatus: Joi.string().valid('yes', 'no', 'unknown').allow('', null),
+  militaryBranch: optionalString(50),
   disabilityStatus: Joi.string()
     .valid('yes', 'no', 'unknown', 'prefer-not-to-say')
     .allow('', null),
+  disabilities: optionalText(),
   tribalAffiliation: optionalString(200),
   generalNotes: optionalText(),
   ethnicity: optionalString(50),
@@ -47,6 +60,11 @@ const demographicsFields = {
   language: optionalString(50),
   interpreterRequired: Joi.boolean().default(false),
   interpreterLanguageRequired: optionalString(50),
+  interpreterLanguages: optionalText(),
+  noEmail: Joi.boolean().default(false),
+  visitModality: optionalString(50),
+  accessibilityRequirements: optionalText(),
+  accessibilityRequirementsNotes: optionalText(),
   maritalStatus: optionalString(50),
   employmentStatus: optionalString(50),
   employerName: optionalString(200),
@@ -129,6 +147,81 @@ const subscriberFields = {
     .messages({ 'string.email': 'Invalid subscriber email format' }),
 };
 
+const insuranceListItemSchema = Joi.object({
+  id: Joi.string().trim().allow('', null),
+  insuranceTypeKey: Joi.string().trim().allow('', null),
+  insuranceType: Joi.string().trim().allow('', null),
+  insuranceProviderId: Joi.string().uuid().allow('', null),
+  insuranceCompany: Joi.string().uuid().allow('', null),
+  payerId: Joi.string().uuid().allow('', null),
+  payerName: optionalString(200),
+  memberId: optionalString(100),
+  policyNumber: optionalString(100),
+  policyType: optionalString(100),
+  planName: optionalString(200),
+  groupNumber: optionalString(100),
+  subscriberFirstName: optionalString(100),
+  subscriberLastName: optionalString(100),
+  subscriberName: optionalString(200),
+  subscriberRelationship: optionalString(50),
+  relationshipToPatient: optionalString(50),
+  subscriberGender: optionalString(20),
+  subscriberDateOfBirth: Joi.alternatives().try(Joi.date(), Joi.string()).allow('', null),
+  subscriberPhone: optionalString(30),
+  subscriberEmail: Joi.string().trim().email().allow('', null),
+  subscriberSsnLast4: optionalString(10),
+  subscriberEmployer: optionalString(200),
+  subscriberStreetAddress: optionalString(500),
+  subscriberAddress: optionalString(500),
+  subscriberCity: optionalString(100),
+  subscriberState: optionalString(50),
+  subscriberZip: optionalString(20),
+  coverageStartDate: Joi.alternatives().try(Joi.date(), Joi.string()).allow('', null),
+  coverageEndDate: Joi.alternatives().try(Joi.date(), Joi.string()).allow('', null),
+  effectiveDate: Joi.alternatives().try(Joi.date(), Joi.string()).allow('', null),
+  coverageDate: Joi.alternatives().try(Joi.date(), Joi.string()).allow('', null),
+  coinsurancePercentage: Joi.alternatives()
+    .try(Joi.number().min(0).max(100), Joi.string().allow(''))
+    .allow(null),
+  copay: Joi.alternatives()
+    .try(Joi.number().min(0), Joi.string().allow(''))
+    .allow(null),
+  deductible: Joi.alternatives()
+    .try(Joi.number().min(0), Joi.string().allow(''))
+    .allow(null),
+  authorizationNumber: optionalString(100),
+});
+
+const consentSignatureSchema = Joi.object({
+  consentFormId: Joi.string().uuid().required(),
+  signatureType: Joi.string().valid('typed', 'drawn').allow('', null),
+  signatureData: Joi.string().max(4_000_000).allow('', null),
+  scrolledToEnd: Joi.boolean().allow(null),
+  nameMatched: Joi.boolean().allow(null),
+});
+
+const patientDocumentSubmitSchema = Joi.object({
+  id: Joi.string().trim().allow('', null),
+  documentName: optionalString(200),
+  documentCategory: optionalString(100),
+  fileName: optionalString(255),
+  fileRef: optionalString(255),
+  requiredDocumentType: optionalString(100),
+  governmentIdType: optionalString(50),
+  documentExpirationDate: Joi.alternatives().try(Joi.date(), Joi.string()).allow('', null),
+  insuranceCardSide: optionalString(20),
+  documentNotes: optionalText(),
+});
+
+const registrationPayloadFields = {
+  registrationChannel: Joi.string().trim().max(50).allow('', null),
+  registrationStatus: Joi.string().valid('draft', 'pending', 'completed').allow('', null),
+  consentFormSigned: Joi.boolean().allow(null),
+  insuranceList: Joi.array().items(insuranceListItemSchema).max(10).optional(),
+  consentSignatures: Joi.array().items(consentSignatureSchema).max(20).optional(),
+  documents: Joi.array().items(patientDocumentSubmitSchema).max(50).optional(),
+};
+
 function isPatientMinorFromDob(dateOfBirth) {
   if (!dateOfBirth) return false;
   const dob = new Date(dateOfBirth);
@@ -143,7 +236,7 @@ function isPatientMinorFromDob(dateOfBirth) {
 }
 
 function applyContactRules(value, helpers) {
-  if (value.registrationChannel === 'appointment') {
+  if (value.registrationChannel === 'appointment' || value.registrationChannel === 'registration_only') {
     return value;
   }
 
@@ -183,12 +276,7 @@ function applyPreferredContactRules(value, helpers) {
   if (method === 'cell' && !phone(value.cellPhone) && !phone(value.contactNumber)) {
     return helpers.message('Cell phone is required when cell is the preferred contact method');
   }
-  if (method === 'home' && !phone(value.homePhone)) {
-    return helpers.message('Home phone is required when home is the preferred contact method');
-  }
-  if (method === 'work' && !phone(value.workPhone)) {
-    return helpers.message('Work phone is required when work is the preferred contact method');
-  }
+  // Home and work phones are optional even when selected as preferred contact method.
   if (method === 'email' && !value.email?.trim()) {
     return helpers.message('Email is required when email is the preferred contact method');
   }
@@ -213,11 +301,12 @@ function applyGovernmentIdRules(value, helpers) {
 function resolveContactNumber(value) {
   const method = value.preferredContactMethod || 'cell';
   const phone = (v) => (v && String(v).trim() ? String(v).trim() : '');
+  const cell = phone(value.cellPhone) || phone(value.contactNumber);
 
-  if (method === 'home') return phone(value.homePhone) || phone(value.contactNumber);
-  if (method === 'work') return phone(value.workPhone) || phone(value.contactNumber);
-  if (method === 'email') return value.email?.trim() || phone(value.contactNumber);
-  return phone(value.cellPhone) || phone(value.contactNumber);
+  if (method === 'home') return phone(value.homePhone) || cell;
+  if (method === 'work') return phone(value.workPhone) || cell;
+  if (method === 'email') return value.email?.trim() || cell;
+  return cell;
 }
 
 /**
@@ -249,7 +338,7 @@ const createPatientSchema = Joi.object({
   contactNumber: Joi.string().trim().max(30).allow('', null),
   email: Joi.string().trim().email().allow('', null)
     .messages({
-      'string.email': 'Invalid email format',
+      'string.email': 'Please enter a valid email address.',
     }),
   address: optionalString(500),
   insuranceProviderId: Joi.string().uuid().allow('', null)
@@ -257,14 +346,21 @@ const createPatientSchema = Joi.object({
       'string.guid': 'Invalid insurance provider ID format',
     }),
   policyNumber: optionalString(100),
-  copay: Joi.number().min(0).precision(2).allow(null)
+  copay: Joi.alternatives()
+    .try(Joi.number().min(0).precision(2), Joi.string().allow(''))
+    .allow(null)
     .messages({
       'number.min': 'Copay must be a positive number',
     }),
-  deductible: Joi.number().min(0).precision(2).allow(null)
+  deductible: Joi.alternatives()
+    .try(Joi.number().min(0).precision(2), Joi.string().allow(''))
+    .allow(null)
     .messages({
       'number.min': 'Deductible must be a positive number',
     }),
+  coinsurancePercentage: Joi.alternatives()
+    .try(Joi.number().min(0).max(100), Joi.string().allow(''))
+    .allow(null),
   primaryCarePhysician: optionalString(200),
   referringPhysicianFirstName: optionalString(100),
   referringPhysicianLastName: optionalString(100),
@@ -276,7 +372,12 @@ const createPatientSchema = Joi.object({
   referringPhysicianState: optionalString(50),
   referringPhysicianZip: optionalString(20),
   profilePhoto: Joi.string().trim().max(4_000_000).allow('', null),
-  registrationChannel: Joi.string().trim().max(50).allow('', null),
+  billingType: Joi.string().valid('insurance', 'self_pay', 'self-pay').required()
+    .messages({
+      'any.required': 'Billing type is required',
+      'any.only': 'Billing type must be Self Pay or Insurance',
+    }),
+  ...registrationPayloadFields,
   ...demographicsFields,
   preferredContactMethod: demographicsFields.preferredContactMethod.required()
     .messages({
@@ -285,6 +386,26 @@ const createPatientSchema = Joi.object({
   ...contactFields,
   ...subscriberFields,
 })
+  .custom((value, helpers) => {
+    // Quick add-from-appointment registration does not collect race/ethnicity.
+    const isAppointmentQuickReg = value.registrationChannel === 'appointment';
+    if (!isAppointmentQuickReg) {
+      if (!value.ethnicity?.trim()) {
+        return helpers.message('Ethnicity is required');
+      }
+      if (!value.race?.trim()) {
+        return helpers.message('Race is required');
+      }
+    }
+    return value;
+  })
+  .custom((value, helpers) => {
+    if (value.noEmail) return value;
+    if (value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email.trim())) {
+      return helpers.message('Please enter a valid email address.');
+    }
+    return value;
+  })
   .custom(applyPreferredContactRules)
   .custom(applyGovernmentIdRules)
   .custom(applyContactRules)
@@ -320,7 +441,7 @@ const updatePatientSchema = Joi.object({
   contactNumber: Joi.string().trim().max(30).allow('', null),
   email: Joi.string().trim().email().allow('', null)
     .messages({
-      'string.email': 'Invalid email format',
+      'string.email': 'Please enter a valid email address.',
     }),
   address: optionalString(500),
   insuranceProviderId: Joi.string().uuid().allow('', null)
@@ -328,14 +449,21 @@ const updatePatientSchema = Joi.object({
       'string.guid': 'Invalid insurance provider ID format',
     }),
   policyNumber: optionalString(100),
-  copay: Joi.number().min(0).precision(2).allow(null)
+  copay: Joi.alternatives()
+    .try(Joi.number().min(0).precision(2), Joi.string().allow(''))
+    .allow(null)
     .messages({
       'number.min': 'Copay must be a positive number',
     }),
-  deductible: Joi.number().min(0).precision(2).allow(null)
+  deductible: Joi.alternatives()
+    .try(Joi.number().min(0).precision(2), Joi.string().allow(''))
+    .allow(null)
     .messages({
       'number.min': 'Deductible must be a positive number',
     }),
+  coinsurancePercentage: Joi.alternatives()
+    .try(Joi.number().min(0).max(100), Joi.string().allow(''))
+    .allow(null),
   primaryCarePhysician: optionalString(200),
   referringPhysicianFirstName: optionalString(100),
   referringPhysicianLastName: optionalString(100),
@@ -347,6 +475,8 @@ const updatePatientSchema = Joi.object({
   referringPhysicianState: optionalString(50),
   referringPhysicianZip: optionalString(20),
   profilePhoto: Joi.string().trim().max(4_000_000).allow('', null),
+  billingType: Joi.string().valid('insurance', 'self_pay', 'self-pay'),
+  ...registrationPayloadFields,
   ...demographicsFields,
   ...contactFields,
   ...subscriberFields,
@@ -404,7 +534,8 @@ const queryPatientSchema = Joi.object({
   consentForm: Joi.string().valid('signed', 'not_signed').allow(''),
   insuranceType: Joi.string().valid('primary', 'secondary', 'tertiary').allow(''),
   providerIds: Joi.string().trim().allow(''),
-  listTab: Joi.string().valid('all', 'draft', 'my_list').allow(''),
+  departmentId: Joi.string().uuid().allow('', null),
+  listTab: Joi.string().valid('all', 'my_list', 'registration_queue').allow(''),
   assignedToId: Joi.string().uuid(),
 });
 
@@ -412,9 +543,96 @@ const checkDuplicatesSchema = Joi.object({
   firstName: Joi.string().trim().required(),
   lastName: Joi.string().trim().required(),
   dateOfBirth: Joi.alternatives().try(Joi.date(), Joi.string()).required(),
-  contactNumber: Joi.string().trim().allow('', null),
-  address: Joi.string().trim().allow('', null),
+  contactNumber: Joi.string().trim().required(),
   excludeId: Joi.string().uuid().allow(null),
+});
+
+const deletePatientConfirmSchema = Joi.object({
+  firstName: Joi.string().trim().required(),
+  middleName: Joi.string().trim().allow('', null),
+  lastName: Joi.string().trim().required(),
+});
+
+const patientDocumentIdSchema = Joi.object({
+  id: Joi.string().uuid().required(),
+  documentId: Joi.string().uuid().required(),
+});
+
+const updatePatientDocumentSchema = Joi.object({
+  title: Joi.string().trim().max(200).allow('', null),
+  documentName: Joi.string().trim().max(200).allow('', null),
+  documentType: Joi.string().trim().max(200).allow('', null),
+  category: Joi.string().trim().max(100).allow('', null),
+  encounterId: Joi.string().uuid().allow('', null),
+  description: Joi.string().trim().max(2000).allow('', null),
+  documentDate: Joi.date().iso().allow(null),
+  expirationDate: Joi.date().iso().allow(null),
+  isConfidential: Joi.boolean().optional(),
+  patientVisible: Joi.boolean().optional(),
+  tags: Joi.array().items(Joi.string().trim().max(50)).max(20).optional(),
+  status: Joi.string()
+    .valid('Active', 'Expired', 'Archived', 'Deleted', 'Replaced', 'Pending Review', 'Verified')
+    .optional(),
+  fileName: Joi.string().trim().max(255).allow('', null),
+  fileData: Joi.string().allow('', null),
+  mimeType: Joi.string().trim().max(100).allow('', null),
+  fileSize: Joi.number().integer().min(0).allow(null),
+});
+
+const createPatientDocumentSchema = Joi.object({
+  title: Joi.string().trim().min(1).max(200).required()
+    .messages({ 'any.required': 'This field is required.' }),
+  documentType: Joi.string().trim().min(1).max(200).required()
+    .messages({ 'any.required': 'This field is required.' }),
+  category: Joi.string().trim().min(1).max(100).required()
+    .messages({ 'any.required': 'This field is required.' }),
+  source: Joi.string().trim().max(100).optional(),
+  encounterId: Joi.string().uuid().allow('', null),
+  description: Joi.string().trim().max(2000).allow('', null),
+  documentDate: Joi.date().iso().allow(null),
+  expirationDate: Joi.date().iso().allow(null),
+  isConfidential: Joi.boolean().optional(),
+  patientVisible: Joi.boolean().optional(),
+  tags: Joi.array().items(Joi.string().trim().max(50)).max(20).optional(),
+  fileName: Joi.string().trim().min(1).max(255).required()
+    .messages({ 'any.required': 'Please select a file to upload.' }),
+  fileData: Joi.string().required()
+    .messages({ 'any.required': 'Please select a file to upload.' }),
+  mimeType: Joi.string().trim().max(100).required(),
+  fileSize: Joi.number().integer().min(0).optional(),
+});
+
+const queryPatientDocumentSchema = Joi.object({
+  search: Joi.string().trim().max(200).optional(),
+  documentType: Joi.string().trim().max(200).optional(),
+  category: Joi.string().trim().max(100).optional(),
+  source: Joi.string().trim().max(100).optional(),
+  status: Joi.string()
+    .valid('Active', 'Expired', 'Archived', 'Deleted', 'Replaced', 'Pending Review', 'Verified')
+    .optional(),
+  uploadedBy: Joi.string().uuid().optional(),
+  encounterId: Joi.string().uuid().optional(),
+  includeArchived: Joi.boolean().truthy('true', '1').falsy('false', '0', '').optional(),
+  patientVisible: Joi.boolean().truthy('true', '1').falsy('false', '0', '').optional(),
+  confidential: Joi.boolean().truthy('true', '1').falsy('false', '0', '').optional(),
+});
+
+const replacePatientDocumentSchema = Joi.object({
+  fileName: Joi.string().trim().min(1).max(255).required(),
+  fileData: Joi.string().required(),
+  mimeType: Joi.string().trim().max(100).required(),
+  fileSize: Joi.number().integer().min(0).optional(),
+  replaceReason: Joi.string().trim().max(500).allow('', null),
+});
+
+const updatePatientDocumentStatusSchema = Joi.object({
+  status: Joi.string()
+    .valid('Active', 'Expired', 'Archived', 'Deleted', 'Replaced', 'Pending Review', 'Verified')
+    .required(),
+});
+
+const documentAuditSchema = Joi.object({
+  action: Joi.string().valid('viewed', 'downloaded', 'printed').required(),
 });
 
 /**
@@ -439,6 +657,13 @@ const patientMrnSchema = Joi.object({
     }),
 });
 
+const patientSummaryQuerySchema = Joi.object({
+  encounterId: Joi.string().uuid().optional()
+    .messages({
+      'string.guid': 'Invalid encounter ID format',
+    }),
+});
+
 /**
  * Validation middleware factory
  * @param {Joi.Schema} schema - Joi schema to validate against
@@ -452,16 +677,22 @@ const validate = (schema, property = 'body') => {
     });
 
     if (error) {
-      const errors = error.details.map((detail) => {
-        if (detail.type === 'any.custom' && detail.context?.message) {
-          return detail.context.message;
-        }
-        return detail.message;
+      const details = error.details.map((detail) => {
+        const message =
+          detail.type === 'any.custom' && detail.context?.message
+            ? detail.context.message
+            : detail.message;
+        const field = Array.isArray(detail.path) && detail.path.length
+          ? detail.path.join('.')
+          : null;
+        return { field, message: String(message) };
       });
+      const errors = details.map((d) => d.message);
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
         errors,
+        details,
       });
     }
 
@@ -475,7 +706,16 @@ module.exports = {
   updatePatientSchema,
   queryPatientSchema,
   checkDuplicatesSchema,
+  deletePatientConfirmSchema,
+  patientDocumentIdSchema,
+  updatePatientDocumentSchema,
+  createPatientDocumentSchema,
+  queryPatientDocumentSchema,
+  replacePatientDocumentSchema,
+  updatePatientDocumentStatusSchema,
+  documentAuditSchema,
   patientIdSchema,
   patientMrnSchema,
+  patientSummaryQuerySchema,
   validate,
 };

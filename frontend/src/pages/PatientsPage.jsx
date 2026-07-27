@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil, Eye, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import {
   patientApi,
   providerApi,
@@ -27,11 +27,35 @@ import {
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { PatientActionMenu } from '@/components/patients/listing/PatientActionMenu';
+import { PatientDocumentsModal } from '@/components/patients/listing/PatientDocumentsModal';
+import { PatientPaymentModal } from '@/components/patients/listing/PatientPaymentModal';
+import { PatientDeleteConfirmDialog } from '@/components/patients/listing/PatientDeleteConfirmDialog';
+import { PatientTimelinePanel } from '@/components/patients/listing/PatientTimelinePanel';
+import { PatientWristbandModal } from '@/components/patients/listing/PatientWristbandModal';
+import { formatPatientInsuranceSummary } from '@/components/patients/listing/patientListUtils';
+import {
+  PatientListContactCell,
+  PatientListPatientCell,
+  PatientConsentStatusCell,
+  PatientRegistrationStatusCell,
+  PatientInsuranceCell,
+  getPatientRowAccentClass,
+} from '@/components/patients/listing/PatientListCells';
+import { PatientResumeAction } from '@/components/patients/listing/PatientResumeAction';
+import { useTopbarDepartment } from '@/contexts/TopbarDepartmentContext';
+import { cn } from '@/lib/utils';
 
 const PATIENT_LIST_TABS = {
   ALL: 'all',
-  DRAFT: 'draft',
+  REGISTRATION_QUEUE: 'registration_queue',
   MY_LIST: 'my_list',
+};
+
+/** Focused worklist views under Patient Management → Registration Queue */
+export const PATIENT_WORKLISTS = {
+  REGISTRATION_QUEUE: 'registration_queue',
+  CONSENT_WORKLIST: 'consent_worklist',
 };
 
 const FILTER_DEFAULTS = {
@@ -47,6 +71,35 @@ const FILTER_DEFAULTS = {
   insuranceType: '',
   insurancePayerIds: [],
 };
+
+function filtersForWorklist(worklist) {
+  if (worklist === PATIENT_WORKLISTS.CONSENT_WORKLIST) {
+    return { ...FILTER_DEFAULTS, consentForm: 'not_signed' };
+  }
+  return { ...FILTER_DEFAULTS };
+}
+
+function pageMetaForWorklist(worklist) {
+  if (worklist === PATIENT_WORKLISTS.REGISTRATION_QUEUE) {
+    return {
+      title: 'Registration Queue',
+      description: 'Patients with pending registration that still need to be completed.',
+      breadcrumbs: 'Patient Management / Registration Queue',
+    };
+  }
+  if (worklist === PATIENT_WORKLISTS.CONSENT_WORKLIST) {
+    return {
+      title: 'Consent Worklist',
+      description: 'Patients whose consent status is still pending.',
+      breadcrumbs: 'Patient Management / Registration Queue / Consent Worklist',
+    };
+  }
+  return {
+    title: 'Patient Management',
+    description: 'Search, register, and maintain demographic and contact records for your patient population.',
+    breadcrumbs: 'Patient Management',
+  };
+}
 
 const FIELD_HEIGHT_CLASS = '[&_button]:h-10';
 
@@ -80,22 +133,32 @@ function endOfDay(dateStr) {
   return d;
 }
 
-/** Map list tab to API listTab param. */
 function listTabParam(listTab) {
-  if (listTab === PATIENT_LIST_TABS.DRAFT) return 'draft';
+  if (listTab === PATIENT_LIST_TABS.REGISTRATION_QUEUE) return 'registration_queue';
   if (listTab === PATIENT_LIST_TABS.MY_LIST) return 'my_list';
   return 'all';
 }
 
-export function PatientsPage() {
+export function PatientsPage({ worklist = null } = {}) {
   const navigate = useNavigate();
+  const { departmentId } = useTopbarDepartment();
+  const isRegistrationQueueWorklist = worklist === PATIENT_WORKLISTS.REGISTRATION_QUEUE;
+  const isConsentWorklist = worklist === PATIENT_WORKLISTS.CONSENT_WORKLIST;
+  const isFocusedWorklist = isRegistrationQueueWorklist || isConsentWorklist;
+  const showResumeAction = isRegistrationQueueWorklist || isConsentWorklist;
+  const pageMeta = pageMetaForWorklist(worklist);
+
   const [patients, setPatients] = useState([]);
   const [providers, setProviders] = useState([]);
   const [insurancePayers, setInsurancePayers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [listTab, setListTab] = useState(PATIENT_LIST_TABS.ALL);
-  const [filters, setFilters] = useState(FILTER_DEFAULTS);
+  const [listTab, setListTab] = useState(
+    isRegistrationQueueWorklist ? PATIENT_LIST_TABS.REGISTRATION_QUEUE : PATIENT_LIST_TABS.ALL,
+  );
+  const [filters, setFilters] = useState(() => filtersForWorklist(worklist));
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0 });
+  const [actionPatient, setActionPatient] = useState(null);
+  const [activeAction, setActiveAction] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,6 +202,7 @@ export function PatientsPage() {
         insuranceType: filters.insuranceType || undefined,
         providerIds: filters.providerIds,
         insurancePayerIds: filters.insurancePayerIds,
+        departmentId: departmentId || undefined,
       });
       setPatients(response.data || []);
       if (response.pagination) {
@@ -149,11 +213,15 @@ export function PatientsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters, listTab, pagination.page, pagination.limit]);
+  }, [filters, listTab, pagination.page, pagination.limit, departmentId]);
 
   useEffect(() => {
     fetchPatients();
   }, [fetchPatients]);
+
+  useEffect(() => {
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, [departmentId]);
 
   const providerOptions = useMemo(
     () =>
@@ -179,11 +247,15 @@ export function PatientsPage() {
     [insurancePayers],
   );
 
-  const setFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+  const setFilter = (key, value) => {
+    if (isConsentWorklist && key === 'consentForm') return;
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
 
-  const handleClearFilters = () => setFilters(FILTER_DEFAULTS);
+  const handleClearFilters = () => setFilters(filtersForWorklist(worklist));
 
   const hasActiveFilters = useMemo(() => {
+    const baseline = filtersForWorklist(worklist);
     return (
       filters.providerIds.length > 0 ||
       filters.mrn.trim() !== '' ||
@@ -193,35 +265,60 @@ export function PatientsPage() {
       filters.dateFrom !== '' ||
       filters.dateTo !== '' ||
       filters.registrationStatus !== '' ||
-      filters.consentForm !== '' ||
+      filters.consentForm !== baseline.consentForm ||
       filters.insuranceType !== '' ||
       filters.insurancePayerIds.length > 0
     );
-  }, [filters]);
-
-  const displayedPatients = patients;
+  }, [filters, worklist]);
 
   const handleAddNewPatient = () => navigate('/patients/new');
   const handleEditPatient = (patient) => {
-    if (patient._isQueueDraft) {
-      navigate('/patients/new', { state: { queueDraftId: patient.id } });
-      return;
-    }
     navigate(`/patients/edit/${patient.id}`);
   };
 
-  const formatDate = (d) => {
-    if (!d) return '—';
-    const date = typeof d === 'string' ? new Date(d) : d;
-    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString();
+  const handlePatientAction = (actionId, patient) => {
+    if (actionId === 'dashboard') {
+      navigate(`/patient-dashboard/${patient.id}`);
+      return;
+    }
+    if (actionId === 'chart') {
+      navigate(`/patients/${patient.id}/chart`);
+      return;
+    }
+    if (actionId === 'edit') {
+      handleEditPatient(patient);
+      return;
+    }
+    if (actionId === 'appointment-history') {
+      navigate(`/appointments/patient/${patient.id}`);
+      return;
+    }
+    if (actionId === 'encounters') {
+      navigate(`/patients/${patient.id}/encounters`);
+      return;
+    }
+    setActionPatient(patient);
+    setActiveAction(actionId);
   };
+
+  const closeActionModal = () => {
+    setActiveAction(null);
+    setActionPatient(null);
+  };
+
+  const handlePatientDeleted = () => {
+    closeActionModal();
+    fetchPatients();
+  };
+
+  const serialNumberForRow = (index) => (pagination.page - 1) * pagination.limit + index + 1;
 
   return (
     <div className="ehr-page">
       <PageHeader
-        title="Patient Management"
-        description="Search, register, and maintain demographic and contact records for your patient population."
-        breadcrumbs="Patient Management"
+        title={pageMeta.title}
+        description={pageMeta.description}
+        breadcrumbs={pageMeta.breadcrumbs}
         actions={
           <Button onClick={handleAddNewPatient}>
             <Plus className="h-4 w-4" />
@@ -230,15 +327,23 @@ export function PatientsPage() {
         }
       />
 
-      <section className="content-panel rounded-lg px-4 py-3 sm:px-6">
-        <Tabs value={listTab} onValueChange={(value) => { setListTab(value); setPagination((p) => ({ ...p, page: 1 })); }}>
-          <TabsList className="grid h-auto w-full max-w-xl grid-cols-3">
-            <TabsTrigger value={PATIENT_LIST_TABS.ALL}>All Patients</TabsTrigger>
-            <TabsTrigger value={PATIENT_LIST_TABS.DRAFT}>Draft Patients</TabsTrigger>
-            <TabsTrigger value={PATIENT_LIST_TABS.MY_LIST}>My List</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </section>
+      {!isFocusedWorklist && (
+        <section className="content-panel rounded-lg px-4 py-3 sm:px-6">
+          <Tabs value={listTab} onValueChange={(value) => { setListTab(value); setPagination((p) => ({ ...p, page: 1 })); }}>
+            <TabsList className="grid h-auto w-full max-w-2xl grid-cols-3 bg-muted/50 p-1">
+              <TabsTrigger value={PATIENT_LIST_TABS.ALL} className="data-[state=active]:bg-card data-[state=active]:text-foreground">
+                All Patients
+              </TabsTrigger>
+              <TabsTrigger value={PATIENT_LIST_TABS.REGISTRATION_QUEUE} className="data-[state=active]:bg-card data-[state=active]:text-foreground">
+                Registration Queue
+              </TabsTrigger>
+              <TabsTrigger value={PATIENT_LIST_TABS.MY_LIST} className="data-[state=active]:bg-card data-[state=active]:text-foreground">
+                My List
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </section>
+      )}
 
       <section className="content-panel space-y-4 rounded-lg p-4 sm:p-6">
         <div className="flex items-center justify-between gap-2">
@@ -352,6 +457,7 @@ export function PatientsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
               </SelectContent>
@@ -363,6 +469,7 @@ export function PatientsPage() {
             <Select
               value={filters.consentForm || 'all'}
               onValueChange={(v) => setFilter('consentForm', v === 'all' ? '' : v)}
+              disabled={isConsentWorklist}
             >
               <SelectTrigger id="filter-consent-form" className="w-full">
                 <SelectValue placeholder="All" />
@@ -412,61 +519,77 @@ export function PatientsPage() {
       <div className="content-panel overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>MRN</TableHead>
-              <TableHead>First Name</TableHead>
-              <TableHead>Last Name</TableHead>
-              <TableHead>Date of Birth</TableHead>
-              <TableHead>Gender</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-16 bg-muted/40">Sr No.</TableHead>
+              <TableHead className="bg-muted/40">MRN</TableHead>
+              <TableHead className="bg-muted/40">Patient</TableHead>
+              <TableHead className="bg-muted/40">Contacts</TableHead>
+              <TableHead className="bg-muted/40">Registration Status</TableHead>
+              <TableHead className="bg-muted/40">Consent Status</TableHead>
+              <TableHead className="bg-muted/40">Insurance Information</TableHead>
+              <TableHead className="bg-muted/40 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-32 text-center">
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     Loading...
                   </div>
                 </TableCell>
               </TableRow>
-            ) : displayedPatients.length === 0 ? (
+            ) : patients.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                   No patients found
                 </TableCell>
               </TableRow>
             ) : (
-              displayedPatients.map((patient) => (
-                <TableRow key={patient.id}>
-                  <TableCell className="font-mono text-sm">{patient.mrn ?? '—'}</TableCell>
-                  <TableCell>{patient.firstName ?? '—'}</TableCell>
-                  <TableCell>{patient.lastName ?? '—'}</TableCell>
-                  <TableCell>{formatDate(patient.dateOfBirth)}</TableCell>
-                  <TableCell>{patient.gender ?? '—'}</TableCell>
-                  <TableCell>{patient.contactNumber ?? '—'}</TableCell>
-                  <TableCell>{patient.email ?? '—'}</TableCell>
+              patients.map((patient, index) => (
+                <TableRow
+                  key={patient.id}
+                  className={cn('hover:bg-muted/30', getPatientRowAccentClass(patient))}
+                >
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {serialNumberForRow(index)}
+                  </TableCell>
+                  <TableCell className="font-mono text-sm text-foreground/90">
+                    {patient.mrn ?? '—'}
+                  </TableCell>
+                  <TableCell>
+                    <PatientListPatientCell patient={patient} />
+                  </TableCell>
+                  <TableCell>
+                    <PatientListContactCell patient={patient} />
+                  </TableCell>
+                  <TableCell>
+                    <PatientRegistrationStatusCell patient={patient} />
+                  </TableCell>
+                  <TableCell>
+                    <PatientConsentStatusCell patient={patient} />
+                  </TableCell>
+                  <TableCell>
+                    <PatientInsuranceCell summary={formatPatientInsuranceSummary(patient)} />
+                  </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => navigate(`/patient-dashboard/${patient.id}`)}
-                        title="View"
-                      >
-                        <Eye className="h-4 w-4 icon-action-view" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => handleEditPatient(patient)}
-                        title="Edit"
-                      >
-                        <Pencil className="h-4 w-4 icon-action-edit" />
-                      </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      {showResumeAction || listTab === PATIENT_LIST_TABS.REGISTRATION_QUEUE ? (
+                        <>
+                          <PatientResumeAction
+                            tooltip={
+                              isConsentWorklist
+                                ? 'Complete pending consent forms'
+                                : 'Complete the registration process'
+                            }
+                            onClick={() => handleEditPatient(patient)}
+                          />
+                          <PatientActionMenu patient={patient} onAction={handlePatientAction} />
+                        </>
+                      ) : (
+                        <PatientActionMenu patient={patient} onAction={handlePatientAction} />
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -475,6 +598,33 @@ export function PatientsPage() {
           </TableBody>
         </Table>
       </div>
+
+      <PatientDocumentsModal
+        open={activeAction === 'documents'}
+        onOpenChange={(open) => !open && closeActionModal()}
+        patient={actionPatient}
+      />
+      <PatientPaymentModal
+        open={activeAction === 'payment'}
+        onOpenChange={(open) => !open && closeActionModal()}
+        patient={actionPatient}
+      />
+      <PatientDeleteConfirmDialog
+        open={activeAction === 'delete'}
+        onOpenChange={(open) => !open && closeActionModal()}
+        patient={actionPatient}
+        onDeleted={handlePatientDeleted}
+      />
+      <PatientTimelinePanel
+        open={activeAction === 'timeline'}
+        onOpenChange={(open) => !open && closeActionModal()}
+        patient={actionPatient}
+      />
+      <PatientWristbandModal
+        open={activeAction === 'wristband'}
+        onOpenChange={(open) => !open && closeActionModal()}
+        patient={actionPatient}
+      />
     </div>
   );
 }

@@ -185,7 +185,7 @@ export function BlockHoursFormDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="ehr-form space-y-4">
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b border-border pb-2">Provider</h3>
 

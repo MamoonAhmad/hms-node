@@ -90,6 +90,7 @@ const providerBlockHourController = {
         'limit',
         'search',
         'providerId',
+        'departmentId',
         'days',
         'status',
       ]);

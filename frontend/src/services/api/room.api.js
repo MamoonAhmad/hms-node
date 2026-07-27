@@ -14,8 +14,11 @@ export const roomApi = {
     return handleResponse(response);
   },
 
-  async getActive() {
-    const response = await fetch(`${API_BASE_URL}/rooms/active`, {
+  async getActive(params = {}) {
+    const searchParams = new URLSearchParams();
+    if (params.departmentId) searchParams.set('departmentId', params.departmentId);
+    const qs = searchParams.toString();
+    const response = await fetch(`${API_BASE_URL}/rooms/active${qs ? `?${qs}` : ''}`, {
       headers: getAuthHeaders(),
     });
     return handleResponse(response);

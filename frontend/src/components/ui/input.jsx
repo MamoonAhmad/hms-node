@@ -12,8 +12,8 @@ function Input({
       type={type}
       data-slot="input"
       className={cn(
-        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary/15 selection:text-foreground dark:bg-input/30 border-input h-10 w-full min-w-0 rounded-lg border bg-card px-3 py-2 text-[0.9375rem] shadow-none transition-[border-color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60",
-        "hover:border-[#bcc0c4] focus-visible:border-primary focus-visible:ring-primary/25 focus-visible:ring-[3px]",
+        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary/15 selection:text-foreground border-gray-300 h-8 w-full min-w-0 rounded-md border bg-white px-2.5 py-1 text-[13px] leading-tight text-black transition-[border-color,box-shadow] outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-[13px] file:font-medium disabled:cursor-not-allowed disabled:bg-muted/60 disabled:opacity-60",
+        "hover:border-primary/40 focus-visible:border-primary focus-visible:ring-primary/20 focus-visible:ring-[3px]",
         "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
         className
       )}

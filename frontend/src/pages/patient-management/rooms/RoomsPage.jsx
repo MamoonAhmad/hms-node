@@ -22,7 +22,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { roomApi, roomTypeApi } from '@/services/api';
+import { roomApi, roomTypeApi, departmentApi } from '@/services/api';
+import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 
 const ROOM_LIST_TABS = {
   ALL: 'all',
@@ -55,6 +56,7 @@ const emptyForm = () => ({
   displayName: '',
   floor: '',
   unit: '',
+  departmentId: '',
   roomTypeIds: [],
   status: 'active',
   licensedBeds: '1',
@@ -65,6 +67,7 @@ export function RoomsPage() {
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState({ totalRooms: 0, activeRooms: 0, licensedBedsSum: 0 });
   const [roomTypes, setRoomTypes] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
@@ -83,6 +86,10 @@ export function RoomsPage() {
       .getActive()
       .then((response) => setRoomTypes(response.data || []))
       .catch(() => setRoomTypes([]));
+    departmentApi
+      .getActive()
+      .then((response) => setDepartments(response.data || []))
+      .catch(() => setDepartments([]));
   }, []);
 
   const statusFilter = listTab === ROOM_LIST_TABS.ALL ? undefined : listTab;
@@ -119,6 +126,26 @@ export function RoomsPage() {
     [roomTypes],
   );
 
+  const departmentOptions = useMemo(() => {
+    const options = departments.map((d) => ({
+      value: d.id,
+      label: d.departmentCode
+        ? `${d.departmentName} (${d.departmentCode})`
+        : d.departmentName,
+    }));
+    if (
+      form.departmentId &&
+      !options.some((o) => String(o.value) === String(form.departmentId))
+    ) {
+      const label =
+        selected?.departmentName ||
+        selected?.department?.departmentName ||
+        'Current department';
+      options.unshift({ value: form.departmentId, label });
+    }
+    return options;
+  }, [departments, form.departmentId, selected]);
+
   const rows = useMemo(
     () =>
       items.map((row, i) => ({
@@ -151,6 +178,7 @@ export function RoomsPage() {
         displayName: record.displayName || '',
         floor: record.floor || '',
         unit: record.unit || '',
+        departmentId: record.departmentId || '',
         roomTypeIds: record.roomTypeIds || record.roomTypes?.map((t) => t.id) || [],
         status: record.status || 'active',
         licensedBeds: String(record.licensedBeds ?? 1),
@@ -178,6 +206,7 @@ export function RoomsPage() {
         displayName: form.displayName.trim() || null,
         floor: form.floor.trim() || null,
         unit: form.unit.trim() || null,
+        departmentId: form.departmentId || null,
         roomTypeIds: form.roomTypeIds,
         status: form.status,
         licensedBeds: Math.max(0, parseInt(form.licensedBeds, 10) || 0),
@@ -228,6 +257,7 @@ export function RoomsPage() {
       render: (row) => row.roomNumber || '—',
     },
     { key: 'displayName', label: 'Display name', render: (row) => row.displayName || '—' },
+    { key: 'department', label: 'Department', render: (row) => row.departmentName || '—' },
     { key: 'floor', label: 'Floor', render: (row) => row.floor || '—' },
     { key: 'unit', label: 'Unit / wing', render: (row) => row.unit || '—' },
     { key: 'roomType', label: 'Type', render: (row) => row.roomTypeLabels || '—' },
@@ -398,6 +428,34 @@ export function RoomsPage() {
                   disabled={readOnly || submitting}
                   placeholder="e.g. East Wing"
                 />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="departmentId">Department</Label>
+                {readOnly ? (
+                  <Input
+                    value={selected?.departmentName || '—'}
+                    disabled
+                    readOnly
+                    className="bg-muted"
+                  />
+                ) : (
+                  <SearchableSelect
+                    value={form.departmentId || '__none__'}
+                    onValueChange={(value) =>
+                      setForm((f) => ({ ...f, departmentId: value === '__none__' ? '' : value }))
+                    }
+                    options={[
+                      { value: '__none__', label: 'No department' },
+                      ...departmentOptions,
+                    ]}
+                    placeholder={
+                      departments.length ? 'Search department…' : 'No departments available'
+                    }
+                    disabled={submitting || !departments.length}
+                    preserveOptionOrder
+                    triggerClassName="w-full"
+                  />
+                )}
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="roomTypeIds">Room type</Label>

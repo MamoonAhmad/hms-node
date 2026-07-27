@@ -53,6 +53,7 @@ function useDebouncedValue(value, delay) {
  * @param { (page: number) => void } props.onPageChange - Called when page changes
  * @param { (pageSize: number) => void } props.onPageSizeChange - Called when page size changes
  * @param { (row: Object) => string|number } [props.getRowId] - Row key (default: row.id)
+ * @param { (row: Object) => void } [props.onRowClick] - Called when a data row is clicked
  * @param {ReactNode} [props.actions] - Render prop (row) => actions cell content
  * @param {string} [props.searchPlaceholder] - Search input placeholder
  * @param {string} [props.emptyMessage] - Message when no data
@@ -97,6 +98,7 @@ export function DataTable({
   onPageChange,
   onPageSizeChange,
   getRowId = (row) => row.id,
+  onRowClick,
   actions,
   searchPlaceholder = 'Search...',
   emptyMessage = 'No records found',
@@ -147,22 +149,22 @@ export function DataTable({
     <div className={cn('space-y-4', className)}>
       {/* Toolbar: search + page size (optional) */}
       {!hideToolbar && (
-        <div className="content-panel ehr-table-toolbar flex flex-col gap-4 rounded-t-lg border-b-0 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <div className="content-panel ehr-table-toolbar flex flex-col gap-4 rounded-t-xl border-b-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               type="search"
               placeholder={searchPlaceholder}
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
-              className="pl-9 pr-9"
+              className="pl-10 pr-10"
               aria-label="Search table"
             />
             {localSearch && (
               <button
                 type="button"
                 onClick={handleClearSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
@@ -176,7 +178,7 @@ export function DataTable({
               onValueChange={handlePageSizeChange}
               aria-label="Rows per page"
             >
-              <SelectTrigger className="w-[72px]">
+              <SelectTrigger className="w-[80px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -216,11 +218,11 @@ export function DataTable({
               <TableRow>
                 <TableCell
                   colSpan={columns.length + (actions ? 1 : 0)}
-                  className="h-32 text-center"
+                  className="h-36 text-center"
                 >
-                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                  <div className="flex items-center justify-center gap-2.5 text-muted-foreground">
                     <div
-                      className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"
+                      className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary"
                       aria-hidden
                     />
                     <span>Loading...</span>
@@ -231,14 +233,18 @@ export function DataTable({
               <TableRow>
                 <TableCell
                   colSpan={columns.length + (actions ? 1 : 0)}
-                  className="h-32 text-center text-muted-foreground"
+                  className="h-36 text-center text-muted-foreground"
                 >
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
               data.map((row) => (
-                <TableRow key={getRowId(row)}>
+                <TableRow
+                  key={getRowId(row)}
+                  className={cn(onRowClick && 'cursor-pointer')}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                >
                   {columns.map((col) => (
                     <TableCell
                       key={col.key}
@@ -252,7 +258,12 @@ export function DataTable({
                     </TableCell>
                   ))}
                   {actions && (
-                    <TableCell className="text-right">{actions(row)}</TableCell>
+                    <TableCell
+                      className="text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {actions(row)}
+                    </TableCell>
                   )}
                 </TableRow>
               ))
@@ -262,7 +273,7 @@ export function DataTable({
 
         {/* Pagination */}
         <div
-          className="flex flex-col gap-3 border-t border-border/70 bg-muted/25 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 border-t border-border/60 bg-muted/20 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between"
           role="navigation"
           aria-label="Table pagination"
         >

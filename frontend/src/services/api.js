@@ -16,7 +16,8 @@ function getAuthHeaders() {
 async function handleResponse(response) {
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.message || data.error || 'An error occurred');
+    const details = Array.isArray(data.errors) && data.errors.length ? `: ${data.errors.join('; ')}` : '';
+    throw new Error(`${data.message || data.error || 'An error occurred'}${details}`);
   }
   return data;
 }
@@ -118,48 +119,21 @@ export { procedureCategoryApi } from './api/procedureCategory.api.js';
 export { procedureApi } from './api/procedure.api.js';
 export { hcpcsCodeApi } from './api/hcpcsCode.api.js';
 export { diagnosisCodeApi } from './api/diagnosisCode.api.js';
+export { chargeMasterApi } from './api/chargeMaster.api.js';
 export { roomTypeApi } from './api/roomType.api.js';
+export { labTestApi } from './api/labTest.api.js';
 export { roomApi } from './api/room.api.js';
 export { bedApi } from './api/bed.api.js';
-
-// Charge Master API
-export const chargeMasterApi = {
-  async getAll(params = {}) {
-    const searchParams = new URLSearchParams();
-    if (params.page) searchParams.set('page', params.page);
-    if (params.limit) searchParams.set('limit', params.limit);
-    if (params.search) searchParams.set('search', params.search);
-    if (params.location) searchParams.set('location', params.location);
-    const response = await fetch(`${API_BASE_URL}/charge-master?${searchParams}`);
-    return handleResponse(response);
-  },
-  async getById(id) {
-    const response = await fetch(`${API_BASE_URL}/charge-master/${id}`);
-    return handleResponse(response);
-  },
-  async create(data) {
-    const response = await fetch(`${API_BASE_URL}/charge-master`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-  async update(id, data) {
-    const response = await fetch(`${API_BASE_URL}/charge-master/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
-  async delete(id) {
-    const response = await fetch(`${API_BASE_URL}/charge-master/${id}`, {
-      method: 'DELETE',
-    });
-    return handleResponse(response);
-  },
-};
+export { vaccineApi, VACCINE_ROUTE_OPTIONS } from './api/vaccine.api.js';
+export { radiologyStudyApi } from './api/radiologyStudy.api.js';
+export { medicationCatalogApi } from './api/medicationCatalog.api.js';
+export { medicationOrderApi } from './api/medicationOrder.api.js';
+export { emarApi } from './api/emar.api.js';
+export { referralApi } from './api/referral.api.js';
+export { intakeApi } from './api/intake.api.js';
+export { patientProblemApi } from './api/patientProblem.api.js';
+export { encounterProblemApi } from './api/encounterProblem.api.js';
+export { checkoutApi } from './api/checkout.api.js';
 
 // Users API
 export const userApi = {
@@ -318,238 +292,29 @@ export const permissionHeaderApi = {
   },
 };
 
-// ─── Laboratory Module (mock data until backend exists) ─────────────────────
+// --- Laboratory Module (local cache only — no seeded dummy patients) ---
 const LAB_MOCK_STORAGE_KEY = 'hms_lab_mock_data';
 
 function getLabMockData() {
   try {
     const stored = localStorage.getItem(LAB_MOCK_STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Drop legacy seeded mock rows (LAB-001 / John Doe, etc.)
+      const isLegacySeed =
+        Array.isArray(parsed) &&
+        parsed.some((r) => r?.testId === 'LAB-001' || r?.patient?.mrn === 'MRN-1001');
+      if (isLegacySeed) {
+        localStorage.setItem(LAB_MOCK_STORAGE_KEY, JSON.stringify([]));
+        return [];
+      }
+      return Array.isArray(parsed) ? parsed : [];
+    }
   } catch (_) {}
-  const initial = [
-    {
-      id: 1,
-      testId: 'LAB-001',
-      testName: 'Complete Blood Count (CBC)',
-      department: 'Hematology',
-      createdBy: 'Dr. Sarah Smith',
-      createdAt: '2025-01-20T10:30:00',
-      patientId: 101,
-      patient: { name: 'John Doe', mrn: 'MRN-1001', dob: '1980-05-15', gender: 'Male' },
-      admission: { admissionId: 'ADM-501', chiefComplaint: 'Chest pain', arrivalMethod: 'Ambulance', roomStatus: 'Roomed', admissionStatus: 'Active' },
-      specimenStatus: 'Pending',
-      collectionSite: '',
-      specimenType: 'Blood',
-      collectedBy: '',
-      collectionDateTime: '',
-      collectionNotes: '',
-      specimenNo: '',
-      transportCompleted: false,
-      originLocation: '',
-      originDepartment: '',
-      destinationLab: '',
-      batchNumber: '',
-      transportTimestamp: '',
-      transportStaff: '',
-      transportCondition: '',
-      transportPriority: '',
-      transportCarrier: '',
-      trackingNumber: '',
-      containerType: '',
-      transportTemperature: '',
-      transportStatus: '',
-      transportNotes: '',
-      receiveStatus: '',
-      receivedTimestamp: '',
-      receivedBy: '',
-      specimenCondition: '',
-      resultStatus: '',
-      resultType: '',
-      resultDate: '',
-      generatedBy: '',
-      parameters: [],
-      resultNotes: '',
-    },
-    {
-      id: 2,
-      testId: 'LAB-002',
-      testName: 'Lipid Profile',
-      department: 'Chemistry',
-      createdBy: 'Dr. John Williams',
-      createdAt: '2025-01-20T11:15:00',
-      patientId: 102,
-      patient: { name: 'Jane Smith', mrn: 'MRN-1002', dob: '1975-08-22', gender: 'Female' },
-      admission: { admissionId: 'ADM-502', chiefComplaint: 'Routine checkup', arrivalMethod: 'Walk-in', roomStatus: 'Triage', admissionStatus: 'Active' },
-      specimenStatus: 'Collected',
-      collectionSite: 'Left Arm',
-      specimenType: 'Serum',
-      collectedBy: 'Nurse Mary Johnson',
-      collectionDateTime: '2025-01-20T13:00:00',
-      collectionNotes: 'Fasting sample collected',
-      specimenNo: 'SP-20260120-002',
-      transportCompleted: false,
-      originLocation: 'Ward 3',
-      originDepartment: 'Cardiology',
-      destinationLab: '',
-      batchNumber: '',
-      transportTimestamp: '',
-      transportStaff: '',
-      transportCondition: '',
-      transportPriority: '',
-      transportCarrier: '',
-      trackingNumber: '',
-      containerType: '',
-      transportTemperature: '',
-      transportStatus: '',
-      transportNotes: '',
-      receiveStatus: '',
-      receivedTimestamp: '',
-      receivedBy: '',
-      specimenCondition: '',
-      resultStatus: '',
-      resultType: '',
-      resultDate: '',
-      generatedBy: '',
-      parameters: [],
-      resultNotes: '',
-    },
-    {
-      id: 3,
-      testId: 'LAB-003',
-      testName: 'Urine Culture',
-      department: 'Microbiology',
-      createdBy: 'Dr. Emily Brown',
-      createdAt: '2025-01-20T09:00:00',
-      patientId: 103,
-      patient: { name: 'Robert Lee', mrn: 'MRN-1003', dob: '1990-01-10', gender: 'Male' },
-      admission: { admissionId: 'ADM-503', chiefComplaint: 'UTI symptoms', arrivalMethod: 'Walk-in', roomStatus: 'Roomed', admissionStatus: 'Active' },
-      specimenStatus: 'Collected',
-      collectionSite: 'Urine',
-      specimenType: 'Urine',
-      collectedBy: 'Lab Technician',
-      collectionDateTime: '2025-01-20T10:00:00',
-      collectionNotes: 'Mid-stream clean catch',
-      specimenNo: 'SP-20260120-003',
-      transportCompleted: true,
-      originLocation: 'OPD',
-      originDepartment: 'Urology',
-      destinationLab: 'Microbiology Lab',
-      batchNumber: 'BATCH-20260120-1002',
-      transportTimestamp: '2025-01-20T10:30:00',
-      transportStaff: 'Sara Ali',
-      transportCondition: 'Room Temperature',
-      transportPriority: 'Routine',
-      transportCarrier: 'Lab Staff',
-      trackingNumber: 'TRK-0647',
-      containerType: 'Sterile Container',
-      transportTemperature: '22°C',
-      transportStatus: 'Completed',
-      transportNotes: 'Delivered on time',
-      receiveStatus: 'Pending',
-      receivedTimestamp: '',
-      receivedBy: '',
-      specimenCondition: '',
-      resultStatus: '',
-      resultType: '',
-      resultDate: '',
-      generatedBy: '',
-      parameters: [],
-      resultNotes: '',
-    },
-    {
-      id: 4,
-      testId: 'LAB-004',
-      testName: 'Basic Metabolic Panel',
-      department: 'Chemistry',
-      createdBy: 'Dr. Sarah Smith',
-      createdAt: '2025-01-21T08:00:00',
-      patientId: 101,
-      patient: { name: 'John Doe', mrn: 'MRN-1001', dob: '1980-05-15', gender: 'Male' },
-      admission: { admissionId: 'ADM-501', chiefComplaint: 'Chest pain', arrivalMethod: 'Ambulance', roomStatus: 'Roomed', admissionStatus: 'Active' },
-      specimenStatus: 'Collected',
-      collectionSite: 'Right Arm',
-      specimenType: 'Serum',
-      collectedBy: 'Nurse Jane Doe',
-      collectionDateTime: '2025-01-21T08:30:00',
-      collectionNotes: 'Fasting',
-      specimenNo: 'SP-20260121-004',
-      transportCompleted: true,
-      originLocation: 'ED',
-      originDepartment: 'Emergency Medicine',
-      destinationLab: 'Main Laboratory',
-      batchNumber: 'BATCH-20260121-0801',
-      transportTimestamp: '2025-01-21T09:00:00',
-      transportStaff: 'Ahmed Khan',
-      transportCondition: 'Refrigerated (2-8°C)',
-      transportPriority: 'Stat',
-      transportCarrier: 'Lab Staff',
-      trackingNumber: 'TRK-0648',
-      containerType: 'Vacutainer',
-      transportTemperature: '4°C',
-      transportStatus: 'Completed',
-      transportNotes: '',
-      receiveStatus: 'Accepted',
-      receivedTimestamp: '2025-01-21T09:15:00',
-      receivedBy: 'Lab Tech Mike',
-      specimenCondition: 'Good',
-      resultStatus: 'Completed',
-      resultType: 'Final',
-      resultDate: '2025-01-21T11:00:00',
-      generatedBy: 'Lab Tech Mike',
-      parameters: [
-        { name: 'Sodium', resultValue: '140', flag: 'Normal', units: 'mEq/L', referenceRange: '136-145', criticalRange: '', reportableRange: '', analyticalRange: '', method: 'ISE' },
-        { name: 'Potassium', resultValue: '4.2', flag: 'Normal', units: 'mEq/L', referenceRange: '3.5-5.0', criticalRange: '', reportableRange: '', analyticalRange: '', method: 'ISE' },
-      ],
-      resultNotes: '',
-    },
-    {
-      id: 5,
-      testId: 'LAB-005',
-      testName: 'TSH',
-      department: 'Chemistry',
-      createdBy: 'Dr. Sarah Smith',
-      createdAt: '2025-01-21T09:00:00',
-      patientId: 102,
-      patient: { name: 'Jane Smith', mrn: 'MRN-1002', dob: '1975-08-22', gender: 'Female' },
-      admission: { admissionId: 'ADM-502', chiefComplaint: 'Routine checkup', arrivalMethod: 'Walk-in', roomStatus: 'Triage', admissionStatus: 'Active' },
-      specimenStatus: 'Submitted',
-      collectionSite: '',
-      specimenType: 'Serum',
-      collectedBy: '',
-      collectionDateTime: '',
-      collectionNotes: '',
-      specimenNo: '',
-      transportCompleted: false,
-      originLocation: '',
-      originDepartment: '',
-      destinationLab: '',
-      batchNumber: '',
-      transportTimestamp: '',
-      transportStaff: '',
-      transportCondition: '',
-      transportPriority: '',
-      transportCarrier: '',
-      trackingNumber: '',
-      containerType: '',
-      transportTemperature: '',
-      transportStatus: '',
-      transportNotes: '',
-      receiveStatus: '',
-      receivedTimestamp: '',
-      receivedBy: '',
-      specimenCondition: '',
-      resultStatus: '',
-      resultType: '',
-      resultDate: '',
-      generatedBy: '',
-      parameters: [],
-      resultNotes: '',
-    },
-  ];
   try {
-    localStorage.setItem(LAB_MOCK_STORAGE_KEY, JSON.stringify(initial));
+    localStorage.setItem(LAB_MOCK_STORAGE_KEY, JSON.stringify([]));
   } catch (_) {}
-  return initial;
+  return [];
 }
 
 function saveLabMockData(data) {
@@ -909,6 +674,34 @@ export const orderApi = {
     if (params.limit) searchParams.set('limit', params.limit);
     const response = await fetch(`${API_BASE_URL}/orders?${searchParams}`, {
       headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+  async getOrderById(id) {
+    const response = await fetch(`${API_BASE_URL}/orders/${id}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+  async updateOrderStatus(id, status) {
+    const response = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ status }),
+    });
+    return handleResponse(response);
+  },
+  async updateOrderSpecimen(id, payload) {
+    const response = await fetch(`${API_BASE_URL}/orders/${id}/specimen`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
     });
     return handleResponse(response);
   },

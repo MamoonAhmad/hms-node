@@ -129,7 +129,7 @@ const providerController = {
 
   async findAll(req, res, next) {
     try {
-      const filters = pick(req.query, ['page', 'limit', 'search', 'isActive']);
+      const filters = pick(req.query, ['page', 'limit', 'search', 'isActive', 'departmentId']);
       const result = await providerService.findAll(filters);
       res.json({
         success: true,

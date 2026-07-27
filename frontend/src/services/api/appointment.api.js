@@ -100,6 +100,26 @@ export const appointmentApi = {
     return handleResponse(response);
   },
 
+  async checkIn(id) {
+    const response = await fetch(`${API_BASE_URL}/appointments/${id}/check-in`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+  },
+
+  async assignRoom(id, roomId) {
+    const response = await fetch(`${API_BASE_URL}/appointments/${id}/room`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ roomId }),
+    });
+    return handleResponse(response);
+  },
+
   async delete(id) {
     const response = await fetch(`${API_BASE_URL}/appointments/${id}`, {
       method: 'DELETE',

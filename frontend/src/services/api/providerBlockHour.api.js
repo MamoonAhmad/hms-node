@@ -8,6 +8,7 @@ export const providerBlockHourApi = {
     if (params.limit) searchParams.set('limit', params.limit);
     if (params.search) searchParams.set('search', params.search);
     if (params.providerId) searchParams.set('providerId', params.providerId);
+    if (params.departmentId) searchParams.set('departmentId', params.departmentId);
     if (params.status) searchParams.set('status', params.status);
 
     if (params.days?.length) {

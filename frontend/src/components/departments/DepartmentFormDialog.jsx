@@ -225,7 +225,7 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-6">
+          <div className="ehr-form space-y-4">
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-foreground">Basic Information</h3>
 
@@ -333,7 +333,7 @@ export function DepartmentFormDialog({ open, onOpenChange, department, onSubmit,
               </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
               {readOnly ? 'Close' : 'Cancel'}
             </Button>

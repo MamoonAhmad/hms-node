@@ -35,7 +35,9 @@ export function RegistrationChannelField({ value, onChange, disabled = false }) 
       <p className="text-xs text-muted-foreground">
         {value === 'walk_in'
           ? 'Walk-in patients are registered without a scheduled appointment.'
-          : 'Appointment patients are linked to a scheduled outpatient visit.'}
+          : value === 'registration_only'
+            ? 'Complete patient registration only — no appointment will be created or associated.'
+            : 'Scheduled patients are linked to an outpatient appointment during registration.'}
       </p>
     </div>
   );

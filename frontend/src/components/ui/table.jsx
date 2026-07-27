@@ -18,12 +18,17 @@ function Table({
 
 function TableHeader({
   className,
+  sticky = false,
   ...props
 }) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b [&_tr]:border-border/60", className)}
+      className={cn(
+        "[&_tr]:border-b [&_tr]:border-border/50",
+        sticky && "sticky top-0 z-10 bg-muted/80 backdrop-blur-sm shadow-[0_1px_0_0_var(--border)]",
+        className,
+      )}
       {...props} />
   );
 }
@@ -47,7 +52,7 @@ function TableFooter({
   return (
     <tfoot
       data-slot="table-footer"
-      className={cn("bg-muted/50 border-t font-medium [&>tr]:last:border-b-0", className)}
+      className={cn("bg-muted/40 border-t font-medium [&>tr]:last:border-b-0", className)}
       {...props} />
   );
 }
@@ -60,7 +65,7 @@ function TableRow({
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b border-border/45 transition-colors even:bg-muted/15 hover:bg-primary/[0.04] data-[state=selected]:bg-primary/8",
+        "border-b border-border transition-colors hover:bg-muted/40 data-[state=selected]:bg-primary/5",
         className
       )}
       {...props} />
@@ -75,7 +80,7 @@ function TableHead({
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 bg-muted/55 px-4 text-left align-middle text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-foreground/65 whitespace-nowrap border-b border-border/60 [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "h-10 bg-muted/40 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap border-b border-border [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       {...props} />
@@ -90,7 +95,7 @@ function TableCell({
     <td
       data-slot="table-cell"
       className={cn(
-        "px-4 py-2.5 align-middle text-sm text-foreground/90 whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "px-4 py-3 align-middle text-sm text-foreground whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       {...props} />

@@ -37,9 +37,10 @@ const roomController = {
     }
   },
 
-  async findAllActive(_req, res, next) {
+  async findAllActive(req, res, next) {
     try {
-      const rows = await roomService.findAllActive();
+      const filters = pick(req.query, ['departmentId']);
+      const rows = await roomService.findAllActive(filters);
       res.json({ success: true, data: rows });
     } catch (error) {
       next(error);

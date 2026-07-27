@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "collectionSite" TEXT;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "specimenType" TEXT;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "collectedBy" TEXT;
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "collectionDateTime" TIMESTAMP(3);
+ALTER TABLE "orders" ADD COLUMN IF NOT EXISTS "collectionNotes" TEXT;

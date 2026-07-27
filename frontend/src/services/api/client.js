@@ -25,7 +25,12 @@ export async function handleResponse(response) {
         window.location.href = '/login';
       }
     }
-    throw new Error(data.message || data.error || 'An error occurred');
+    const err = new Error(data.message || data.error || 'An error occurred');
+    err.status = response.status;
+    err.errors = Array.isArray(data.errors) ? data.errors : undefined;
+    err.details = Array.isArray(data.details) ? data.details : undefined;
+    err.data = data;
+    throw err;
   }
   return data;
 }

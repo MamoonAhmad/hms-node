@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Upload, FileText, Eye, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Upload, FileText, Eye, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,20 +22,183 @@ import {
 } from '@/components/ui/table';
 import {
   DOCUMENT_CATEGORIES,
-  DOCUMENT_CHECKLIST_ITEMS,
   GOVERNMENT_ID_TYPE_OPTIONS,
+  INSURANCE_CARD_SIDES,
   buildDocumentForList,
   emptyNewDocument,
+  findInsuranceCardDocument,
   formatDocumentDetailColumn,
-  isChecklistItemUploaded,
-  newDocumentFromChecklistItem,
+  insuranceCardDocumentName,
+  upsertInsuranceCardDocument,
   validateNewDocumentForm,
 } from '@/components/patients/patientDocumentsConstants';
+import {
+  INSURANCE_RANK_ORDER,
+  INSURANCE_TYPE_LABELS,
+} from '@/components/patients/patientRegistrationInsuranceConstants';
+
+const ACCEPTED_TYPES = '.pdf,.jpg,.jpeg,.png';
+const ACCEPTED_MIME = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 function formatDateDisplay(value) {
   if (!value) return '—';
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString();
+}
+
+function InsuranceCardSidePicker({
+  typeKey,
+  typeLabel,
+  side,
+  category,
+  nameSuffix,
+  documents,
+  setDocuments,
+}) {
+  const inputId = `ins-card-${typeKey}-${side}`;
+  const uploaded = findInsuranceCardDocument(documents, typeKey, side);
+  const documentName = insuranceCardDocumentName(typeLabel, side);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!ACCEPTED_MIME.includes(file.type)) return;
+
+    const fileData = await readFileAsDataUrl(file);
+    setDocuments(
+      upsertInsuranceCardDocument(documents, {
+        typeKey,
+        typeLabel,
+        side,
+        fileMeta: {
+          fileName: file.name,
+          file,
+          fileData,
+          mimeType: file.type,
+        },
+      }),
+    );
+  };
+
+  const handleRemove = () => {
+    setDocuments(
+      upsertInsuranceCardDocument(documents, {
+        typeKey,
+        typeLabel,
+        side,
+        fileMeta: null,
+      }),
+    );
+  };
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-card p-4">
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">{documentName}</p>
+        <p className="text-xs text-muted-foreground">
+          Category: {category}
+          <span className="mx-1.5 text-border">·</span>
+          Insurance card {nameSuffix}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {uploaded ? (
+            <>
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+              <span className="truncate">{uploaded.fileName || 'Uploaded'}</span>
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Not uploaded
+            </>
+          )}
+        </p>
+        <div className="flex items-center gap-2">
+          {uploaded && (
+            <Button type="button" variant="ghost" size="sm" onClick={handleRemove}>
+              <Trash2 className="mr-1.5 h-4 w-4 text-destructive" />
+              Remove
+            </Button>
+          )}
+          <Button type="button" variant="outline" size="sm" asChild>
+            <label htmlFor={inputId} className="cursor-pointer">
+              <Upload className="mr-2 h-4 w-4" />
+              {uploaded ? 'Replace' : 'Upload'}
+              <input
+                id={inputId}
+                type="file"
+                accept={ACCEPTED_TYPES}
+                className="sr-only"
+                onChange={handleFileChange}
+              />
+            </label>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InsuranceDocumentsSection({
+  activeInsuranceTypes,
+  documents,
+  setDocuments,
+}) {
+  if (!activeInsuranceTypes.length) {
+    return (
+      <div className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
+        Add primary, secondary, or tertiary insurance on the Insurance tab to upload insurance card
+        documents here.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {activeInsuranceTypes.map((typeKey) => {
+        const typeLabel = INSURANCE_TYPE_LABELS[typeKey] || typeKey;
+        return (
+          <div key={typeKey} className="space-y-3">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-foreground">
+                {typeLabel} insurance documents
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Upload the front and back of the {typeLabel.toLowerCase()} insurance card.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {INSURANCE_CARD_SIDES.map(({ side, category, nameSuffix }) => (
+                <InsuranceCardSidePicker
+                  key={`${typeKey}-${side}`}
+                  typeKey={typeKey}
+                  typeLabel={typeLabel}
+                  side={side}
+                  category={category}
+                  nameSuffix={nameSuffix}
+                  documents={documents}
+                  setDocuments={setDocuments}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function PatientRegistrationDocumentsTab({
@@ -46,18 +209,9 @@ export function PatientRegistrationDocumentsTab({
   documentFormErrors = {},
   setDocumentFormErrors,
   documentWarnings = [],
+  activeInsuranceTypes = [],
 }) {
   const uploadSectionRef = useRef(null);
-
-  const scrollToUpload = () => {
-    uploadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const startChecklistUpload = (item) => {
-    setNewDocument(newDocumentFromChecklistItem(item));
-    setDocumentFormErrors?.({});
-    scrollToUpload();
-  };
 
   const handleAddDocument = () => {
     const fieldErrors = validateNewDocumentForm(newDocument);
@@ -72,56 +226,17 @@ export function PatientRegistrationDocumentsTab({
   };
 
   const isIdProof = newDocument.documentCategory === 'Identity Proof';
+  const orderedActiveTypes = INSURANCE_RANK_ORDER.filter((key) =>
+    activeInsuranceTypes.includes(key),
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Required documents</h3>
-        <p className="text-sm text-muted-foreground">
-          Upload patient documents as needed. Photo ID and insurance card (front) are optional but recommended.
-        </p>
-        <div className="rounded-lg border divide-y">
-          {DOCUMENT_CHECKLIST_ITEMS.map((item) => {
-            const uploaded = isChecklistItemUploaded(item, documents);
-            return (
-              <div
-                key={item.key}
-                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium">{item.label}</span>
-                    {item.required ? (
-                      <Badge variant="outline" className="text-destructive border-destructive/40">
-                        Required
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Optional</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    {uploaded ? (
-                      <>
-                        <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                        Uploaded
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle className="h-3.5 w-3.5 text-muted-foreground" />
-                        Not uploaded
-                      </>
-                    )}
-                  </p>
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => startChecklistUpload(item)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploaded ? 'Upload another' : 'Upload'}
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+    <div className="space-y-4">
+      <InsuranceDocumentsSection
+        activeInsuranceTypes={orderedActiveTypes}
+        documents={documents}
+        setDocuments={setDocuments}
+      />
 
       {documentWarnings.length > 0 && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
@@ -135,7 +250,7 @@ export function PatientRegistrationDocumentsTab({
       )}
 
       <div ref={uploadSectionRef} className="space-y-4 border-t pt-4">
-        <h3 className="text-sm font-semibold text-foreground">Upload document</h3>
+        <h3 className="text-sm font-semibold text-foreground">Upload additional document</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="documentCategory">

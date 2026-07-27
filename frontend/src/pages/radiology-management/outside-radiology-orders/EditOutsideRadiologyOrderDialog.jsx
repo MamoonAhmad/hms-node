@@ -126,7 +126,7 @@ export function EditOutsideRadiologyOrderDialog({ open, onOpenChange, order, pat
       payload.reportFileName = reportFile?.name;
       payload.sendOutLocation = performingFacility.trim() || order.sendOutLocation;
       payload.reportReceivedNotes = reportNotes.trim() || undefined;
-      payload.status = 'Completed';
+      payload.status = 'Resulted';
     }
 
     onSave?.({ ...order, ...payload });

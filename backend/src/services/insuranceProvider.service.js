@@ -40,7 +40,7 @@ const insuranceProviderService = {
     const conditions = [NOT_DELETED];
 
     if (payerId) {
-      conditions.push({ id: { contains: payerId, mode: 'insensitive' } });
+      conditions.push({ code: { contains: payerId, mode: 'insensitive' } });
     }
 
     if (name) {

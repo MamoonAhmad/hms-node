@@ -128,8 +128,8 @@ export function InsuranceProviderFormDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           {provider?.id && (
             <div className="space-y-2">
-              <Label htmlFor="payerId">Payer ID</Label>
-              <Input id="payerId" value={provider.id} disabled readOnly />
+              <Label htmlFor="dbId">DB ID</Label>
+              <Input id="dbId" value={provider.id} disabled readOnly />
             </div>
           )}
 
@@ -150,7 +150,7 @@ export function InsuranceProviderFormDialog({
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="code">Code</Label>
+              <Label htmlFor="code">Payer ID</Label>
               <Input
                 id="code"
                 value={formData.code}

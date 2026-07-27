@@ -78,7 +78,7 @@ function ChiefComplaintFormDialog({
                   value={name}
                   onChange={(e) => onNameChange(e.target.value)}
                   placeholder="e.g. Abdominal pain"
-                  className={cn('h-10 bg-background', nameError && 'border-destructive focus-visible:ring-destructive', readOnly && 'bg-muted')}
+                  className={cn('h-8 bg-background', nameError && 'border-destructive focus-visible:ring-destructive', readOnly && 'bg-muted')}
                   autoFocus={!readOnly}
                   disabled={readOnly || isSubmitting}
                   readOnly={readOnly}
@@ -94,7 +94,7 @@ function ChiefComplaintFormDialog({
                   value={code}
                   onChange={(e) => onCodeChange(e.target.value)}
                   placeholder="e.g. CC-FEVER"
-                  className={cn('h-10', readOnly && 'bg-muted')}
+                  className={cn('h-8', readOnly && 'bg-muted')}
                   disabled={readOnly || isSubmitting}
                   readOnly={readOnly}
                 />

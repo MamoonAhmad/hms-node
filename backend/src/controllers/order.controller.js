@@ -12,6 +12,7 @@ const orderController = {
         locationId: locationId || null,
         orders,
         orderedBy: orderedByValue,
+        user: req.user || null,
       });
       res.status(201).json({
         success: true,
@@ -39,6 +40,47 @@ const orderController = {
         ...result,
       });
     } catch (error) {
+      next(error);
+    }
+  },
+
+  async findById(req, res, next) {
+    try {
+      const data = await orderService.findById(req.params.id);
+      res.json({ success: true, data });
+    } catch (error) {
+      if (error.status === 404) {
+        return res.status(404).json({ success: false, message: error.message });
+      }
+      next(error);
+    }
+  },
+
+  async updateStatus(req, res, next) {
+    try {
+      const updated = await orderService.updateStatus(req.params.id, req.body.status);
+      res.json({
+        success: true,
+        message: 'Order status updated',
+        data: updated,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateSpecimen(req, res, next) {
+    try {
+      const updated = await orderService.updateSpecimenCollection(req.params.id, req.body);
+      res.json({
+        success: true,
+        message: 'Specimen collection updated',
+        data: updated,
+      });
+    } catch (error) {
+      if (error.status === 404) {
+        return res.status(404).json({ success: false, message: error.message });
+      }
       next(error);
     }
   },

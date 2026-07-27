@@ -17,7 +17,8 @@ const createAppointmentSchema = Joi.object({
   }),
   appointmentEndTime: timeFieldSchema.allow('', null),
   duration: Joi.number().integer().min(5).max(480).default(30),
-  appointmentType: Joi.string().trim().min(1).max(100).required(),
+  appointmentType: Joi.string().trim().min(1).max(100),
+  appointmentTypeId: Joi.string().uuid().allow('', null),
   visitReason: Joi.string().trim().max(500).allow('', null),
   department: Joi.string().trim().max(100).allow('', null),
   departmentId: Joi.string().uuid().allow('', null),
@@ -26,7 +27,16 @@ const createAppointmentSchema = Joi.object({
     'string.guid': 'Invalid provider ID format',
   }),
   status: statusFieldSchema.default('Scheduled'),
+  visitModality: Joi.string().trim().valid('in-house', 'phone', 'telehealth').default('in-house'),
+  accessibilityRequirements: Joi.alternatives().try(
+    Joi.array().items(Joi.string().trim()),
+    Joi.string().trim().allow('', null),
+  ),
+  accessibilityRequirementsNotes: Joi.string().trim().max(5000).allow('', null),
+  evaluateRegistrationStatus: Joi.boolean().default(false),
   notes: Joi.string().trim().max(5000).allow('', null),
+}).or('appointmentType', 'appointmentTypeId').messages({
+  'object.missing': 'Appointment type is required',
 });
 
 const updateAppointmentSchema = Joi.object({
@@ -36,12 +46,19 @@ const updateAppointmentSchema = Joi.object({
   appointmentEndTime: timeFieldSchema.allow('', null),
   duration: Joi.number().integer().min(5).max(480),
   appointmentType: Joi.string().trim().min(1).max(100),
+  appointmentTypeId: Joi.string().uuid().allow('', null),
   visitReason: Joi.string().trim().max(500).allow('', null),
   department: Joi.string().trim().max(100).allow('', null),
   departmentId: Joi.string().uuid().allow('', null),
   provider: Joi.string().trim().max(200).allow('', null),
   providerId: Joi.string().uuid().allow('', null),
   status: statusFieldSchema,
+  visitModality: Joi.string().trim().valid('in-house', 'phone', 'telehealth'),
+  accessibilityRequirements: Joi.alternatives().try(
+    Joi.array().items(Joi.string().trim()),
+    Joi.string().trim().allow('', null),
+  ),
+  accessibilityRequirementsNotes: Joi.string().trim().max(5000).allow('', null),
   notes: Joi.string().trim().max(5000).allow('', null),
 })
   .min(1)
@@ -69,6 +86,7 @@ const statusCountsQuerySchema = queryAppointmentSchema.keys({ status: Joi.forbid
 const availabilityDatesQuerySchema = Joi.object({
   providerId: Joi.string().uuid().required(),
   appointmentType: Joi.string().trim().max(100).allow(''),
+  departmentId: Joi.string().uuid().allow('', null),
   fromDate: Joi.date().iso(),
   daysAhead: Joi.number().integer().min(1).max(365).default(90),
 });
@@ -77,6 +95,7 @@ const availabilitySlotsQuerySchema = Joi.object({
   providerId: Joi.string().uuid().required(),
   date: Joi.date().iso().required(),
   appointmentType: Joi.string().trim().max(100).allow(''),
+  departmentId: Joi.string().uuid().allow('', null),
   excludeAppointmentId: Joi.string().uuid(),
 });
 
@@ -107,6 +126,13 @@ const validate = (schema, property = 'body') => (req, res, next) => {
   next();
 };
 
+const assignRoomSchema = Joi.object({
+  roomId: Joi.string().uuid().required().messages({
+    'string.guid': 'Invalid room ID format',
+    'any.required': 'Room ID is required',
+  }),
+});
+
 module.exports = {
   createAppointmentSchema,
   updateAppointmentSchema,
@@ -115,6 +141,7 @@ module.exports = {
   availabilityDatesQuerySchema,
   availabilitySlotsQuerySchema,
   updateStatusSchema,
+  assignRoomSchema,
   appointmentIdSchema,
   validate,
 };

@@ -29,6 +29,7 @@ import {
   BarChart2,
   Hospital,
   ListChecks,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./SidebarContext";
@@ -40,10 +41,46 @@ const providersItems = [
   { name: "Provider List", href: "/providers", icon: UserCheck },
   { name: "Specialities", href: "/providers/specialities", icon: Stethoscope },
   { name: "Sub Specialities", href: "/providers/sub-specialities", icon: Stethoscope },
+  { name: "Locations", href: "/providers/locations", icon: MapPin },
+  {
+    name: "Provider Scheduling",
+    href: "/providers/schedule",
+    icon: Calendar,
+  },
 ];
 
 const administrationItems = [
+  {
+    name: "Facility",
+    href: "/administration/facility",
+    icon: Building2,
+  },
+  { name: "Departments", href: "/departments", icon: Building2 },
+  {
+    name: "Rooms Management",
+    icon: Hospital,
+    children: [
+      { name: "Rooms Type", href: "/patient-management/room-types" },
+      { name: "Rooms", href: "/patient-management/rooms" },
+      { name: "Beds", href: "/patient-management/beds" },
+    ],
+  },
+  {
+    name: "Appointment Types",
+    href: "/administration/appointment-types",
+    icon: CalendarClock,
+  },
+  {
+    name: "Custom Order Set",
+    href: "/custom-order-set",
+    icon: ListOrdered,
+  },
   { name: "Payers Management", href: "/insurance-providers", icon: Shield },
+  {
+    name: "Billing Providers",
+    href: "/administration/billing-providers",
+    icon: UserCheck,
+  },
   {
     name: "Chief Complaints",
     href: "/administration/chief-complaint",
@@ -65,36 +102,33 @@ const administrationItems = [
     icon: Code,
   },
   {
-    name: "HCPCS Codes",
-    href: "/administration/hcpcs-codes",
-    icon: ClipboardList,
-  },
-  {
     name: "Diagnosis Codes",
     href: "/administration/diagnosis-codes",
     icon: Stethoscope,
   },
-  {
-    name: "Billing Providers",
-    href: "/administration/billing-providers",
-    icon: UserCheck,
-  },
-  {
-    name: "Facility",
-    href: "/administration/facility",
-    icon: Building2,
-  },
-  { name: "Departments", href: "/departments", icon: Building2 },
-  { name: "Locations", href: "/providers/locations", icon: MapPin },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 const patientManagementItems = [
   { name: "Patients", href: "/patients", icon: Users },
-  { name: "Nurse Assessment", href: "/nurse-assessment", icon: Stethoscope },
+  {
+    name: "Registration Queue",
+    href: "/patient-management/registration-queue",
+    icon: ListOrdered,
+  },
+  {
+    name: "Waitlist",
+    href: "/patient-management/waitlist",
+    icon: CalendarClock,
+  },
+  {
+    name: "Consent Worklist",
+    href: "/patient-management/consent-worklist",
+    icon: FileText,
+  },
   {
     name: "Patient Tracking",
-    href: "/nurse-tracking-board",
+    href: "/outpatient_tracking_board",
     icon: Activity,
   },
   {
@@ -103,32 +137,13 @@ const patientManagementItems = [
     icon: ClipboardList,
   },
   {
-    name: "Custom Order Set",
-    href: "/custom-order-set",
-    icon: ListOrdered,
-  },
-  {
-    name: "Rooms Management",
-    icon: Hospital,
-    children: [
-      { name: "Rooms Type", href: "/patient-management/room-types" },
-      { name: "Rooms", href: "/patient-management/rooms" },
-      { name: "Beds", href: "/patient-management/beds" },
-    ],
+    name: "Encounters",
+    href: "/patient-management/encounters",
+    icon: ScrollText,
   },
 ];
 
 const appointmentsItems = [
-  {
-    name: "Appointment Types",
-    href: "/administration/appointment-types",
-    icon: CalendarClock,
-  },
-  {
-    name: "Provider Scheduling",
-    href: "/providers/schedule",
-    icon: Calendar,
-  },
   { name: "Appointments", href: "/appointments", icon: Calendar },
   { name: "Block Hours", href: "/appointments/block-hours", icon: CalendarClock },
   {
@@ -138,24 +153,11 @@ const appointmentsItems = [
   },
 ];
 
-const physiologicalTestsItems = [
-  {
-    name: "Physiological order management",
-    href: "/physiological-tests/order-management",
-    icon: Activity,
-  },
-  {
-    name: "Outside physiological tests",
-    href: "/physiological-tests/outside",
-    icon: Activity,
-  },
-];
-
 const laboratoryManagementItems = [
   {
-    name: "Onsite Laboratory Management",
-    href: "/laboratory-management",
-    icon: LayoutDashboard,
+    name: "Laboratory Master",
+    href: "/laboratory-management/laboratory-master",
+    icon: FlaskConical,
   },
   {
     name: "Specimen Collection",
@@ -176,6 +178,11 @@ const laboratoryManagementItems = [
 
 const radiologyManagementItems = [
   {
+    name: "Radiology Master",
+    href: "/radiology-management/master",
+    icon: Camera,
+  },
+  {
     name: "Radiology Order & Report Management",
     href: "/radiology-management/order-management",
     icon: Camera,
@@ -193,6 +200,39 @@ const pharmacyItems = [
     name: "Medication Prescriptions",
     href: "/pharmacy/e-prescribe-med-reconciliation",
     icon: Pill,
+  },
+  {
+    name: "Medicines Master",
+    href: "/pharmacy/medicines-master",
+    icon: Pill,
+  },
+  {
+    name: "Medication formulary",
+    href: "/pharmacy/medication-formulary",
+    icon: Pill,
+  },
+  {
+    name: "Immunization / Vaccine Master",
+    href: "/pharmacy/vaccine-master",
+    icon: Pill,
+  },
+];
+
+const ancillaryServicesItems = [
+  {
+    name: "Laboratory Management",
+    icon: FlaskConical,
+    children: laboratoryManagementItems.map(({ name, href }) => ({ name, href })),
+  },
+  {
+    name: "Radiology Management",
+    icon: Camera,
+    children: radiologyManagementItems.map(({ name, href }) => ({ name, href })),
+  },
+  {
+    name: "Pharmacy",
+    icon: Pill,
+    children: pharmacyItems.map(({ name, href }) => ({ name, href })),
   },
 ];
 
@@ -226,9 +266,11 @@ const claimsReportItems = [
 const claimsItems = [
   { name: "Claim Tracker", href: "/rcm/claim-tracker", icon: Activity },
   { name: "Claims listing", href: "/rcm/claims", icon: ClipboardList },
+  { name: "Claims Worklist", href: "/rcm/claims-worklist", icon: ListChecks },
   { name: "Follow Up Management", href: "/rcm/follow-up-management", icon: CalendarClock },
   { name: "CMS 1500", href: "/rcm/cms-1500", icon: FileText },
   { name: "Claim UB-04", href: "/rcm/claim-ub04", icon: FileText },
+  { name: "Charge Master", href: "/administration/charge-master", icon: ListOrdered },
   { name: "Reports", icon: BarChart2, children: claimsReportItems },
 ];
 
@@ -286,11 +328,11 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 [&_svg]:shrink-0 border-l-[3px] border-transparent",
+          "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors [&_svg]:shrink-0",
           isActive
-            ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover border-l-sidebar-active-bar"
-            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
-          isCollapsed && "justify-center border-l-0",
+            ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover"
+            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
+          isCollapsed && "justify-center",
         )}
         title={isCollapsed ? title : ""}
       >
@@ -306,7 +348,7 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
           ))}
       </button>
       {isOpen && !isCollapsed && (
-        <div className="mt-0.5 space-y-0.5 pl-2 ml-2 border-l border-sidebar-border">
+        <div className="mt-0.5 space-y-0.5 pl-3 ml-1 border-l border-sidebar-border/60">
           {items.map((item) => {
             if (item.children) {
               const isNestedOpen = openNested === item.name;
@@ -321,8 +363,8 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
                     type="button"
                     onClick={() => setOpenNested(isNestedOpen ? null : item.name)}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 border-l-[3px] -ml-[2px] pl-[11px]",
-                      isNestedActive ? "border-l-sidebar-active-bar bg-sidebar-accent/80 text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover" : "border-transparent text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
+                      "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      isNestedActive ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover" : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
                     )}
                   >
                     <NestedIcon className="h-4 w-4 shrink-0" />
@@ -330,17 +372,17 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
                     {isNestedOpen ? <ChevronDown className="h-3.5 w-3.5 opacity-70" /> : <ChevronRight className="h-3.5 w-3.5 opacity-70" />}
                   </button>
                   {isNestedOpen && (
-                    <div className="pl-2 ml-2 space-y-0.5 border-l border-sidebar-border">
+                    <div className="pl-3 ml-1 space-y-0.5 border-l border-sidebar-border/60">
                       {item.children.map((child) => (
                         <NavLink
                           key={child.name}
                           to={child.href}
                           className={({ isActive: childActive }) =>
                             cn(
-                              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 -ml-[2px] pl-[11px]",
+                              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                               childActive
-                                ? "bg-sidebar-accent/80 text-sidebar-accent-foreground border-l-sidebar-active-bar border-l-[3px]"
-                                : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                             )
                           }
                         >
@@ -359,10 +401,10 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
                 to={item.href}
                 className={({ isActive: linkActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 [&_svg]:text-current border-l-[3px] border-transparent -ml-[2px] pl-[11px]",
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors [&_svg]:text-current",
                     linkActive
-                      ? "bg-sidebar-accent/80 text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover border-l-sidebar-active-bar"
-                      : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
                   )
                 }
               >
@@ -380,7 +422,7 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
 export function Sidebar() {
   const { isCollapsed, toggleSidebar } = useSidebar();
 
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -391,21 +433,21 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar shadow-[1px_0_2px_rgba(0,0,0,0.1)] transition-all duration-300",
+        "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-sidebar-border bg-sidebar shadow-[var(--shadow-elevation-sm)] transition-all duration-300",
         isCollapsed ? "w-16" : "w-[17.6rem]",
       )}
     >
-      <div className="flex h-[3.25rem] shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4">
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border px-4">
         {!isCollapsed && (
           <>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary shadow-sm">
-              <span className="text-base font-bold text-primary-foreground">H</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
+              <span className="text-sm font-bold text-sidebar-primary-foreground">H</span>
             </div>
             <div className="min-w-0">
-              <span className="block text-base font-semibold tracking-tight text-sidebar-foreground">
+              <span className="block text-sm font-semibold tracking-tight text-sidebar-foreground">
                 HMS
               </span>
-              <span className="block truncate text-[0.65rem] font-medium uppercase tracking-wider text-sidebar-foreground/50">
+              <span className="block truncate text-[0.625rem] font-medium uppercase tracking-widest text-sidebar-foreground/55">
                 Clinical Platform
               </span>
             </div>
@@ -416,7 +458,7 @@ export function Sidebar() {
           size="icon"
           onClick={toggleSidebar}
           className={cn(
-            "ml-auto text-sidebar-icon hover:text-sidebar-icon-hover hover:bg-sidebar-accent/60 rounded-lg transition-colors",
+            "ml-auto text-sidebar-icon hover:text-sidebar-icon-hover hover:bg-sidebar-accent rounded-md transition-colors",
             isCollapsed && "mx-auto",
           )}
         >
@@ -434,11 +476,11 @@ export function Sidebar() {
           to="/"
           className={({ isActive }) =>
             cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 [&_svg]:shrink-0 border-l-[3px] border-transparent",
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors [&_svg]:shrink-0",
               isActive
-                ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover border-l-sidebar-active-bar"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
-              isCollapsed && "justify-center border-l-0",
+                ? "bg-sidebar-accent text-sidebar-accent-foreground [&_svg]:text-sidebar-icon-hover"
+                : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground [&_svg]:text-sidebar-icon hover:[&_svg]:text-sidebar-icon-hover",
+              isCollapsed && "justify-center",
             )
           }
           title={isCollapsed ? "Dashboard" : ""}
@@ -447,47 +489,9 @@ export function Sidebar() {
           {!isCollapsed && <span>Dashboard</span>}
         </NavLink>
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="my-2 h-px bg-sidebar-border" />}
 
-        {/* Providers Dropdown */}
-        <MenuDropdown
-          title="Providers"
-          items={providersItems}
-          icon={UserCheck}
-          isCollapsed={isCollapsed}
-        />
-
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
-
-        {/* Appointments Dropdown */}
-        <MenuDropdown
-          title="Appointments"
-          items={appointmentsItems}
-          icon={CalendarClock}
-          isCollapsed={isCollapsed}
-        />
-
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
-
-        {/* Administration Dropdown */}
-        <MenuDropdown
-          title="Administration"
-          items={administrationItems}
-          icon={Settings}
-          isCollapsed={isCollapsed}
-        />
-
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
-
-        {/* Patient Management Dropdown */}
+        {/* Patient Management — daily clinical ops */}
         <MenuDropdown
           title="Patient Management"
           items={patientManagementItems}
@@ -495,59 +499,39 @@ export function Sidebar() {
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="my-2 h-px bg-sidebar-border" />}
 
-        {/* Physiological tests Dropdown */}
+        {/* Appointments — scheduling */}
         <MenuDropdown
-          title="Physiological tests"
-          items={physiologicalTestsItems}
-          icon={Activity}
+          title="Appointments"
+          items={appointmentsItems}
+          icon={CalendarClock}
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="my-2 h-px bg-sidebar-border" />}
 
-        {/* Laboratory Management Dropdown */}
+        {/* Providers — directory & schedules */}
         <MenuDropdown
-          title="Laboratory Management"
-          items={laboratoryManagementItems}
-          icon={FlaskConical}
+          title="Providers"
+          items={providersItems}
+          icon={UserCheck}
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="my-2 h-px bg-sidebar-border" />}
 
-        {/* Pharmacy Dropdown */}
+        {/* Ancillary Services — lab, radiology, pharmacy */}
         <MenuDropdown
-          title="Pharmacy"
-          items={pharmacyItems}
-          icon={Pill}
+          title="Ancillary Services"
+          items={ancillaryServicesItems}
+          icon={Hospital}
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="my-2 h-px bg-sidebar-border" />}
 
-        {/* Radiology Management Dropdown */}
-        <MenuDropdown
-          title="Radiology Management"
-          items={radiologyManagementItems}
-          icon={Camera}
-          isCollapsed={isCollapsed}
-        />
-
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
-
-        {/* Claims Dropdown */}
+        {/* Claims — RCM */}
         <MenuDropdown
           title="Claims"
           items={claimsItems}
@@ -555,35 +539,23 @@ export function Sidebar() {
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="my-2 h-px bg-sidebar-border" />}
+
+        {/* Administration — masters & settings last */}
+        <MenuDropdown
+          title="Administration"
+          items={administrationItems}
+          icon={Settings}
+          isCollapsed={isCollapsed}
+        />
       </nav>
 
-      {/* User section at bottom */}
-      <div className="shrink-0 p-3 border-t border-sidebar-border bg-sidebar/80">
-        <div className="rounded-xl bg-sidebar-accent/50 p-3 mb-2">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-semibold text-sm ring-2 ring-primary/20">
-              {user?.name?.[0]?.toUpperCase() ||
-                user?.email?.[0]?.toUpperCase() ||
-                "U"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {user?.name || "User"}
-              </p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">
-                {user?.email}
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="shrink-0 border-t border-sidebar-border p-3">
         <Button
           variant="ghost"
           size="sm"
           onClick={handleLogout}
-          className="w-full justify-start gap-2 rounded-xl text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors"
+          className="w-full justify-start gap-2 rounded-md text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
         >
           <LogoutIcon className="h-4 w-4" />
           Sign out

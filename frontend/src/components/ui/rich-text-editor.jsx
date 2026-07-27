@@ -45,8 +45,8 @@ export function RichTextEditor({ value = '', onChange, placeholder, className, i
   );
 
   return (
-    <div className={cn('rounded-lg border bg-background overflow-hidden', className)}>
-      <div className="flex flex-wrap items-center gap-0.5 border-b bg-muted/40 px-2 py-1.5">
+    <div className={cn('rounded-lg border border-gray-300 bg-white overflow-hidden', className)}>
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-300 bg-muted/40 px-2 py-1.5">
         {toolbarButton('Bold', <Bold className="h-4 w-4" />, 'bold')}
         {toolbarButton('Italic', <Italic className="h-4 w-4" />, 'italic')}
         {toolbarButton('Underline', <Underline className="h-4 w-4" />, 'underline')}
@@ -61,7 +61,7 @@ export function RichTextEditor({ value = '', onChange, placeholder, className, i
         aria-label={placeholder || 'Rich text editor'}
         contentEditable
         suppressContentEditableWarning
-        className="min-h-[180px] max-h-[320px] overflow-y-auto px-3 py-2 text-sm focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
+        className="min-h-[180px] max-h-[320px] overflow-y-auto bg-white px-3 py-2 text-sm text-black focus:outline-none empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground"
         data-placeholder={placeholder}
         onInput={handleInput}
       />

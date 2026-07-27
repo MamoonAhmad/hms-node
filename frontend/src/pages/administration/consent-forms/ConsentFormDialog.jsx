@@ -128,7 +128,7 @@ export function ConsentFormDialog({ open, onOpenChange, record, onSave, isSubmit
           <DialogTitle>{isEdit ? 'Edit Consent Form' : 'Add Consent Form'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="ehr-form space-y-4">
           <FormSection title="Basic Information">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField label="Consent Title" htmlFor="consentTitle" required error={errors.consentTitle}>

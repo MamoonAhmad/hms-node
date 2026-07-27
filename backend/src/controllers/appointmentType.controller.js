@@ -37,7 +37,7 @@ const appointmentTypeController = {
    */
   async create(req, res, next) {
     try {
-      const row = await appointmentTypeService.create(req.body, req.user.id);
+      const row = await appointmentTypeService.create(req.body, req.user);
       res.status(201).json({
         success: true,
         message: 'Appointment type created successfully',
@@ -235,7 +235,7 @@ const appointmentTypeController = {
    */
   async update(req, res, next) {
     try {
-      const row = await appointmentTypeService.update(req.params.id, req.body, req.user.id);
+      const row = await appointmentTypeService.update(req.params.id, req.body, req.user);
       res.json({
         success: true,
         message: 'Appointment type updated successfully',
@@ -289,11 +289,45 @@ const appointmentTypeController = {
    */
   async delete(req, res, next) {
     try {
-      await appointmentTypeService.delete(req.params.id, req.user.id);
+      await appointmentTypeService.delete(req.params.id, req.user);
       res.json({
         success: true,
         message: 'Appointment type removed successfully',
       });
+    } catch (error) {
+      if (error?.statusCode === 404) {
+        return res.status(404).json({ success: false, message: error.message });
+      }
+      next(error);
+    }
+  },
+
+  /**
+   * @swagger
+   * /api/appointment-types/{id}/history:
+   *   get:
+   *     summary: Get update history for an appointment type
+   *     tags: [Appointment Types]
+   *     security:
+   *       - bearerAuth: []
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: Appointment type ID
+   *     responses:
+   *       200:
+   *         description: List of history entries for the appointment type
+   *       404:
+   *         description: Appointment type not found
+   */
+  async getHistory(req, res, next) {
+    try {
+      const history = await appointmentTypeService.getHistory(req.params.id);
+      res.json({ success: true, data: history });
     } catch (error) {
       if (error?.statusCode === 404) {
         return res.status(404).json({ success: false, message: error.message });

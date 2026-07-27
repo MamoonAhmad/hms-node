@@ -224,7 +224,7 @@ export function ClinicalNotesModal({ isOpen, onClose, onSave, patient, note }) {
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="ehr-form space-y-4">
           {/* Common Header Section */}
           <Card className="border-2">
             <CardHeader className="bg-muted/50">

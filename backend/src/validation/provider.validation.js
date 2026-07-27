@@ -46,6 +46,7 @@ const createProviderSchema = Joi.object({
   specialtyId: optionalFkUuid('Specialty id'),
   subSpecialtyId: optionalFkUuid('Sub-specialty id'),
   departmentId: optionalFkUuid('Department id'),
+  departmentIds: Joi.array().items(Joi.string().uuid()).default([]),
   taxonomy: Joi.string().trim().max(200).allow('', null),
   email: Joi.string().trim().email().allow('', null).messages({
     'string.email': 'Invalid email format',
@@ -89,6 +90,7 @@ const updateProviderSchema = Joi.object({
   specialtyId: optionalFkUuid('Specialty id'),
   subSpecialtyId: optionalFkUuid('Sub-specialty id'),
   departmentId: optionalFkUuid('Department id'),
+  departmentIds: Joi.array().items(Joi.string().uuid()).default([]),
   taxonomy: Joi.string().trim().max(200).allow('', null),
   email: Joi.string().trim().email().allow('', null).messages({
     'string.email': 'Invalid email format',
@@ -127,6 +129,7 @@ const queryProviderSchema = Joi.object({
   limit: Joi.number().integer().min(1).max(500).default(10),
   search: Joi.string().trim().max(100).allow(''),
   isActive: Joi.boolean(),
+  departmentId: Joi.string().uuid().allow('', null),
 });
 
 /**

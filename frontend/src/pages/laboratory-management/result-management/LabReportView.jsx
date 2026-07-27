@@ -1,0 +1,75 @@
+function formatDateTime(str) {
+  if (!str) return '-';
+  return new Date(str).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+export function LabReportView({ labTest }) {
+  if (!labTest) return null;
+
+  const patient = labTest.patient || {};
+  const params = labTest.parameters || [];
+
+  return (
+    <div className="max-w-3xl mx-auto print:max-w-none">
+      <h1 className="text-xl font-bold mb-4">Laboratory Report</h1>
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-muted-foreground mb-2">Patient Info</h2>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          <span>Name: {patient.name}</span>
+          <span>MRN: {patient.mrn}</span>
+          <span>DOB: {patient.dob}</span>
+          <span>Gender: {patient.gender}</span>
+        </div>
+      </section>
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-muted-foreground mb-2">Test Info</h2>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+          <span>Test Name: {labTest.testName}</span>
+          <span>Test ID: {labTest.testId}</span>
+          <span>Status: {labTest.status}</span>
+          <span>Ordered: {formatDateTime(labTest.orderDateTime)}</span>
+          <span>Ordered By: {labTest.orderedBy || '-'}</span>
+        </div>
+      </section>
+      <section className="mb-6">
+        <h2 className="text-sm font-semibold text-muted-foreground mb-2">Parameter Results</h2>
+        <table className="w-full text-sm border-collapse border border-border">
+          <thead>
+            <tr className="bg-muted">
+              <th className="border border-border p-2 text-left">Name</th>
+              <th className="border border-border p-2 text-left">Result Value</th>
+              <th className="border border-border p-2 text-left">Flag</th>
+              <th className="border border-border p-2 text-left">Units</th>
+              <th className="border border-border p-2 text-left">Reference Range</th>
+            </tr>
+          </thead>
+          <tbody>
+            {params.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="border border-border p-2 text-muted-foreground">
+                  No parameters entered yet
+                </td>
+              </tr>
+            ) : (
+              params.map((p, i) => (
+                <tr key={i}>
+                  <td className="border border-border p-2">{p.name}</td>
+                  <td className="border border-border p-2 font-medium">{p.resultValue}</td>
+                  <td className="border border-border p-2">{p.flag}</td>
+                  <td className="border border-border p-2">{p.units}</td>
+                  <td className="border border-border p-2">{p.referenceRange}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </section>
+      {labTest.resultNotes && (
+        <section>
+          <h2 className="text-sm font-semibold text-muted-foreground mb-2">Result Notes</h2>
+          <p className="text-sm">{labTest.resultNotes}</p>
+        </section>
+      )}
+    </div>
+  );
+}

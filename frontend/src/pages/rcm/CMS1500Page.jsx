@@ -1,4 +1,5 @@
-import { useMemo, useState, Component } from 'react';
+import { useCallback, useEffect, useMemo, useState, Component } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +24,22 @@ import {
 } from '@/components/ui/table';
 import { Search, User, Building2, DollarSign, Check, X, Printer, ChevronDown, MoreVertical, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EntityLookupField } from '@/components/rcm/EntityLookupField';
+import { claimApi } from '@/services/api/claim.api';
+import { patientApi } from '@/services/api/patient.api';
+import { providerApi } from '@/services/api/provider.api';
+import { insuranceProviderApi } from '@/services/api/insuranceProvider.api';
+import { diagnosisCodeApi } from '@/services/api/diagnosisCode.api';
+import { patientProblemApi } from '@/services/api/patientProblem.api';
+import {
+  emptyInsuranceDetails,
+  formatPatientDisplayName,
+  formatProviderDisplayName,
+  icdCodesFromProblems,
+  mapInsuranceDetails,
+  mapPatientInsurances,
+  padIcdCodes,
+} from './cms1500FormUtils';
 
 /** Title-case words for dropdown display (e.g. "john doe" → "John Doe"). Preserves numbers, punctuation-only tokens, and short ALL-CAPS tokens (e.g. CMS). */
 function formatDropdownLabel(text) {
@@ -281,7 +298,7 @@ const CERTIFICATION_OPTIONS = [
   'Patient was confined to a bed or chair',
 ];
 
-function InsuranceDetailsBlock({ title, details, onUpdate }) {
+function InsuranceDetailsBlock({ title, details, onUpdate, onCopyAuth }) {
   return (
     <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
       {title && <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>}
@@ -293,9 +310,10 @@ function InsuranceDetailsBlock({ title, details, onUpdate }) {
         <div className="space-y-2">
           <Label className="text-sm">Policy Type</Label>
           <SearchableSelect
-            value={details.policyType}
+            value={details.policyType || undefined}
             onValueChange={(v) => onUpdate('policyType', v)}
             options={POLICY_TYPE_OPTIONS}
+            placeholder="Select"
           />
         </div>
         <div className="space-y-2">
@@ -314,31 +332,23 @@ function InsuranceDetailsBlock({ title, details, onUpdate }) {
           <Label className="text-sm">Authorization #</Label>
           <div className="flex gap-2 items-center">
             <Input value={details.authorizationNumber} onChange={(e) => onUpdate('authorizationNumber', e.target.value)} className="flex-1 max-w-xs" />
-            <button type="button" className="text-sm text-primary hover:underline whitespace-nowrap">Copy Auth from Patient</button>
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline whitespace-nowrap"
+              onClick={onCopyAuth}
+            >
+              Copy Auth from Patient
+            </button>
           </div>
         </div>
         <div className="space-y-2">
           <Label className="text-sm">Referral Type</Label>
           <SearchableSelect
-            value={details.referralType}
+            value={details.referralType || 'None'}
             onValueChange={(v) => onUpdate('referralType', v)}
             options={REFERRAL_TYPE_OPTIONS}
           />
         </div>
-      </div>
-    </div>
-  );
-}
-
-function FieldWithSearch({ label, value, onChange, required, icon: Icon }) {
-  return (
-    <div className="space-y-2">
-      {required && <span className="absolute left-0 w-1 h-8 bg-destructive rounded-l" aria-hidden />}
-      <Label className="text-sm">{label}</Label>
-      <div className="flex gap-1">
-        <Input value={value || ''} onChange={(e) => onChange(e.target.value)} className="flex-1" />
-        <Button type="button" variant="outline" size="icon" title="Search"><Search className="h-4 w-4" /></Button>
-        {Icon && <Button type="button" variant="outline" size="icon" title="Select"><Icon className="h-4 w-4" /></Button>}
       </div>
     </div>
   );
@@ -362,10 +372,17 @@ class CMS1500ErrorBoundary extends Component {
 }
 
 function CMS1500PageContent() {
+  const [searchParams] = useSearchParams();
+  const claimIdParam = searchParams.get('claimId') || '';
+
   const [activeTab, setActiveTab] = useState('claim');
+  const [loadingClaim, setLoadingClaim] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [claimNumber, setClaimNumber] = useState('New');
   const [claimIncomplete, setClaimIncomplete] = useState(true);
   const [claimRef, setClaimRef] = useState('');
   const [frequency, setFrequency] = useState('1');
+  const [patientId, setPatientId] = useState(null);
   const [patient, setPatient] = useState('');
   const [renderingProvider, setRenderingProvider] = useState('');
   const [billingProvider, setBillingProvider] = useState('');
@@ -378,18 +395,16 @@ function CMS1500PageContent() {
   const [secondaryInsurance, setSecondaryInsurance] = useState('');
   const [tertiaryInsurance, setTertiaryInsurance] = useState('');
 
-  const defaultInsuranceDetails = () => ({
-    memberId: '',
-    policyType: 'auto insurance policy',
-    copayDue: '0.00',
-    groupNumber: '',
-    claimControlRef: '',
-    authorizationNumber: '',
-    referralType: 'Prior Auth Number',
+  const [primaryDetails, setPrimaryDetails] = useState(emptyInsuranceDetails);
+  const [secondaryDetails, setSecondaryDetails] = useState(emptyInsuranceDetails);
+  const [tertiaryDetails, setTertiaryDetails] = useState(emptyInsuranceDetails);
+  const [patientAuthByTier, setPatientAuthByTier] = useState({
+    primary: '',
+    secondary: '',
+    tertiary: '',
   });
-  const [primaryDetails, setPrimaryDetails] = useState(defaultInsuranceDetails);
-  const [secondaryDetails, setSecondaryDetails] = useState(defaultInsuranceDetails);
-  const [tertiaryDetails, setTertiaryDetails] = useState(defaultInsuranceDetails);
+  const [hasSecondaryInsurance, setHasSecondaryInsurance] = useState(false);
+  const [hasTertiaryInsurance, setHasTertiaryInsurance] = useState(false);
   const updateInsuranceDetails = (setter, field, value) =>
     setter((prev) => ({ ...prev, [field]: value }));
 
@@ -399,6 +414,161 @@ function CMS1500PageContent() {
   const [charges, setCharges] = useState([
     { from: '', to: '', procedure: '', inventory: '', chiro: false, pos: '', tos: '', mod1: '', mod2: '', mod3: '', mod4: '', unitPrice: '0.00', dxPointers: '', units: '1.00', amount: '0.00', status: 'balance due patient', delete: false },
   ]);
+
+  const applyInsuranceTier = useCallback((tiers) => {
+    const primary = tiers.primary;
+    const secondary = tiers.secondary;
+    const tertiary = tiers.tertiary;
+    setPrimaryInsurance(primary?.payerName || '');
+    setSecondaryInsurance(secondary?.payerName || '');
+    setTertiaryInsurance(tertiary?.payerName || '');
+    setHasSecondaryInsurance(!!secondary);
+    setHasTertiaryInsurance(!!tertiary);
+    setPrimaryDetails(mapInsuranceDetails(primary));
+    setSecondaryDetails(mapInsuranceDetails(secondary));
+    setTertiaryDetails(mapInsuranceDetails(tertiary));
+    setPatientAuthByTier({
+      primary: primary?.authorizationNumber || '',
+      secondary: secondary?.authorizationNumber || '',
+      tertiary: tertiary?.authorizationNumber || '',
+    });
+  }, []);
+
+  const applyPatientRelatedData = useCallback(async (nextPatientId) => {
+    if (!nextPatientId) return;
+    const [patientRes, problemsRes] = await Promise.all([
+      patientApi.getById(nextPatientId),
+      patientProblemApi.getAll(nextPatientId, { status: 'Active' }),
+    ]);
+    const p = patientRes?.data || patientRes;
+    setPatientId(p?.id || nextPatientId);
+    setPatient(formatPatientDisplayName(p));
+    const tiers = mapPatientInsurances(p?.insuranceList || p?.insurances || []);
+    applyInsuranceTier(tiers);
+    const problems = problemsRes?.data || problemsRes || [];
+    setIcdCodes(padIcdCodes(icdCodesFromProblems(problems)));
+  }, [applyInsuranceTier]);
+
+  const applyFormPayload = useCallback((form) => {
+    if (!form) return;
+    setClaimNumber(form.claimNumber || 'New');
+    setClaimIncomplete(String(form.status || '').toLowerCase() === 'draft');
+    setPatientId(form.patientId || form.patient?.id || null);
+    setPatient(form.patient?.displayName || formatPatientDisplayName(form.patient) || '');
+    setRenderingProvider(form.renderingProvider?.name || '');
+    setBillingProvider(form.billingProvider?.name || form.renderingProvider?.name || '');
+    setSupervisingProvider(form.supervisingProvider?.name || form.renderingProvider?.name || '');
+    setFacility(form.facility || 'Main Facility');
+    applyInsuranceTier(form.insurance || {});
+    setIcdCodes(padIcdCodes(form.icdCodes || []));
+  }, [applyInsuranceTier]);
+
+  useEffect(() => {
+    if (!claimIdParam) return undefined;
+    let cancelled = false;
+    (async () => {
+      setLoadingClaim(true);
+      setLoadError('');
+      try {
+        const res = await claimApi.getClaim(claimIdParam);
+        if (cancelled) return;
+        const data = res?.data || res;
+        if (data?.form) {
+          applyFormPayload(data.form);
+        } else {
+          setClaimNumber(data?.claimNumber || claimIdParam);
+          setPatient(
+            formatPatientDisplayName({
+              firstName: data?.patientFirstName,
+              lastName: data?.patientLastName,
+            }),
+          );
+          setRenderingProvider(data?.renderingProviderName || '');
+          setBillingProvider(data?.billingProviderName || data?.renderingProviderName || '');
+          setSupervisingProvider(data?.renderingProviderName || '');
+          if (data?.patientId) await applyPatientRelatedData(data.patientId);
+          if (data?.diagnoses?.length) {
+            setIcdCodes(padIcdCodes(data.diagnoses.map((d) => d.icd10Code)));
+          }
+        }
+      } catch (err) {
+        if (!cancelled) setLoadError(err?.message || 'Failed to load claim');
+      } finally {
+        if (!cancelled) setLoadingClaim(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [claimIdParam, applyFormPayload, applyPatientRelatedData]);
+
+  const loadPatientOptions = useCallback(async (query) => {
+    const res = await patientApi.getAll({ search: query || undefined, limit: 50, page: 1 });
+    const rows = res?.data || [];
+    return rows.map((p) => ({
+      value: p.id,
+      label: formatPatientDisplayName(p),
+      subLabel: p.mrn ? `MRN ${p.mrn}` : undefined,
+      raw: p,
+    }));
+  }, []);
+
+  const loadProviderOptions = useCallback(async (query) => {
+    const res = await providerApi.getAll({ search: query || undefined, limit: 50, page: 1, isActive: true });
+    const rows = res?.data || [];
+    return rows.map((p) => ({
+      value: p.id,
+      label: formatProviderDisplayName(p),
+      subLabel: p.npi ? `NPI ${p.npi}` : undefined,
+      raw: p,
+    }));
+  }, []);
+
+  const loadInsuranceOptions = useCallback(async (query) => {
+    const res = await insuranceProviderApi.getAll({
+      search: query || undefined,
+      limit: 50,
+      page: 1,
+      isActive: true,
+    });
+    const rows = res?.data || [];
+    return rows.map((ins) => ({
+      value: ins.id,
+      label: ins.name || '',
+      subLabel: ins.code ? `Payer ID ${ins.code}` : undefined,
+      raw: ins,
+    }));
+  }, []);
+
+  const loadDiagnosisOptions = useCallback(async (query) => {
+    const res = await diagnosisCodeApi.getAll({ search: query || undefined, limit: 50, page: 1 });
+    const rows = res?.data || [];
+    return rows.map((d) => ({
+      value: d.id || d.code,
+      label: d.code,
+      subLabel: d.description || undefined,
+      raw: d,
+    }));
+  }, []);
+
+  const handlePatientSelect = useCallback(async (opt) => {
+    const id = opt?.raw?.id || opt?.value;
+    if (!id) return;
+    try {
+      await applyPatientRelatedData(id);
+    } catch (err) {
+      setLoadError(err?.message || 'Failed to load patient');
+    }
+  }, [applyPatientRelatedData]);
+
+  const handleRenderingSelect = useCallback((opt) => {
+    const name = opt?.label || formatProviderDisplayName(opt?.raw) || '';
+    setRenderingProvider((prevRendering) => {
+      setSupervisingProvider((prev) => (!prev || prev === prevRendering ? name : prev));
+      setBillingProvider((prev) => (!prev || prev === prevRendering ? name : prev));
+      return name;
+    });
+  }, []);
 
   const [employmentRelated, setEmploymentRelated] = useState('No');
   const [autoAccident, setAutoAccident] = useState('No');
@@ -477,6 +647,17 @@ function CMS1500PageContent() {
         </div>
       </div>
 
+      {loadingClaim ? (
+        <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          Loading claim data…
+        </div>
+      ) : null}
+      {loadError ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 h-11">
           <TabsTrigger value="claim" className={cn(activeTab === 'claim' && 'border-b-2 border-destructive')}>Claim</TabsTrigger>
@@ -492,7 +673,7 @@ function CMS1500PageContent() {
                 <div className="space-y-2">
                   <Label>Claim #</Label>
                   <div className="flex items-center gap-2">
-                    <Input value="New" readOnly className="w-20 bg-muted" />
+                    <Input value={claimNumber} readOnly className="w-48 bg-muted font-mono text-xs" />
                     <Input placeholder="Reference #" value={claimRef} onChange={(e) => setClaimRef(e.target.value)} className="w-48" />
                     {claimIncomplete && <span className="flex items-center gap-1 text-amber-600 text-sm"><AlertTriangle className="h-4 w-4" /> Claim is incomplete</span>}
                   </div>
@@ -508,13 +689,73 @@ function CMS1500PageContent() {
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="relative pl-2 border-l-2 border-destructive"><FieldWithSearch label="Patient *" value={patient} onChange={setPatient} required icon={User} /></div>
-                <div className="relative pl-2 border-l-2 border-destructive"><FieldWithSearch label="Rendering Provider *" value={renderingProvider} onChange={setRenderingProvider} required icon={User} /></div>
-                <div className="relative pl-2 border-l-2 border-destructive"><FieldWithSearch label="Billing Provider *" value={billingProvider} onChange={setBillingProvider} required icon={User} /></div>
-                <div><FieldWithSearch label="Supervising Provider" value={supervisingProvider} onChange={setSupervisingProvider} icon={User} /></div>
-                <div><FieldWithSearch label="Ordering Provider" value={orderingProvider} onChange={setOrderingProvider} icon={Building2} /></div>
+                <div className="relative pl-2 border-l-2 border-destructive">
+                  <EntityLookupField
+                    label="Patient *"
+                    value={patient}
+                    onChange={setPatient}
+                    onSelect={handlePatientSelect}
+                    loadOptions={loadPatientOptions}
+                    icon={User}
+                    placeholder="Search patients…"
+                  />
+                </div>
+                <div className="relative pl-2 border-l-2 border-destructive">
+                  <EntityLookupField
+                    label="Rendering Provider *"
+                    value={renderingProvider}
+                    onChange={setRenderingProvider}
+                    onSelect={handleRenderingSelect}
+                    loadOptions={loadProviderOptions}
+                    icon={User}
+                    placeholder="Search providers…"
+                  />
+                </div>
+                <div className="relative pl-2 border-l-2 border-destructive">
+                  <EntityLookupField
+                    label="Billing Provider *"
+                    value={billingProvider}
+                    onChange={setBillingProvider}
+                    onSelect={(opt) => setBillingProvider(opt.label)}
+                    loadOptions={loadProviderOptions}
+                    icon={User}
+                    placeholder="Search providers…"
+                  />
+                </div>
+                <div>
+                  <EntityLookupField
+                    label="Supervising Provider"
+                    value={supervisingProvider}
+                    onChange={setSupervisingProvider}
+                    onSelect={(opt) => setSupervisingProvider(opt.label)}
+                    loadOptions={loadProviderOptions}
+                    icon={User}
+                    placeholder="Search providers…"
+                  />
+                </div>
+                <div>
+                  <EntityLookupField
+                    label="Ordering Provider"
+                    value={orderingProvider}
+                    onChange={setOrderingProvider}
+                    onSelect={(opt) => setOrderingProvider(opt.label)}
+                    loadOptions={loadProviderOptions}
+                    icon={Building2}
+                    placeholder="Search providers…"
+                  />
+                </div>
                 <div className="flex gap-2">
-                  <div className="flex-1"><FieldWithSearch label="Referring/PCP Provider" value={referringProvider} onChange={setReferringProvider} icon={Building2} /></div>
+                  <div className="flex-1">
+                    <EntityLookupField
+                      label="Referring/PCP Provider"
+                      value={referringProvider}
+                      onChange={setReferringProvider}
+                      onSelect={(opt) => setReferringProvider(opt.label)}
+                      loadOptions={loadProviderOptions}
+                      icon={Building2}
+                      placeholder="Search providers…"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label className="text-sm">Ref</Label>
                     <SearchableSelect
@@ -526,7 +767,14 @@ function CMS1500PageContent() {
                     />
                   </div>
                 </div>
-                <div><FieldWithSearch label="Facility" value={facility} onChange={setFacility} icon={Building2} /></div>
+                <div>
+                  <EntityLookupField
+                    label="Facility"
+                    value={facility}
+                    onChange={setFacility}
+                    icon={Building2}
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label>Office Location</Label>
                   <SearchableSelect
@@ -541,32 +789,89 @@ function CMS1500PageContent() {
                 </div>
               </div>
               <div className="space-y-4 pt-4 border-t">
-                <div><FieldWithSearch label="Primary Insurance" value={primaryInsurance} onChange={setPrimaryInsurance} icon={DollarSign} /></div>
+                <EntityLookupField
+                  label="Primary Insurance"
+                  value={primaryInsurance}
+                  onChange={setPrimaryInsurance}
+                  onSelect={(opt) => setPrimaryInsurance(opt.label)}
+                  loadOptions={loadInsuranceOptions}
+                  icon={DollarSign}
+                  placeholder="Search insurance plans…"
+                />
                 <InsuranceDetailsBlock
                   title="Primary – Insurance & Authorization"
                   details={primaryDetails}
                   onUpdate={(field, value) => updateInsuranceDetails(setPrimaryDetails, field, value)}
+                  onCopyAuth={() =>
+                    updateInsuranceDetails(
+                      setPrimaryDetails,
+                      'authorizationNumber',
+                      patientAuthByTier.primary || primaryDetails.authorizationNumber,
+                    )
+                  }
                 />
               </div>
               <div className="space-y-4 pt-4 border-t">
-                <div><FieldWithSearch label="Secondary Insurance" value={secondaryInsurance} onChange={setSecondaryInsurance} icon={DollarSign} /></div>
-                {secondaryInsurance && (
+                <EntityLookupField
+                  label="Secondary Insurance"
+                  value={secondaryInsurance}
+                  onChange={(v) => {
+                    setSecondaryInsurance(v);
+                    if (v) setHasSecondaryInsurance(true);
+                  }}
+                  onSelect={(opt) => {
+                    setSecondaryInsurance(opt.label);
+                    setHasSecondaryInsurance(true);
+                  }}
+                  loadOptions={loadInsuranceOptions}
+                  icon={DollarSign}
+                  placeholder="Search insurance plans…"
+                />
+                {(hasSecondaryInsurance || secondaryInsurance) ? (
                   <InsuranceDetailsBlock
                     title="Secondary – Insurance & Authorization"
                     details={secondaryDetails}
                     onUpdate={(field, value) => updateInsuranceDetails(setSecondaryDetails, field, value)}
+                    onCopyAuth={() =>
+                      updateInsuranceDetails(
+                        setSecondaryDetails,
+                        'authorizationNumber',
+                        patientAuthByTier.secondary || secondaryDetails.authorizationNumber,
+                      )
+                    }
                   />
-                )}
+                ) : null}
               </div>
               <div className="space-y-4 pt-4 border-t">
-                <div><FieldWithSearch label="Tertiary Insurance" value={tertiaryInsurance} onChange={setTertiaryInsurance} icon={DollarSign} /></div>
-                {tertiaryInsurance && (
+                <EntityLookupField
+                  label="Tertiary Insurance"
+                  value={tertiaryInsurance}
+                  onChange={(v) => {
+                    setTertiaryInsurance(v);
+                    if (v) setHasTertiaryInsurance(true);
+                  }}
+                  onSelect={(opt) => {
+                    setTertiaryInsurance(opt.label);
+                    setHasTertiaryInsurance(true);
+                  }}
+                  loadOptions={loadInsuranceOptions}
+                  icon={DollarSign}
+                  placeholder="Search insurance plans…"
+                />
+                {(hasTertiaryInsurance || tertiaryInsurance) ? (
                   <InsuranceDetailsBlock
                     title="Tertiary – Insurance & Authorization"
                     details={tertiaryDetails}
                     onUpdate={(field, value) => updateInsuranceDetails(setTertiaryDetails, field, value)}
+                    onCopyAuth={() =>
+                      updateInsuranceDetails(
+                        setTertiaryDetails,
+                        'authorizationNumber',
+                        patientAuthByTier.tertiary || tertiaryDetails.authorizationNumber,
+                      )
+                    }
                   />
-                )}
+                ) : null}
               </div>
             </CardContent>
           </Card>
@@ -583,10 +888,14 @@ function CMS1500PageContent() {
                   {ICD_LABELS.map((lbl, i) => (
                     <div key={lbl} className="space-y-1">
                       <Label className="text-xs">ICD {lbl}</Label>
-                      <div className="flex gap-1">
-                        <Input value={icdCodes[i]} onChange={(e) => updateIcd(i, e.target.value)} className={i === 0 ? 'border-destructive' : ''} />
-                        <Button type="button" variant="outline" size="icon"><Search className="h-4 w-4" /></Button>
-                      </div>
+                      <EntityLookupField
+                        value={icdCodes[i]}
+                        onChange={(v) => updateIcd(i, v)}
+                        onSelect={(opt) => updateIcd(i, opt.label || opt.raw?.code || '')}
+                        loadOptions={loadDiagnosisOptions}
+                        placeholder="Search ICD-10…"
+                        className={i === 0 ? '[&_input]:border-destructive' : undefined}
+                      />
                     </div>
                   ))}
                 </div>

@@ -1,3 +1,9 @@
+import {
+  isOpenEncounterStatus,
+  mapAppointmentStatusToVisitStep,
+  OPEN_ENCOUNTER_STATUSES,
+} from '@/lib/encounterVisitStatus';
+
 export function calcAge(dateOfBirth) {
   if (!dateOfBirth) return null;
   const dob = new Date(dateOfBirth);
@@ -34,6 +40,51 @@ export function patientContact(patient) {
   );
 }
 
+export function formatPatientPhone(patient) {
+  if (!patient) return null;
+  return patient.cellPhone || patient.contactNumber || patient.homePhone || null;
+}
+
+export function formatPatientAddress(patient) {
+  if (!patient) return null;
+  const line1 = [patient.address, patient.addressLine2].filter(Boolean).join(', ');
+  const line2 = [patient.city, patient.state, patient.zip].filter(Boolean).join(', ');
+  const parts = [line1, line2].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+export function formatInsuranceLabel(patient) {
+  if (!patient) return '—';
+  const billing = patient.billingType || patient.insuranceBillingType;
+  if (billing === 'self_pay' || billing === 'self-pay') return 'Self Pay';
+
+  const primary =
+    patient.insuranceList?.find((ins) => ins.insuranceTypeKey === 'primary' || ins.insuranceType === 'primary') ||
+    patient.insuranceList?.[0];
+
+  if (primary?.payerName) {
+    const member = primary.memberId || primary.policyNumber;
+    return member ? `${primary.payerName} · ${member}` : primary.payerName;
+  }
+
+  if (patient.insuranceProvider?.name) return patient.insuranceProvider.name;
+  if (typeof patient.insuranceProvider === 'string') return patient.insuranceProvider;
+
+  return billing === 'insurance' ? 'Insurance' : '—';
+}
+
+export function isSelfPayPatient(patient) {
+  const billing = patient?.billingType || patient?.insuranceBillingType;
+  return billing === 'self_pay' || billing === 'self-pay';
+}
+
+export function formatEmergencyContactSummary(patient) {
+  if (!patient?.emergencyContactName) return null;
+  const parts = [patient.emergencyContactName];
+  if (patient.emergencyContactRelationship) parts.push(`(${patient.emergencyContactRelationship})`);
+  return parts.join(' ');
+}
+
 export function patientPhotoSrc(patient) {
   if (!patient?.profilePhoto) return null;
   const p = patient.profilePhoto;
@@ -43,17 +94,7 @@ export function patientPhotoSrc(patient) {
 
 export function mapAppointmentToEncounter(appointment) {
   if (!appointment) return null;
-  const openStatuses = ['Scheduled', 'Checked-In', 'In Progress', 'Rescheduled'];
-  const status = openStatuses.includes(appointment.status) ? 'Open' : 'Closed';
-  const visitStatusMap = {
-    Scheduled: 'Arrived',
-    'Checked-In': 'Arrived',
-    'In Progress': 'With Provider',
-    Completed: 'Checkout',
-    Cancelled: 'Checkout',
-    'No-Show': 'Checkout',
-    Rescheduled: 'Arrived',
-  };
+  const status = isOpenEncounterStatus(appointment.status) ? 'Open' : 'Closed';
   const date =
     typeof appointment.appointmentDate === 'string'
       ? appointment.appointmentDate.slice(0, 10)
@@ -64,7 +105,10 @@ export function mapAppointmentToEncounter(appointment) {
     status,
     type: appointment.appointmentType || 'Visit',
     reason: appointment.visitReason || '—',
-    visitStatus: visitStatusMap[appointment.status] || 'Arrived',
+    visitStatus: mapAppointmentStatusToVisitStep(
+      appointment.status,
+      appointment.eventStatus,
+    ),
     room: appointment.department || '—',
     location: appointment.department || 'Clinic',
     visitProvider: appointment.provider || '—',
@@ -78,9 +122,7 @@ export function mapAppointmentToEncounter(appointment) {
 export function pickActiveAppointment(appointments) {
   if (!appointments?.length) return null;
   const today = new Date().toISOString().slice(0, 10);
-  const open = appointments.filter((a) =>
-    ['Scheduled', 'Checked-In', 'In Progress'].includes(a.status),
-  );
+  const open = appointments.filter((a) => OPEN_ENCOUNTER_STATUSES.includes(a.status));
   const todayVisit = open.find((a) => {
     const d =
       typeof a.appointmentDate === 'string'
@@ -112,7 +154,6 @@ export function apiOrderToRow(order) {
     },
     dateTime: order.orderDateTime,
     status: order.status,
-    site: order.site || '',
     orderedBy: order.orderedBy,
     _persisted: true,
   };

@@ -110,6 +110,7 @@ const patientController = {
         'consentForm',
         'insuranceType',
         'providerIds',
+        'departmentId',
         'listTab',
       ]);
 
@@ -321,6 +322,136 @@ const patientController = {
         success: true,
         message: 'Patient deleted successfully',
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getEncounters(req, res, next) {
+    try {
+      const data = await patientService.getEncounters(req.params.id);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async listDocuments(req, res, next) {
+    try {
+      const result = await patientService.listDocuments(req.params.id, req.query);
+      res.json({ success: true, data: result.documents, summary: result.summary });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async createDocument(req, res, next) {
+    try {
+      const data = await patientService.createDocument(req.params.id, req.body, req.user?.id);
+      res.status(201).json({ success: true, data, message: 'Document uploaded successfully.' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getDocumentVersions(req, res, next) {
+    try {
+      const data = await patientService.getDocumentVersions(req.params.id, req.params.documentId);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async replaceDocument(req, res, next) {
+    try {
+      const data = await patientService.replaceDocument(
+        req.params.id,
+        req.params.documentId,
+        req.body,
+        req.user?.id,
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateDocumentStatus(req, res, next) {
+    try {
+      const data = await patientService.updateDocumentStatus(
+        req.params.id,
+        req.params.documentId,
+        req.body.status,
+        req.user?.id,
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async logDocumentAudit(req, res, next) {
+    try {
+      const data = await patientService.logDocumentAudit(
+        req.params.id,
+        req.params.documentId,
+        req.body.action,
+        req.user?.id,
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateDocument(req, res, next) {
+    try {
+      const data = await patientService.updateDocument(
+        req.params.id,
+        req.params.documentId,
+        req.body,
+        req.user?.id,
+      );
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteDocument(req, res, next) {
+    try {
+      await patientService.deleteDocument(req.params.id, req.params.documentId, req.user?.id);
+      res.json({ success: true, message: 'Document deleted successfully' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getTimeline(req, res, next) {
+    try {
+      const data = await patientService.getTimeline(req.params.id);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getSummary(req, res, next) {
+    try {
+      const data = await patientService.getSummary(req.params.id, {
+        encounterId: req.query.encounterId,
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteWithConfirmation(req, res, next) {
+    try {
+      await patientService.deleteWithConfirmation(req.params.id, req.body, req.user?.id);
+      res.json({ success: true, message: 'Patient deleted successfully' });
     } catch (error) {
       next(error);
     }
