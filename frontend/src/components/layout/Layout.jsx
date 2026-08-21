@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 function LayoutContent() {
   const { isCollapsed } = useSidebar();
   const { pathname } = useLocation();
-  const isFullBleedWorkspace = pathname.startsWith('/patient-dashboard');
+  const isFullBleedWorkspace = pathname.startsWith('/rcm/encounters');
 
   return (
     <div className="min-h-screen bg-background">

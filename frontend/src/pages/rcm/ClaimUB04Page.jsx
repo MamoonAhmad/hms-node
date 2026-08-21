@@ -240,7 +240,7 @@ export function ClaimUB04Page() {
         <TabsContent value="charges" className="mt-6 space-y-6">
           <div className="flex flex-col gap-4">
             <Card className="w-full max-w-lg shrink-0">
-              <CardHeader className="py-3 bg-sky-100 dark:bg-sky-950/50">
+              <CardHeader className="py-3 bg-primary/10 dark:bg-primary/20">
                 <CardTitle className="text-sm">Charge Options</CardTitle>
               </CardHeader>
               <CardContent className="pt-4 space-y-4">
@@ -335,7 +335,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Claim Information</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
@@ -357,7 +357,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Patient Condition</CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
@@ -371,7 +371,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Assignment of Benefits</CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
@@ -384,7 +384,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30 flex flex-row items-center justify-between">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15 flex flex-row items-center justify-between">
               <CardTitle className="text-base">EPSDT Certification</CardTitle>
               <span className="text-xs text-muted-foreground">Select up to 3 if applicable</span>
             </CardHeader>
@@ -401,7 +401,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Other Reference Information</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
@@ -414,7 +414,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Diagnosis</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
@@ -429,7 +429,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Procedure</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-4">
@@ -439,7 +439,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Occurrence Span</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-2">
@@ -448,7 +448,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Occurrence</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-2">
@@ -457,7 +457,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Value</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-2">
@@ -466,7 +466,7 @@ export function ClaimUB04Page() {
           </Card>
 
           <Card>
-            <CardHeader className="pb-2 bg-sky-100/50 dark:bg-sky-950/30">
+            <CardHeader className="pb-2 bg-accent/80 dark:bg-primary/15">
               <CardTitle className="text-base">Condition</CardTitle>
             </CardHeader>
             <CardContent className="pt-4 space-y-2">

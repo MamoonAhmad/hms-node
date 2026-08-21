@@ -71,6 +71,15 @@ export function parseStoredPhoneNumber(value, defaultCountry = DEFAULT_PHONE_COU
   };
 }
 
+function usNationalDigits(digits, country) {
+  if (!digits) return '';
+  if (country === 'US' || country === 'CA') {
+    if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1);
+    if (digits.length === 10) return digits;
+  }
+  return '';
+}
+
 export function validatePhoneNumber(value, country = DEFAULT_PHONE_COUNTRY) {
   const trimmed = value?.trim();
   if (!trimmed) {
@@ -92,8 +101,22 @@ export function validatePhoneNumber(value, country = DEFAULT_PHONE_COUNTRY) {
     return { valid: true, normalized: null };
   }
 
+  // Accept US-styled 10-digit numbers even when NANP exchange rules reject them
+  // (common with placeholder/test numbers like (213) 123-2142).
+  const national = usNationalDigits(digits, country);
+  if (national.length === 10) {
+    const callingCode = getCountryCallingCode(country);
+    return { valid: true, normalized: `+${callingCode}${national}` };
+  }
+
   return {
     valid: false,
-    message: 'Enter a valid mobile number for the selected country',
+    message: 'Enter a valid phone number for the selected country',
   };
+}
+
+export function getPhoneValidationError(value, fallbackMessage = 'Invalid phone number format') {
+  if (!value || !String(value).trim()) return null;
+  const result = validatePhoneNumber(value);
+  return result.valid ? null : result.message || fallbackMessage;
 }

@@ -42,6 +42,25 @@ const authController = {
       next(error);
     }
   },
+
+  async updateProfile(req, res, next) {
+    try {
+      const user = await authService.updateProfile(req.user.id, req.body);
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        data: user,
+      });
+    } catch (error) {
+      if (error.message === 'User not found') {
+        return res.status(404).json({ success: false, error: error.message });
+      }
+      if (error.message === 'Username is already taken') {
+        return res.status(409).json({ success: false, error: error.message });
+      }
+      next(error);
+    }
+  },
 };
 
 module.exports = authController;

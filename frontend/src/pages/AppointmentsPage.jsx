@@ -10,6 +10,10 @@ import {
   List,
   LayoutGrid,
   Users,
+  XCircle,
+  UserX,
+  CalendarClock,
+  ClipboardList,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,12 +35,16 @@ import {
 import { AppointmentFormDialog } from '@/components/appointments/AppointmentFormDialog';
 import { AppointmentHistorySidebar } from '@/components/appointments/AppointmentHistorySidebar';
 import { AppointmentTimeline } from '@/components/appointments/AppointmentTimeline';
+import { AppointmentLifecycleDialog } from '@/components/appointments/AppointmentLifecycleDialog';
+import { AppointmentRescheduleDialog } from '@/components/appointments/AppointmentRescheduleDialog';
+import { AppointmentRcmPanel } from '@/components/appointments/AppointmentRcmPanel';
 import { PatientFormDialog } from '@/components/patients/PatientFormDialog';
 import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 import { buildAppointmentSubmitPayloadFromRegistration } from '@/components/patients/patientRegistrationAppointmentConstants';
 import {
   getDefaultAppointmentStatusName,
   getAppointmentStatusesFallback,
+  getManualStatusOptions,
   statusChipStyle,
 } from '@/lib/appointmentStatuses';
 import {
@@ -45,6 +53,9 @@ import {
   formatPatientDemographics,
   formatPatientListName,
   formatProviderListName,
+  canCancelAppointment,
+  canMarkNoShow,
+  canRescheduleAppointment,
 } from '@/lib/appointmentUtils';
 import {
   appointmentApi,
@@ -64,7 +75,7 @@ function toDateKey(date) {
   return `${y}-${m}-${d}`;
 }
 
-const FILTER_CONTROL_CLASS = 'h-10 w-full';
+const FILTER_CONTROL_CLASS = 'h-8 w-full';
 
 const SEGMENTED_GROUP_CLASS =
   'flex flex-wrap items-center gap-1 rounded-lg border border-border bg-muted p-1 shadow-sm';
@@ -77,6 +88,8 @@ const SEGMENTED_ITEM_IDLE =
 
 const timelineRangeOptions = [
   { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'providers', label: 'Providers' },
 ];
 
 export function AppointmentsPage() {
@@ -123,10 +136,19 @@ export function AppointmentsPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [lifecycleOpen, setLifecycleOpen] = useState(false);
+  const [lifecycleMode, setLifecycleMode] = useState('cancel');
+  const [lifecycleAppointment, setLifecycleAppointment] = useState(null);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState(null);
+  const [rcmOpen, setRcmOpen] = useState(false);
+  const [rcmAppointmentId, setRcmAppointmentId] = useState(null);
 
   // For pre-filling form from timeline click
   const [initialDate, setInitialDate] = useState('');
   const [initialTime, setInitialTime] = useState('');
+
+  const manualStatusOptions = getManualStatusOptions(appointmentStatusCatalog);
 
   // Fetch patients for the form dropdown
   const fetchPatients = useCallback(async () => {
@@ -167,8 +189,17 @@ export function AppointmentsPage() {
       if (viewMode === 'list') {
         if (dateFilter) params.dateFrom = dateFilter;
         if (dateToFilter) params.dateTo = dateToFilter;
-      } else if (timelineRange === 'day') {
+      } else if (timelineRange === 'day' || timelineRange === 'providers') {
         params.date = dateFilter;
+        params.excludeHiddenTimeline = true;
+      } else if (timelineRange === 'week' && dateFilter) {
+        const anchor = new Date(`${dateFilter}T00:00:00`);
+        const start = new Date(anchor);
+        start.setDate(anchor.getDate() - anchor.getDay());
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        params.dateFrom = toDateKey(start);
+        params.dateTo = toDateKey(end);
         params.excludeHiddenTimeline = true;
       }
 
@@ -391,6 +422,11 @@ export function AppointmentsPage() {
     setIsFormOpen(true);
   };
 
+  const openRcmPanel = (appointment) => {
+    setRcmAppointmentId(appointment.id);
+    setRcmOpen(true);
+  };
+
   const handleEdit = (appointment) => {
     setSelectedAppointment(appointment);
     setFormMode('edit');
@@ -439,6 +475,28 @@ export function AppointmentsPage() {
     } catch (err) {
       alert(err.message);
     }
+  };
+
+  const openCancelDialog = (appointment) => {
+    setLifecycleAppointment(appointment);
+    setLifecycleMode('cancel');
+    setLifecycleOpen(true);
+  };
+
+  const openNoShowDialog = (appointment) => {
+    setLifecycleAppointment(appointment);
+    setLifecycleMode('no_show');
+    setLifecycleOpen(true);
+  };
+
+  const openRescheduleDialog = (appointment) => {
+    setRescheduleAppointment(appointment);
+    setRescheduleOpen(true);
+  };
+
+  const handleLifecycleSuccess = () => {
+    fetchAppointments();
+    fetchStatusCounts();
   };
 
   const formatDate = (dateString) => {
@@ -678,8 +736,12 @@ export function AppointmentsPage() {
           onTimeSlotClick={handleTimeSlotClick}
           onAppointmentClick={handleView}
           onDayClick={handleTimelineDayClick}
-          statusCatalog={appointmentStatusCatalog}
+          statusCatalog={manualStatusOptions}
+          fullStatusCatalog={appointmentStatusCatalog}
           onStatusChange={handleStatusChange}
+          onCancel={openCancelDialog}
+          onNoShow={openNoShowDialog}
+          onReschedule={openRescheduleDialog}
         />
       )}
 
@@ -734,33 +796,44 @@ export function AppointmentsPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={appointment.status}
-                        onValueChange={(value) =>
-                          handleStatusChange(appointment.id, value)
-                        }
-                      >
-                        <SelectTrigger className="h-8 w-40">
-                          <span
-                            className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                            style={statusChipStyle(appointment.status, appointmentStatusCatalog)}
-                          >
-                            {appointment.status}
-                          </span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {appointmentStatusCatalog.map((statusRow) => (
-                            <SelectItem key={statusRow.id || statusRow.name} value={statusRow.name}>
-                              <span
-                                className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                                style={statusChipStyle(statusRow.name, appointmentStatusCatalog)}
-                              >
-                                {statusRow.name}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {['Cancelled', 'No-Show', 'No Show', 'Rescheduled'].includes(
+                        appointment.status,
+                      ) ? (
+                        <span
+                          className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                          style={statusChipStyle(appointment.status, appointmentStatusCatalog)}
+                        >
+                          {appointment.status}
+                        </span>
+                      ) : (
+                        <Select
+                          value={appointment.status}
+                          onValueChange={(value) =>
+                            handleStatusChange(appointment.id, value)
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-40">
+                            <span
+                              className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                              style={statusChipStyle(appointment.status, appointmentStatusCatalog)}
+                            >
+                              {appointment.status}
+                            </span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {manualStatusOptions.map((statusRow) => (
+                              <SelectItem key={statusRow.id || statusRow.name} value={statusRow.name}>
+                                <span
+                                  className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                                  style={statusChipStyle(statusRow.name, appointmentStatusCatalog)}
+                                >
+                                  {statusRow.name}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">
@@ -794,11 +867,49 @@ export function AppointmentsPage() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          onClick={() => openRcmPanel(appointment)}
+                          title="RCM / Check-in"
+                        >
+                          <ClipboardList className="h-4 w-4 text-primary" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => handleEdit(appointment)}
                           title="Edit"
                         >
                           <Pencil className="h-4 w-4 icon-action-edit" />
                         </Button>
+                        {canCancelAppointment(appointment.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => openCancelDialog(appointment)}
+                            title="Cancel appointment"
+                          >
+                            <XCircle className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                        {canMarkNoShow(appointment.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => openNoShowDialog(appointment)}
+                            title="Mark no-show"
+                          >
+                            <UserX className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canRescheduleAppointment(appointment.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => openRescheduleDialog(appointment)}
+                            title="Reschedule"
+                          >
+                            <CalendarClock className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon-sm"
@@ -878,6 +989,34 @@ export function AppointmentsPage() {
         onClose={() => setHistoryOpen(false)}
         history={history}
         isLoading={historyLoading}
+      />
+
+      <AppointmentLifecycleDialog
+        open={lifecycleOpen}
+        onOpenChange={setLifecycleOpen}
+        mode={lifecycleMode}
+        appointment={lifecycleAppointment}
+        onSuccess={handleLifecycleSuccess}
+      />
+
+      <AppointmentRescheduleDialog
+        open={rescheduleOpen}
+        onOpenChange={setRescheduleOpen}
+        appointment={rescheduleAppointment}
+        onSuccess={handleLifecycleSuccess}
+      />
+
+      <AppointmentRcmPanel
+        open={rcmOpen}
+        appointmentId={rcmAppointmentId}
+        onClose={() => {
+          setRcmOpen(false);
+          setRcmAppointmentId(null);
+        }}
+        onChanged={() => {
+          fetchAppointments();
+          fetchStatusCounts();
+        }}
       />
 
       <PatientFormDialog

@@ -1,6 +1,31 @@
-import { calcAge, formatDob } from '@/pages/patient-dashboard/patientChartUtils';
+import { calcAge, formatDob } from '@/lib/patientDemographics';
 
-export const HIDDEN_TIMELINE_STATUSES = ['Cancelled', 'No Show', 'No-Show', 'Deleted'];
+export const HIDDEN_TIMELINE_STATUSES = [
+  'Cancelled',
+  'No Show',
+  'No-Show',
+  'Deleted',
+  'Rescheduled',
+];
+
+/** Statuses that must use dedicated cancel / no-show / reschedule APIs. */
+export const LIFECYCLE_ONLY_STATUSES = ['Cancelled', 'No-Show', 'No Show', 'Rescheduled'];
+
+export function isLifecycleOnlyStatus(status) {
+  return LIFECYCLE_ONLY_STATUSES.includes(status);
+}
+
+export function canCancelAppointment(status) {
+  return status === 'Scheduled' || status === 'Checked-In';
+}
+
+export function canMarkNoShow(status) {
+  return status === 'Scheduled';
+}
+
+export function canRescheduleAppointment(status) {
+  return ['Scheduled', 'Checked-In', 'No-Show', 'Cancelled'].includes(status);
+}
 
 export function isHiddenFromTimeline(status) {
   return HIDDEN_TIMELINE_STATUSES.includes(status);

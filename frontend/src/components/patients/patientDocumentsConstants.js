@@ -221,29 +221,40 @@ export function validateNewDocumentForm(newDocument) {
   return errors;
 }
 
-export function serializeDocumentsForSubmit(documents) {
-  return (documents || []).map(
-    ({
-      id,
-      documentName,
-      documentCategory,
-      fileName,
-      requiredDocumentType,
-      governmentIdType,
-      documentExpirationDate,
-      insuranceCardSide,
-      documentNotes,
-    }) => ({
-      id,
-      documentName,
-      documentCategory,
-      fileName,
-      fileRef: fileName,
-      requiredDocumentType: requiredDocumentType || null,
-      governmentIdType: governmentIdType || null,
-      documentExpirationDate: documentExpirationDate || null,
-      insuranceCardSide: insuranceCardSide || null,
-      documentNotes: documentNotes || null,
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function serializeDocumentsForSubmit(documents) {
+  return Promise.all(
+    (documents || []).map(async (doc) => {
+      let fileData = doc.fileData || doc.dataUrl || null;
+      let mimeType = doc.mimeType || null;
+      if (!fileData && doc.file instanceof File) {
+        fileData = await readFileAsDataUrl(doc.file);
+        mimeType = doc.file.type || null;
+      }
+      return {
+        id: doc.id,
+        documentName: doc.documentName,
+        documentCategory: doc.documentCategory,
+        documentType: doc.documentType || doc.documentCategory || doc.requiredDocumentType || 'Other',
+        fileName: doc.fileName,
+        fileRef: doc.fileName,
+        fileData,
+        dataUrl: fileData,
+        mimeType,
+        requiredDocumentType: doc.requiredDocumentType || null,
+        governmentIdType: doc.governmentIdType || null,
+        documentExpirationDate: doc.documentExpirationDate || null,
+        insuranceCardSide: doc.insuranceCardSide || null,
+        documentNotes: doc.documentNotes || null,
+      };
     }),
   );
 }

@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Plus, Eye, Pencil, Trash2, Check, X } from 'lucide-react';
+import { Plus, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
 import {
   Dialog,
@@ -11,8 +10,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { DiagnosisCodeFormDialog } from './DiagnosisCodeFormDialog';
+import { CatalogStatusBadge, YesNoBadge } from '@/components/rcm/CatalogStatusBadge';
 import { diagnosisCodeApi } from '@/services/api';
+import { ICD10_CHAPTERS } from '@/lib/codeCatalog';
 
 function formatDisplayDate(value) {
   if (!value) return '—';
@@ -21,19 +30,6 @@ function formatDisplayDate(value) {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function StatusBadge({ isActive }) {
-  return isActive !== false ? (
-    <Badge variant="secondary" className="gap-1 bg-green-100 text-green-800 hover:bg-green-100">
-      <Check className="h-3 w-3" />
-      Active
-    </Badge>
-  ) : (
-    <Badge variant="secondary" className="gap-1">
-      <X className="h-3 w-3" />
-      Inactive
-    </Badge>
-  );
-}
 
 export function DiagnosisCodesPage() {
   const [items, setItems] = useState([]);
@@ -41,6 +37,9 @@ export function DiagnosisCodesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [chapterFilter, setChapterFilter] = useState('all');
+  const [billableFilter, setBillableFilter] = useState('all');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState('create');
@@ -56,6 +55,9 @@ export function DiagnosisCodesPage() {
         page: pagination.page,
         limit: pagination.limit,
         search: search || undefined,
+        status: statusFilter,
+        chapter: chapterFilter !== 'all' ? chapterFilter : undefined,
+        isBillable: billableFilter === 'all' ? undefined : billableFilter === 'yes',
       });
       setItems(response.data || []);
       setPagination((prev) => ({ ...prev, ...response.pagination }));
@@ -65,7 +67,7 @@ export function DiagnosisCodesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search]);
+  }, [pagination.page, pagination.limit, search, statusFilter, chapterFilter, billableFilter]);
 
   useEffect(() => {
     fetchCodes();
@@ -157,6 +159,72 @@ export function DiagnosisCodesPage() {
         </Button>
       </div>
 
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="mb-3 text-sm font-medium">Filters</p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Chapter</Label>
+            <Select
+              value={chapterFilter}
+              onValueChange={(value) => {
+                setChapterFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All chapters</SelectItem>
+                {ICD10_CHAPTERS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Billable</Label>
+            <Select
+              value={billableFilter}
+              onValueChange={(value) => {
+                setBillableFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="yes">Billable</SelectItem>
+                <SelectItem value="no">Header / non-billable</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
           {error}
@@ -179,14 +247,29 @@ export function DiagnosisCodesPage() {
             cellClassName: 'font-mono font-medium',
           },
           {
+            key: 'description',
+            label: 'Description',
+            render: (row) => row.shortDescription || row.description,
+          },
+          {
+            key: 'chapter',
+            label: 'Chapter',
+            render: (row) => row.chapter || '—',
+          },
+          {
+            key: 'isBillable',
+            label: 'Billable',
+            render: (row) => <YesNoBadge value={row.isBillable !== false} yes="Billable" no="Header" />,
+          },
+          {
             key: 'effectiveDate',
-            label: 'Effective Date',
+            label: 'Effective',
             render: (row) => formatDisplayDate(row.effectiveDate),
           },
           {
             key: 'status',
             label: 'Status',
-            render: (row) => <StatusBadge isActive={row.isActive} />,
+            render: (row) => <CatalogStatusBadge isActive={row.isActive} />,
           },
         ]}
         data={rows}

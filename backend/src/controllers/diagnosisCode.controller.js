@@ -26,7 +26,18 @@ const diagnosisCodeController = {
 
   async findAll(req, res, next) {
     try {
-      const filters = pick(req.query, ['page', 'limit', 'search']);
+      const filters = pick(req.query, [
+        'page',
+        'limit',
+        'search',
+        'status',
+        'isActive',
+        'isBillable',
+        'chapter',
+        'laterality',
+        'lookup',
+        'validOn',
+      ]);
       const result = await diagnosisCodeService.findAll(filters);
       res.json({ success: true, ...result });
     } catch (error) {

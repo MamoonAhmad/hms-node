@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authApi } from "@/services/api";
 
 const AuthContext = createContext(null);
@@ -38,6 +38,12 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(USER_KEY);
   };
 
+  const updateUser = useCallback((userData) => {
+    if (!userData) return;
+    setUser(userData);
+    localStorage.setItem(USER_KEY, JSON.stringify(userData));
+  }, []);
+
   // Initialize auth state from localStorage
   useEffect(() => {
     let cancelled = false;
@@ -68,7 +74,10 @@ export function AuthProvider({ children }) {
         .then((response) => {
           if (cancelled) return;
           const userData = response?.data ?? response;
-          if (userData) setUser(userData);
+          if (userData) {
+            setUser(userData);
+            localStorage.setItem(USER_KEY, JSON.stringify(userData));
+          }
         })
         .catch(() => {
           if (cancelled) return;
@@ -99,6 +108,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!token,
     login,
     logout,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

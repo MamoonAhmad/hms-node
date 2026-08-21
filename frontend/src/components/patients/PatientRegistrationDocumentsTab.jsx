@@ -1,10 +1,18 @@
-import { useRef } from 'react';
-import { Upload, FileText, Eye, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Upload, FileText, Eye, Trash2, AlertTriangle, CheckCircle2, ScanLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -48,6 +56,7 @@ export function PatientRegistrationDocumentsTab({
   documentWarnings = [],
 }) {
   const uploadSectionRef = useRef(null);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const scrollToUpload = () => {
     uploadSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -113,10 +122,16 @@ export function PatientRegistrationDocumentsTab({
                     )}
                   </p>
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => startChecklistUpload(item)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploaded ? 'Upload another' : 'Upload'}
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => startChecklistUpload(item)}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    {uploaded ? 'Upload another' : 'Upload'}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setScanOpen(true)}>
+                    <ScanLine className="h-4 w-4 mr-2" />
+                    Scan
+                  </Button>
+                </div>
               </div>
             );
           })}
@@ -212,6 +227,10 @@ export function PatientRegistrationDocumentsTab({
             {documentFormErrors.file && (
               <p className="text-xs text-destructive">{documentFormErrors.file}</p>
             )}
+            <Button type="button" variant="outline" className="w-full" onClick={() => setScanOpen(true)}>
+              <ScanLine className="h-4 w-4 mr-2" />
+              Scan
+            </Button>
           </div>
         </div>
 
@@ -343,6 +362,34 @@ export function PatientRegistrationDocumentsTab({
           </Table>
         </div>
       </div>
+
+      <Dialog open={scanOpen} onOpenChange={setScanOpen}>
+        <DialogContent size="sm" closeOnOverlayClick>
+          <DialogHeader>
+            <DialogTitle>Scan document</DialogTitle>
+            <DialogDescription>
+              Connect a scanner to capture insurance cards, photo ID, or other patient documents.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-6 py-6 space-y-4">
+            <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center space-y-2">
+              <ScanLine className="h-10 w-10 mx-auto text-muted-foreground" />
+              <p className="text-sm font-medium">Sample scanner preview</p>
+              <p className="text-xs text-muted-foreground">
+                Scanner hardware is not connected in this environment. This is a sample capture window.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setScanOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => setScanOpen(false)}>
+              Close sample scanner
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

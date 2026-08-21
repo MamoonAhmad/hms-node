@@ -140,7 +140,7 @@ export function LoginPage() {
         <div className="absolute -bottom-48 -left-48 w-[500px] h-[500px] border border-white/5 rounded-full" />
       </div>
 
-      {/* Right Panel - Login Form (Facebook-style card) */}
+      {/* Right Panel - Login Form */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-background">
         <div className="w-full max-w-[396px] rounded-lg border border-border bg-card p-6 shadow-[var(--shadow-panel)] sm:p-8">
           {/* Mobile logo */}

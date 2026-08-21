@@ -26,7 +26,18 @@ const hcpcsCodeController = {
 
   async findAll(req, res, next) {
     try {
-      const filters = pick(req.query, ['page', 'limit', 'search']);
+      const filters = pick(req.query, [
+        'page',
+        'limit',
+        'search',
+        'status',
+        'isActive',
+        'isBillable',
+        'category',
+        'coverageStatus',
+        'lookup',
+        'validOn',
+      ]);
       const result = await hcpcsCodeService.findAll(filters);
       res.json({ success: true, ...result });
     } catch (error) {

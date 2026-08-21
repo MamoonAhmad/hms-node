@@ -16,8 +16,13 @@ import {
   REFERRAL_SOURCES,
   OUTPATIENT_PROVIDERS,
   DEPARTMENT_OPTIONS,
+  referringFieldsFromProvider,
 } from '@/components/patients/patientRegistrationAppointmentConstants';
 import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { PhoneNumberInput } from '@/components/ui/phone-number-input';
+import { UsStateSelect } from '@/components/ui/us-state-select';
+import { normalizeUsZipInput } from '@/lib/usZip';
 import { normalizeHexColor } from '@/lib/appointmentStatuses';
 import { cn } from '@/lib/utils';
 
@@ -36,6 +41,8 @@ import { cn } from '@/lib/utils';
  * @param {{ value: string, label: string }[]} [props.departmentOptions]
  * @param {{ value: string, label: string, displayLabel?: string }[]} [props.providerOptions]
  * @param {{ value: string, label: string }[]} [props.appointmentTypeOptions]
+ * @param {(providerId: string) => string[]} [props.getProviderDepartmentIds]
+ * @param {Array<Record<string, unknown>>} [props.referringProviders] — providers listing used by Referred By
  * @param {boolean} [props.readOnly]
  * @param {Set<string>|string[]} [props.availableDates]
  * @param {boolean} [props.availableDatesLoading]
@@ -53,6 +60,8 @@ export function PatientRegistrationAppointmentFields({
   departmentOptions = null,
   providerOptions = null,
   appointmentTypeOptions = null,
+  getProviderDepartmentIds = null,
+  referringProviders = null,
   readOnly = false,
   availableDates = null,
   availableDatesLoading = false,
@@ -78,18 +87,58 @@ export function PatientRegistrationAppointmentFields({
     ? formData.appointmentDepartmentId || ''
     : formData.appointmentDepartment || '';
 
+  const selectedDepartmentIds = useMemo(() => {
+    if (Array.isArray(formData.appointmentDepartmentIds) && formData.appointmentDepartmentIds.length) {
+      return formData.appointmentDepartmentIds;
+    }
+    return departmentValue ? [departmentValue] : [];
+  }, [formData.appointmentDepartmentIds, departmentValue]);
+
   const isGeneralType = isGeneralAppointmentVisitType(formData.appointmentVisitType);
 
-  const handleDepartmentChange = (value) => {
+  const applyDepartmentSelection = (ids) => {
+    const uniqueIds = [...new Set((ids || []).filter(Boolean))];
+    onChange('appointmentDepartmentIds', uniqueIds);
+    const first = uniqueIds[0] || '';
     if (useDepartmentIds) {
-      onChange('appointmentDepartmentId', value);
-      const match = deptOptions.find((o) => o.value === value);
-      onChange('appointmentDepartment', match?.label || '');
+      onChange('appointmentDepartmentId', first);
+      const labels = uniqueIds
+        .map((id) => deptOptions.find((o) => o.value === id)?.label)
+        .filter(Boolean);
+      onChange('appointmentDepartment', labels.join(', '));
     } else {
-      onChange('appointmentDepartment', value);
+      onChange('appointmentDepartment', first);
     }
-    onChange('appointmentProviderId', '');
-    onChange('appointmentProvider', '');
+  };
+
+  const handleDepartmentChange = (value) => {
+    applyDepartmentSelection(value ? [value] : []);
+    if (useProviderIds && providerValue && typeof getProviderDepartmentIds === 'function') {
+      const assigned = getProviderDepartmentIds(providerValue);
+      if (assigned.length && !assigned.includes(value)) {
+        onChange('appointmentProviderId', '');
+        onChange('appointmentProvider', '');
+      }
+    } else if (!useProviderIds) {
+      onChange('appointmentProviderId', '');
+      onChange('appointmentProvider', '');
+    }
+    onChange('appointmentDate', '');
+    onChange('appointmentTime', '');
+  };
+
+  const handleDepartmentIdsChange = (ids) => {
+    applyDepartmentSelection(ids);
+    if (useProviderIds && providerValue && typeof getProviderDepartmentIds === 'function') {
+      const assigned = getProviderDepartmentIds(providerValue);
+      const stillAssigned = (ids || []).some((id) => assigned.includes(id));
+      if (assigned.length && !stillAssigned) {
+        onChange('appointmentProviderId', '');
+        onChange('appointmentProvider', '');
+      }
+    }
+    onChange('appointmentDate', '');
+    onChange('appointmentTime', '');
   };
 
   const handleProviderChange = (value) => {
@@ -97,15 +146,22 @@ export function PatientRegistrationAppointmentFields({
       onChange('appointmentProviderId', value);
       const match = provOptions.find((o) => o.value === value);
       onChange('appointmentProvider', match?.label || '');
+      if (typeof getProviderDepartmentIds === 'function') {
+        const assigned = getProviderDepartmentIds(value);
+        if (assigned.length) applyDepartmentSelection(assigned);
+      }
     } else {
       onChange('appointmentProvider', value);
     }
+    onChange('appointmentVisitType', '');
+    onChange('appointmentTypeName', '');
     onChange('appointmentDate', '');
     onChange('appointmentTime', '');
   };
 
   const handleVisitTypeChange = (value) => {
     onChange('appointmentVisitType', value);
+    onChange('appointmentTypeName', value);
     onChange('appointmentTime', '');
     if (value === GENERAL_APPOINTMENT_VISIT_TYPE) {
       onChange('appointmentTime', '');
@@ -113,6 +169,36 @@ export function PatientRegistrationAppointmentFields({
       onChange('appointmentStartTime', '');
       onChange('appointmentEndTime', '');
     }
+  };
+
+  const showReferringProviderSelect = Array.isArray(referringProviders);
+  const referringProviderOptions = useMemo(() => {
+    if (!showReferringProviderSelect) return [];
+    return referringProviders.map((provider) => {
+      const name = [provider.firstName, provider.middleName, provider.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+      const label = provider.npi ? `${name} (${provider.npi})` : name;
+      return {
+        value: provider.id,
+        label,
+        displayLabel: label,
+      };
+    });
+  }, [referringProviders, showReferringProviderSelect]);
+
+  const applyReferringFields = (patch) => {
+    Object.entries(patch).forEach(([field, value]) => onChange(field, value));
+  };
+
+  const handleReferringProviderChange = (value) => {
+    if (!value || value === 'none') {
+      applyReferringFields(referringFieldsFromProvider(null));
+      return;
+    }
+    const provider = referringProviders.find((item) => item.id === value);
+    applyReferringFields(referringFieldsFromProvider(provider || null));
   };
 
   const availableDateList = useMemo(() => {
@@ -176,13 +262,16 @@ export function PatientRegistrationAppointmentFields({
           <div className="space-y-2">
             <Label htmlFor={pid('appointmentDepartment')}>Department</Label>
             {useDepartmentIds ? (
-              <SearchableSelect
-                value={departmentValue}
-                onValueChange={handleDepartmentChange}
+              <MultiSelect
+                id={pid('appointmentDepartment')}
                 options={deptOptions}
+                value={selectedDepartmentIds}
+                onChange={handleDepartmentIdsChange}
                 placeholder="Select department"
+                searchable
+                searchPlaceholder="Search departments..."
                 disabled={readOnly}
-                triggerClassName={errors.appointmentDepartment ? 'border-destructive' : ''}
+                error={Boolean(errors.appointmentDepartment)}
               />
             ) : (
               <Select
@@ -204,6 +293,11 @@ export function PatientRegistrationAppointmentFields({
                   ))}
                 </SelectContent>
               </Select>
+            )}
+            {useDepartmentIds && selectedDepartmentIds.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                This provider is assigned to multiple departments. All assigned departments are selected.
+              </p>
             )}
             {errors.appointmentDepartment && (
               <p className="text-xs text-destructive">{errors.appointmentDepartment}</p>
@@ -263,25 +357,25 @@ export function PatientRegistrationAppointmentFields({
         >
           <div className="space-y-2">
             <Label htmlFor={pid('appointmentVisitType')}>Appointment Type</Label>
-            <Select
+            <SearchableSelect
               value={formData.appointmentVisitType || ''}
               onValueChange={handleVisitTypeChange}
+              options={typeOptions}
+              placeholder={
+                useProviderIds && !providerValue
+                  ? 'Select provider first'
+                  : typeOptions.length
+                    ? 'Select appointment type'
+                    : 'No appointment types assigned'
+              }
               disabled={readOnly || (useProviderIds && !providerValue)}
-            >
-              <SelectTrigger
-                id={pid('appointmentVisitType')}
-                className={`w-full ${errors.appointmentVisitType ? 'border-destructive' : ''}`}
-              >
-                <SelectValue placeholder="Select appointment type" />
-              </SelectTrigger>
-              <SelectContent>
-                {typeOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              triggerClassName={errors.appointmentVisitType ? 'border-destructive' : ''}
+            />
+            {useProviderIds && providerValue && !typeOptions.length && (
+              <p className="text-xs text-muted-foreground">
+                No appointment types are assigned to this provider in scheduling.
+              </p>
+            )}
             {errors.appointmentVisitType && (
               <p className="text-xs text-destructive">{errors.appointmentVisitType}</p>
             )}
@@ -348,13 +442,21 @@ export function PatientRegistrationAppointmentFields({
                 <Select
                   value={formData.appointmentTime || ''}
                   onValueChange={(value) => onChange('appointmentTime', value)}
-                  disabled={readOnly}
+                  disabled={readOnly || !formData.appointmentDate}
                 >
                   <SelectTrigger
                     id={pid('appointmentTime')}
                     className={cn('w-full', errors.appointmentTime ? 'border-destructive' : '')}
                   >
-                    <SelectValue placeholder="Select time slot" />
+                    <SelectValue
+                      placeholder={
+                        !formData.appointmentDate
+                          ? 'Select date first'
+                          : timeSlotOptions.length
+                            ? 'Select time slot'
+                            : 'No available time slots'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {timeSlotOptions.map((slot) => (
@@ -472,9 +574,29 @@ export function PatientRegistrationAppointmentFields({
           />
         </div>
 
-        {(showReferralSource || showPhysician) && (
+        {(showReferralSource || showPhysician || showReferringProviderSelect) && (
         <div className="space-y-4 border-t pt-6">
-          {showReferralSource && (
+          {showReferringProviderSelect && (
+          <div className="space-y-2">
+            <Label htmlFor={pid('referringProviderId')}>Select provider</Label>
+            <p className="text-xs text-muted-foreground" id={pid('referringProvider-hint')}>
+              Referring provider (optional). Selecting a provider fills NPI, phone, fax, and address.
+            </p>
+            <SearchableSelect
+              value={formData.referringProviderId || 'none'}
+              onValueChange={handleReferringProviderChange}
+              options={[
+                { value: 'none', label: 'None selected', displayLabel: 'None selected' },
+                ...referringProviderOptions,
+              ]}
+              placeholder="Search provider by name or NPI"
+              disabled={readOnly}
+              triggerClassName="w-full max-w-md"
+            />
+          </div>
+          )}
+
+          {showReferralSource && !showReferringProviderSelect && (
           <div className="space-y-2">
             <Label htmlFor={pid('referredBy')}>Referred By</Label>
             <p className="text-xs text-muted-foreground" id={pid('referredBy-hint')}>
@@ -554,29 +676,21 @@ export function PatientRegistrationAppointmentFields({
               </div>
               <div className="space-y-2">
                 <Label htmlFor={pid('referringPhysicianPhone')}>Phone</Label>
-                <Input
+                <PhoneNumberInput
                   id={pid('referringPhysicianPhone')}
                   value={formData.referringPhysicianPhone ?? ''}
-                  onChange={(e) => onChange('referringPhysicianPhone', e.target.value)}
-                  className={errors.referringPhysicianPhone ? 'border-destructive' : ''}
-                  placeholder="Phone"
+                  onChange={(value) => onChange('referringPhysicianPhone', value)}
+                  error={errors.referringPhysicianPhone}
                 />
-                {errors.referringPhysicianPhone && (
-                  <p className="text-xs text-destructive">{errors.referringPhysicianPhone}</p>
-                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor={pid('referringPhysicianFax')}>Fax</Label>
-                <Input
+                <PhoneNumberInput
                   id={pid('referringPhysicianFax')}
                   value={formData.referringPhysicianFax ?? ''}
-                  onChange={(e) => onChange('referringPhysicianFax', e.target.value)}
-                  className={errors.referringPhysicianFax ? 'border-destructive' : ''}
-                  placeholder="Fax"
+                  onChange={(value) => onChange('referringPhysicianFax', value)}
+                  error={errors.referringPhysicianFax}
                 />
-                {errors.referringPhysicianFax && (
-                  <p className="text-xs text-destructive">{errors.referringPhysicianFax}</p>
-                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -600,11 +714,11 @@ export function PatientRegistrationAppointmentFields({
               </div>
               <div className="space-y-2">
                 <Label htmlFor={pid('referringPhysicianState')}>State</Label>
-                <Input
+                <UsStateSelect
                   id={pid('referringPhysicianState')}
                   value={formData.referringPhysicianState ?? ''}
-                  onChange={(e) => onChange('referringPhysicianState', e.target.value)}
-                  placeholder="State"
+                  onChange={(value) => onChange('referringPhysicianState', value)}
+                  error={errors.referringPhysicianState}
                 />
               </div>
               <div className="space-y-2">
@@ -612,9 +726,13 @@ export function PatientRegistrationAppointmentFields({
                 <Input
                   id={pid('referringPhysicianZip')}
                   value={formData.referringPhysicianZip ?? ''}
-                  onChange={(e) => onChange('referringPhysicianZip', e.target.value)}
-                  placeholder="ZIP"
+                  onChange={(e) => onChange('referringPhysicianZip', normalizeUsZipInput(e.target.value))}
+                  placeholder="12345 or 12345-6789"
+                  className={errors.referringPhysicianZip ? 'border-destructive' : ''}
                 />
+                {errors.referringPhysicianZip && (
+                  <p className="text-xs text-destructive">{errors.referringPhysicianZip}</p>
+                )}
               </div>
             </div>
           </div>

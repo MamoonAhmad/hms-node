@@ -33,6 +33,7 @@ export const OUTPATIENT_PROVIDERS = [
 
 export const REFERRAL_PAYLOAD_KEYS = [
   'referredBy',
+  'referringProviderId',
   'referringPhysicianFirstName',
   'referringPhysicianLastName',
   'referringPhysicianNpi',
@@ -43,6 +44,43 @@ export const REFERRAL_PAYLOAD_KEYS = [
   'referringPhysicianState',
   'referringPhysicianZip',
 ];
+
+export function referringFieldsFromProvider(provider) {
+  if (!provider) {
+    return {
+      referringProviderId: '',
+      referredBy: '',
+      referringPhysicianFirstName: '',
+      referringPhysicianLastName: '',
+      referringPhysicianNpi: '',
+      referringPhysicianPhone: '',
+      referringPhysicianFax: '',
+      referringPhysicianAddress: '',
+      referringPhysicianCity: '',
+      referringPhysicianState: '',
+      referringPhysicianZip: '',
+    };
+  }
+
+  const displayName = [provider.firstName, provider.middleName, provider.lastName]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  return {
+    referringProviderId: provider.id || '',
+    referredBy: displayName,
+    referringPhysicianFirstName: provider.firstName || '',
+    referringPhysicianLastName: provider.lastName || '',
+    referringPhysicianNpi: provider.npi || '',
+    referringPhysicianPhone: provider.officePhone || provider.mobileNumber || '',
+    referringPhysicianFax: provider.fax || '',
+    referringPhysicianAddress: [provider.address, provider.addressLine2].filter(Boolean).join(', '),
+    referringPhysicianCity: provider.city || '',
+    referringPhysicianState: provider.state || '',
+    referringPhysicianZip: provider.zip || '',
+  };
+}
 
 export function emptyReferralPayload() {
   return REFERRAL_PAYLOAD_KEYS.reduce((acc, k) => {
@@ -274,4 +312,40 @@ export function buildAppointmentSubmitPayloadFromRegistration(formData, patientI
     status: formData.status || defaultStatus || null,
     notes,
   };
+}
+
+function asIdList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
+  return [String(value)].filter(Boolean);
+}
+
+export function getProviderDepartmentIds(provider, departments = []) {
+  if (!provider) return [];
+  const ids = new Set();
+  if (provider.departmentId) ids.add(String(provider.departmentId));
+  departments.forEach((department) => {
+    const assigned = asIdList(department.assignedProviders);
+    if (assigned.includes(String(provider.id))) {
+      ids.add(String(department.id));
+    }
+  });
+  return [...ids];
+}
+
+export function isProviderInDepartment(provider, departmentId, departments = []) {
+  if (!provider || !departmentId) return false;
+  return getProviderDepartmentIds(provider, departments).includes(String(departmentId));
+}
+
+export function getProviderAppointmentTypeNames(providerId, schedules = []) {
+  if (!providerId) return [];
+  const names = new Set();
+  schedules.forEach((schedule) => {
+    if (String(schedule.providerId) !== String(providerId)) return;
+    const status = String(schedule.displayStatus || schedule.status || '').toLowerCase();
+    if (status && status !== 'active') return;
+    asIdList(schedule.appointmentType).forEach((name) => names.add(name));
+  });
+  return [...names];
 }

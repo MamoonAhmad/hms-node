@@ -11,6 +11,10 @@
     "seed:admin": "node src/scripts/seedAdmin.js",
     "seed:demo": "node src/scripts/seedDemoData.js",
     "seed:demo:wipe": "node src/scripts/seedDemoData.js --wipe",
+    "seed:rcm-codes": "node src/scripts/seedRcmCodes.js",
+    "seed:place-of-service": "node src/scripts/seedPlaceOfService.js",
+    "seed:sample": "node src/scripts/seedSampleClinicalData.js",
+    "seed:sample:refresh": "node src/scripts/seedSampleClinicalData.js --refresh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

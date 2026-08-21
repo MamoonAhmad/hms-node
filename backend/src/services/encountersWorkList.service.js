@@ -1,6 +1,6 @@
 const prisma = require('../lib/prisma');
 
-const HIDDEN_STATUSES = ['Cancelled', 'No Show', 'No-Show', 'Deleted'];
+const HIDDEN_STATUSES = ['Cancelled', 'No Show', 'No-Show', 'Deleted', 'Rescheduled'];
 
 const TAB_STATUS_GROUPS = {
   ready_for_intake: ['Scheduled', 'Arrived', 'Checked-In', 'Registration Incomplete', 'Rescheduled'],

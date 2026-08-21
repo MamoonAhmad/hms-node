@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, LogOut, ChevronDown, Building2, Clock } from 'lucide-react';
+import { Bell, LogOut, ChevronDown, Building2, Clock, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useFacilityConfig } from '@/contexts/FacilityConfigContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { UserAvatar } from '@/components/layout/UserAvatar';
+import { getUserDisplayName, getUserSubtitle } from '@/lib/userDisplay';
 
 const INITIAL_NOTIFICATIONS = [
   { id: 1, message: 'New appointment scheduled for John Doe', dateTime: '2025-02-12 09:30 AM' },
@@ -23,11 +25,18 @@ const ROUTE_LABELS = {
   '/': 'Dashboard',
   '/patients': 'Patient Management',
   '/appointments': 'Appointments',
+  '/appointments/waitlist': 'Waitlist',
   '/providers': 'Providers',
   '/departments': 'Departments',
-  '/patient-dashboard': 'Patient Dashboard',
+  '/encounters-work-list': 'Encounters Work List',
+  '/rcm/worklist': 'RCM Worklist',
   '/rcm/claims': 'Claims Listing',
   '/rcm/claim-tracker': 'Claim Tracker',
+  '/rcm/follow-up-management': 'Follow Up Management',
+  '/rcm/cms-1500': 'CMS 1500',
+  '/rcm/claim-ub04': 'Claim UB-04',
+  '/rcm/reports': 'RCM Reports',
+  '/profile': 'My Profile',
 };
 
 function useClickOutside(ref, handler) {
@@ -103,10 +112,14 @@ export function Topbar() {
     navigate('/login');
   };
 
-  const displayName = user?.name || 'User';
+  const handleProfile = () => {
+    setProfileOpen(false);
+    navigate('/profile');
+  };
+
+  const displayName = getUserDisplayName(user);
+  const displaySubtitle = getUserSubtitle(user);
   const displayEmail = user?.email || 'user@example.com';
-  const initials =
-    user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U';
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
@@ -209,13 +222,11 @@ export function Topbar() {
               }}
               aria-label="Profile menu"
             >
-              <div className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                {initials}
-              </div>
+              <UserAvatar user={user} className="size-8 shrink-0" />
               <div className="hidden min-w-0 max-w-[140px] sm:block">
                 <p className="truncate text-xs font-semibold leading-tight">{displayName}</p>
                 <p className="truncate text-[0.65rem] text-muted-foreground">
-                  {displayEmail}
+                  {displaySubtitle || displayEmail}
                 </p>
               </div>
               <ChevronDown
@@ -229,16 +240,25 @@ export function Topbar() {
               <div className="absolute right-0 top-full z-50 mt-2 w-72 overflow-hidden rounded-lg border bg-background shadow-lg">
                 <div className="border-b bg-muted/30 p-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-base font-semibold text-primary">
-                      {initials}
-                    </div>
+                    <UserAvatar user={user} className="size-11 shrink-0 rounded-lg" imageClassName="rounded-lg" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-foreground">{displayName}</p>
-                      <p className="truncate text-sm text-muted-foreground">{displayEmail}</p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {displaySubtitle || displayEmail}
+                      </p>
                     </div>
                   </div>
                 </div>
                 <div className="p-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                    onClick={handleProfile}
+                  >
+                    <UserCircle className="size-4" />
+                    Profile
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

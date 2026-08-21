@@ -9,6 +9,43 @@ const GOVERNMENT_ID_MIN_LENGTH = {
 
 const optionalString = (max = 200) => Joi.string().trim().max(max).allow('', null);
 const optionalText = () => Joi.string().trim().max(5000).allow('', null);
+const optionalRelationship = () => optionalString(50);
+
+const NO_EMAIL_REASONS = [
+  'declined',
+  'no-access',
+  'privacy',
+  'homeless',
+  'cognitive',
+  'minor',
+  'language-barrier',
+  'other',
+];
+
+const VETERAN_STATUS_DETAILS = [
+  'honorably-discharged',
+  'general-discharge',
+  'other-than-honorable',
+  'dishonorably-discharged',
+  'currently-serving',
+  'national-guard-reserve',
+  'retired',
+  'disabled-veteran',
+  'unknown',
+];
+
+const DISABILITY_TYPES = [
+  'hearing',
+  'vision',
+  'mobility',
+  'cognitive',
+  'speech',
+  'mental-health',
+  'developmental',
+  'chronic-illness',
+  'neurological',
+  'other',
+];
 
 const demographicsFields = {
   suffix: optionalString(20),
@@ -36,17 +73,19 @@ const demographicsFields = {
   governmentIdNumber: optionalString(50),
   birthPlace: optionalString(200),
   veteranStatus: Joi.string().valid('yes', 'no', 'unknown').allow('', null),
+  veteranStatusDetail: Joi.string().valid(...VETERAN_STATUS_DETAILS).allow('', null),
   disabilityStatus: Joi.string()
     .valid('yes', 'no', 'unknown', 'prefer-not-to-say')
     .allow('', null),
+  disabilityType: Joi.string().valid(...DISABILITY_TYPES).allow('', null),
   tribalAffiliation: optionalString(200),
   generalNotes: optionalText(),
   ethnicity: optionalString(50),
   sexualOrientation: optionalString(50),
   race: optionalString(50),
-  language: optionalString(50),
+  language: optionalString(500),
   interpreterRequired: Joi.boolean().default(false),
-  interpreterLanguageRequired: optionalString(50),
+  interpreterLanguageRequired: optionalString(500),
   maritalStatus: optionalString(50),
   employmentStatus: optionalString(50),
   employerName: optionalString(200),
@@ -57,14 +96,71 @@ const demographicsFields = {
   employerState: optionalString(50),
   employerZip: optionalString(20),
   otherInfo: optionalText(),
+  prefix: optionalString(20),
+  ssnLast4: Joi.string().trim().length(4).pattern(/^\d{4}$/).allow('', null)
+    .messages({ 'string.length': 'Patient SSN last 4 must be exactly 4 digits' }),
+  county: optionalString(100),
+  mailingSameAsResidential: Joi.boolean().default(true),
+  mailingAddress: optionalString(500),
+  mailingAddressLine2: optionalString(200),
+  mailingCity: optionalString(100),
+  mailingState: optionalString(50),
+  mailingZip: optionalString(20),
+  mailingCountry: Joi.string().trim().max(50).default('US'),
+  noEmail: Joi.boolean().default(false),
+  noEmailReason: Joi.string().valid(...NO_EMAIL_REASONS).allow('', null),
+  governmentIdState: optionalString(50),
+  governmentIdExpiration: Joi.date().iso().allow('', null),
+  medicareBeneficiaryId: optionalString(20),
+  medicaidId: optionalString(30),
+  preferredPharmacyName: optionalString(200),
+  preferredPharmacyPhone: optionalString(30),
+  preferredPharmacyAddress: optionalString(500),
+  smsOptIn: Joi.boolean().default(false),
+  emailOptIn: Joi.boolean().default(false),
+  reminderOptIn: Joi.boolean().default(false),
+  hipaaRoiName: optionalString(200),
+  hipaaRoiRelationship: optionalRelationship(),
+  hipaaRoiPhone: optionalString(30),
+  hipaaRoiEmail: Joi.string().trim().email().allow('', null)
+    .messages({ 'string.email': 'Invalid HIPAA release contact email format' }),
+  advanceDirectiveOnFile: Joi.boolean().default(false),
+  advanceDirectiveType: optionalString(100),
+  powerOfAttorneyName: optionalString(200),
+  powerOfAttorneyPhone: optionalString(30),
+  workersCompClaimNumber: optionalString(100),
+  autoAccidentClaimNumber: optionalString(100),
+  billingNotes: optionalText(),
+  accountBalance: Joi.number().precision(2).allow(null),
+  referredBy: optionalString(100),
+  countryOther: optionalString(100),
+  languageOther: optionalString(100),
+  allergyNotes: optionalText(),
+  noKnownDrugAllergies: Joi.boolean().default(false),
+  assignedToId: Joi.string().uuid().allow('', null)
+    .messages({ 'string.guid': 'Invalid assigned user ID format' }),
+};
+
+const appointmentBookingFields = {
+  appointmentDate: Joi.date().iso().allow('', null),
+  appointmentTime: optionalString(20),
+  appointmentStartTime: optionalString(20),
+  appointmentEndTime: optionalString(20),
+  appointmentVisitType: optionalString(50),
+  appointmentDepartment: optionalString(200),
+  appointmentDepartmentId: Joi.string().uuid().allow('', null),
+  appointmentProvider: optionalString(200),
+  appointmentProviderId: Joi.string().uuid().allow('', null),
+  appointmentReason: optionalString(500),
+  appointmentNotes: optionalText(),
+  status: optionalString(50),
+  bookAppointment: Joi.boolean(),
 };
 
 const contactFields = {
   emergencyContactName: optionalString(200),
   emergencyContactNumber: optionalString(30),
-  emergencyContactRelationship: Joi.string()
-    .valid('spouse', 'parent', 'child', 'sibling', 'other')
-    .allow('', null),
+  emergencyContactRelationship: optionalRelationship(),
   emergencyContactEmail: Joi.string().trim().email().allow('', null)
     .messages({ 'string.email': 'Invalid emergency contact email format' }),
   emergencyContactAddress: optionalString(500),
@@ -72,15 +168,13 @@ const contactFields = {
   emergencyContactState: optionalString(50),
   emergencyContactZip: optionalString(20),
   secondaryEmergencyContactName: optionalString(200),
-  secondaryEmergencyContactRelationship: Joi.string()
-    .valid('spouse', 'parent', 'child', 'sibling', 'other')
-    .allow('', null),
+  secondaryEmergencyContactRelationship: optionalRelationship(),
   secondaryEmergencyContactNumber: optionalString(30),
   secondaryEmergencyContactEmail: Joi.string().trim().email().allow('', null)
     .messages({ 'string.email': 'Invalid secondary emergency contact email format' }),
   guarantorName: optionalString(200),
   guarantorPhone: optionalString(30),
-  guarantorRelationship: Joi.string().valid('self', 'spouse', 'parent', 'child', 'other').allow('', null),
+  guarantorRelationship: optionalRelationship(),
   guarantorEmail: Joi.string().trim().email().allow('', null)
     .messages({ 'string.email': 'Invalid guarantor email format' }),
   guarantorAddress: optionalString(500),
@@ -90,29 +184,21 @@ const contactFields = {
   guarantorDateOfBirth: Joi.date().iso().max('now').allow('', null)
     .messages({ 'date.max': 'Guarantor date of birth cannot be in the future' }),
   authorizedRepresentativeName: optionalString(200),
-  authorizedRepresentativeRelationship: Joi.string()
-    .valid('spouse', 'parent', 'child', 'sibling', 'other')
-    .allow('', null),
+  authorizedRepresentativeRelationship: optionalRelationship(),
   authorizedRepresentativePhone: optionalString(30),
   authorizedRepresentativeEmail: Joi.string().trim().email().allow('', null)
     .messages({ 'string.email': 'Invalid authorized representative email format' }),
   legalGuardianName: optionalString(200),
-  legalGuardianRelationship: Joi.string()
-    .valid('spouse', 'parent', 'child', 'sibling', 'other')
-    .allow('', null),
+  legalGuardianRelationship: optionalRelationship(),
   legalGuardianPhone: optionalString(30),
   legalGuardianEmail: Joi.string().trim().email().allow('', null)
     .messages({ 'string.email': 'Invalid legal guardian email format' }),
   patientIsMinor: Joi.boolean().default(false),
   primaryNextOfKinName: optionalString(200),
-  primaryNextOfKinRelationship: Joi.string()
-    .valid('spouse', 'parent', 'child', 'sibling', 'other')
-    .allow('', null),
+  primaryNextOfKinRelationship: optionalRelationship(),
   primaryNextOfKinPhone: optionalString(30),
   secondaryNextOfKinName: optionalString(200),
-  secondaryNextOfKinRelationship: Joi.string()
-    .valid('spouse', 'parent', 'child', 'sibling', 'other')
-    .allow('', null),
+  secondaryNextOfKinRelationship: optionalRelationship(),
   secondaryNextOfKinPhone: optionalString(30),
 };
 
@@ -180,6 +266,16 @@ function applyPreferredContactRules(value, helpers) {
   const method = value.preferredContactMethod;
   const phone = (v) => (v && String(v).trim() ? String(v).trim() : '');
 
+  if (value.noEmail && method === 'email') {
+    return helpers.message('Preferred contact cannot be email when No email is selected');
+  }
+  if (value.noEmail && !value.noEmailReason) {
+    return helpers.message('Select a reason for not having an email address');
+  }
+  if (!value.noEmail && method === 'email' && !value.email?.trim()) {
+    return helpers.message('Email is required when email is the preferred contact method');
+  }
+
   if (method === 'cell' && !phone(value.cellPhone) && !phone(value.contactNumber)) {
     return helpers.message('Cell phone is required when cell is the preferred contact method');
   }
@@ -189,10 +285,23 @@ function applyPreferredContactRules(value, helpers) {
   if (method === 'work' && !phone(value.workPhone)) {
     return helpers.message('Work phone is required when work is the preferred contact method');
   }
-  if (method === 'email' && !value.email?.trim()) {
-    return helpers.message('Email is required when email is the preferred contact method');
-  }
 
+  return value;
+}
+
+function applyDemographicsDetailRules(value, helpers) {
+  if (value.veteranStatus === 'yes' && !value.veteranStatusDetail) {
+    return helpers.message('Select veteran status details');
+  }
+  if (value.disabilityStatus === 'yes' && !value.disabilityType) {
+    return helpers.message('Select a disability type');
+  }
+  if (value.interpreterRequired && !value.interpreterLanguageRequired?.trim()) {
+    return helpers.message('Select at least one interpreter language');
+  }
+  if (value.noEmail) {
+    return { ...value, email: '' };
+  }
   return value;
 }
 
@@ -277,6 +386,23 @@ const createPatientSchema = Joi.object({
   referringPhysicianZip: optionalString(20),
   profilePhoto: Joi.string().trim().max(4_000_000).allow('', null),
   registrationChannel: Joi.string().trim().max(50).allow('', null),
+  billingType: Joi.string().trim().max(50).allow('', null),
+  paymentMethod: Joi.string().trim().max(50).allow('', null),
+  registrationStatus: Joi.string().trim().max(50).allow('', null),
+  primaryCareProviderId: Joi.string().uuid().allow('', null),
+  insuranceList: Joi.array().items(Joi.object().unknown(true)).default([]),
+  documents: Joi.array().items(Joi.object().unknown(true)).default([]),
+  consentSignatures: Joi.array()
+    .items(
+      Joi.object({
+        consentFormId: Joi.string().trim().required(),
+        signatureType: Joi.string().trim().allow('', null),
+        signatureData: Joi.string().allow('', null),
+        scrolledToEnd: Joi.boolean(),
+        nameMatched: Joi.boolean(),
+      }).unknown(true),
+    )
+    .default([]),
   ...demographicsFields,
   preferredContactMethod: demographicsFields.preferredContactMethod.required()
     .messages({
@@ -284,8 +410,10 @@ const createPatientSchema = Joi.object({
     }),
   ...contactFields,
   ...subscriberFields,
+  ...appointmentBookingFields,
 })
   .custom(applyPreferredContactRules)
+  .custom(applyDemographicsDetailRules)
   .custom(applyGovernmentIdRules)
   .custom(applyContactRules)
   .custom((value, helpers) => {
@@ -347,9 +475,26 @@ const updatePatientSchema = Joi.object({
   referringPhysicianState: optionalString(50),
   referringPhysicianZip: optionalString(20),
   profilePhoto: Joi.string().trim().max(4_000_000).allow('', null),
+  billingType: Joi.string().trim().max(50).allow('', null),
+  paymentMethod: Joi.string().trim().max(50).allow('', null),
+  registrationStatus: Joi.string().trim().max(50).allow('', null),
+  registrationChannel: Joi.string().trim().max(50).allow('', null),
+  primaryCareProviderId: Joi.string().uuid().allow('', null),
+  insuranceList: Joi.array().items(Joi.object().unknown(true)),
+  documents: Joi.array().items(Joi.object().unknown(true)),
+  consentSignatures: Joi.array().items(
+    Joi.object({
+      consentFormId: Joi.string().trim().required(),
+      signatureType: Joi.string().trim().allow('', null),
+      signatureData: Joi.string().allow('', null),
+      scrolledToEnd: Joi.boolean(),
+      nameMatched: Joi.boolean(),
+    }).unknown(true),
+  ),
   ...demographicsFields,
   ...contactFields,
   ...subscriberFields,
+  ...appointmentBookingFields,
 })
   .min(1)
   .messages({
@@ -362,6 +507,7 @@ const updatePatientSchema = Joi.object({
     return value;
   })
   .custom((value, helpers) => applyGovernmentIdRules(value, helpers))
+  .custom((value, helpers) => applyDemographicsDetailRules(value, helpers))
   .custom((value, helpers) => applyContactRules(value, helpers))
   .custom((value, helpers) => {
     if (!value.preferredContactMethod && value.contactNumber === undefined) {
@@ -444,6 +590,197 @@ const patientSummaryQuerySchema = Joi.object({
   mrn: Joi.string().trim().max(100).allow('', null),
 });
 
+const chartStatusSchema = Joi.object({
+  chartStatus: Joi.string().valid('active', 'inactive', 'deceased').required(),
+  deceasedAt: Joi.date().iso().allow('', null),
+  financialClass: Joi.string().trim().max(50).allow('', null),
+});
+
+const ledgerPaymentSchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  paymentMethod: Joi.string().trim().max(50).allow('', null),
+  description: Joi.string().trim().max(500).allow('', null),
+  appointmentId: Joi.string().uuid().allow('', null),
+  autoAllocate: Joi.boolean().default(true),
+  transactionType: Joi.string()
+    .valid('payment', 'copay_payment', 'insurance_payment', 'adjustment', 'discount', 'write_off', 'refund')
+    .default('payment'),
+});
+
+const ledgerReverseSchema = Joi.object({
+  reason: Joi.string().trim().max(500).allow('', null),
+});
+
+const statementCreateSchema = Joi.object({
+  periodFrom: Joi.date().iso().allow('', null),
+  periodTo: Joi.date().iso().allow('', null),
+  notes: Joi.string().trim().max(2000).allow('', null),
+});
+
+const statementActionSchema = Joi.object({
+  action: Joi.string().valid('printed', 'sent').required(),
+});
+
+const eligibilityVerifySchema = Joi.object({
+  patientInsuranceId: Joi.string().uuid().allow('', null),
+  appointmentId: Joi.string().uuid().allow('', null),
+  notes: Joi.string().trim().max(2000).allow('', null),
+  source: Joi.string().trim().max(80).allow('', null),
+});
+
+const claimCreateSchema = Joi.object({
+  appointmentId: Joi.string().uuid().allow('', null),
+  claimNumber: Joi.string().trim().max(50).allow('', null),
+  claimStatus: Joi.string()
+    .valid('draft', 'ready', 'submitted', 'accepted', 'rejected', 'denied', 'paid', 'partial', 'appealing', 'voided')
+    .default('draft'),
+  claimType: Joi.string().valid('original', 'replacement', 'void').default('original'),
+  payerName: Joi.string().trim().max(200).allow('', null),
+  memberId: Joi.string().trim().max(100).allow('', null),
+  billedAmount: Joi.number().min(0).allow(null),
+  paidAmount: Joi.number().min(0).allow(null),
+  patientResponsibility: Joi.number().min(0).allow(null),
+  denialReason: Joi.string().trim().max(500).allow('', null),
+  notes: Joi.string().trim().max(2000).allow('', null),
+});
+
+const claimUpdateSchema = claimCreateSchema
+  .fork(['claimStatus', 'claimType'], (schema) => schema.optional())
+  .keys({
+    adjustmentAmount: Joi.number().min(0).allow(null),
+    adjustmentType: Joi.string().valid('adjustment', 'write_off', 'discount').allow('', null),
+  });
+
+const insuranceBodySchema = Joi.object({
+  insuranceType: Joi.string().valid('primary', 'secondary', 'tertiary').default('primary'),
+  insuranceProviderId: Joi.string().uuid().required(),
+  memberId: Joi.string().trim().min(1).max(100).required(),
+  policyType: Joi.string().trim().max(100).allow('', null),
+  planName: Joi.string().trim().max(200).allow('', null),
+  groupNumber: Joi.string().trim().max(100).allow('', null),
+  subscriberFirstName: Joi.string().trim().max(100).allow('', null),
+  subscriberLastName: Joi.string().trim().max(100).allow('', null),
+  subscriberRelationship: Joi.string().trim().max(50).allow('', null),
+  subscriberGender: Joi.string().trim().max(30).allow('', null),
+  subscriberDateOfBirth: Joi.date().iso().allow('', null),
+  subscriberPhone: Joi.string().trim().max(30).allow('', null),
+  subscriberEmail: Joi.string().trim().email().allow('', null),
+  coverageStartDate: Joi.date().iso().allow('', null),
+  coverageEndDate: Joi.date().iso().allow('', null),
+  coinsurancePercentage: Joi.number().min(0).max(100).allow(null),
+  copay: Joi.number().min(0).allow(null),
+  deductible: Joi.number().min(0).allow(null),
+  authorizationNumber: Joi.string().trim().max(100).allow('', null),
+  isActive: Joi.boolean().default(true),
+  cobOrder: Joi.number().integer().min(1).max(3).allow(null),
+  notes: Joi.string().trim().max(2000).allow('', null),
+});
+
+const insuranceUpdateSchema = insuranceBodySchema.fork(
+  ['insuranceProviderId', 'memberId'],
+  (schema) => schema.optional(),
+).min(1);
+
+const insuranceIdParamsSchema = Joi.object({
+  id: Joi.string().uuid().required(),
+  insuranceId: Joi.string().uuid().required(),
+});
+
+const guarantorBodySchema = Joi.object({
+  firstName: Joi.string().trim().max(100).allow('', null),
+  lastName: Joi.string().trim().max(100).allow('', null),
+  middleName: Joi.string().trim().max(100).allow('', null),
+  guarantorName: Joi.string().trim().max(200).allow('', null),
+  relationship: Joi.string().trim().max(50).allow('', null),
+  guarantorRelationship: Joi.string().trim().max(50).allow('', null),
+  dateOfBirth: Joi.date().iso().allow('', null),
+  guarantorDateOfBirth: Joi.date().iso().allow('', null),
+  phone: Joi.string().trim().max(30).allow('', null),
+  guarantorPhone: Joi.string().trim().max(30).allow('', null),
+  email: Joi.string().trim().email().allow('', null),
+  guarantorEmail: Joi.string().trim().email().allow('', null),
+  address: Joi.string().trim().max(500).allow('', null),
+  guarantorAddress: Joi.string().trim().max(500).allow('', null),
+  city: Joi.string().trim().max(100).allow('', null),
+  guarantorCity: Joi.string().trim().max(100).allow('', null),
+  state: Joi.string().trim().max(50).allow('', null),
+  guarantorState: Joi.string().trim().max(50).allow('', null),
+  zip: Joi.string().trim().max(20).allow('', null),
+  guarantorZip: Joi.string().trim().max(20).allow('', null),
+  ssnLast4: Joi.string().trim().max(4).allow('', null),
+  employerName: Joi.string().trim().max(200).allow('', null),
+  notes: Joi.string().trim().max(2000).allow('', null),
+  isActive: Joi.boolean(),
+}).or('firstName', 'guarantorName');
+
+const chargeBodySchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  description: Joi.string().trim().max(500).allow('', null),
+  appointmentId: Joi.string().uuid().allow('', null),
+  referenceType: Joi.string().trim().max(50).allow('', null),
+  referenceId: Joi.string().uuid().allow('', null),
+});
+
+const allocateBodySchema = Joi.object({
+  paymentTransactionId: Joi.string().uuid().required(),
+  allocations: Joi.array()
+    .items(
+      Joi.object({
+        chargeTransactionId: Joi.string().uuid().required(),
+        amount: Joi.number().positive().required(),
+        notes: Joi.string().trim().max(500).allow('', null),
+      }),
+    )
+    .min(1)
+    .required(),
+});
+
+const eraBodySchema = Joi.object({
+  amount: Joi.number().positive().required(),
+  claimId: Joi.string().uuid().allow('', null),
+  appointmentId: Joi.string().uuid().allow('', null),
+  payerName: Joi.string().trim().max(200).allow('', null),
+  eraTraceNumber: Joi.string().trim().max(100).allow('', null),
+  externalRef: Joi.string().trim().max(100).allow('', null),
+  description: Joi.string().trim().max(500).allow('', null),
+  autoAllocate: Joi.boolean().default(true),
+  adjustmentAmount: Joi.number().min(0).allow(null),
+  adjustmentType: Joi.string().valid('adjustment', 'write_off', 'discount').default('adjustment'),
+  adjustmentDescription: Joi.string().trim().max(500).allow('', null),
+  claimStatus: Joi.string().trim().max(50).default('paid'),
+});
+
+const mergeBodySchema = Joi.object({
+  sourcePatientId: Joi.string().uuid().required(),
+  notes: Joi.string().trim().max(2000).allow('', null),
+});
+
+const collectionStatusSchema = Joi.object({
+  collectionStatus: Joi.string()
+    .valid('none', 'active', 'dunning', 'agency', 'closed')
+    .default('none'),
+  collectionNotes: Joi.string().trim().max(2000).allow('', null),
+});
+
+const worklistQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(50),
+});
+
+const claimIdSchema = Joi.object({
+  id: Joi.string().uuid().required(),
+  claimId: Joi.string().uuid().required(),
+});
+
+const statementIdSchema = Joi.object({
+  id: Joi.string().uuid().required(),
+  statementId: Joi.string().uuid().required(),
+});
+
+const ledgerTxnIdSchema = Joi.object({
+  id: Joi.string().uuid().required(),
+  txnId: Joi.string().uuid().required(),
+});
+
 /**
  * Validation middleware factory
  * @param {Joi.Schema} schema - Joi schema to validate against
@@ -483,5 +820,26 @@ module.exports = {
   patientIdSchema,
   patientMrnSchema,
   patientSummaryQuerySchema,
+  chartStatusSchema,
+  ledgerPaymentSchema,
+  ledgerReverseSchema,
+  statementCreateSchema,
+  statementActionSchema,
+  eligibilityVerifySchema,
+  claimCreateSchema,
+  claimUpdateSchema,
+  claimIdSchema,
+  statementIdSchema,
+  ledgerTxnIdSchema,
+  insuranceBodySchema,
+  insuranceUpdateSchema,
+  insuranceIdParamsSchema,
+  guarantorBodySchema,
+  chargeBodySchema,
+  allocateBodySchema,
+  eraBodySchema,
+  mergeBodySchema,
+  collectionStatusSchema,
+  worklistQuerySchema,
   validate,
 };

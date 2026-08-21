@@ -192,7 +192,7 @@ export function DataTable({
       )}
 
       {/* Table */}
-      <div className="content-panel overflow-hidden rounded-t-none border-t-0">
+      <div className="content-panel overflow-visible rounded-t-none border-t-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -252,7 +252,7 @@ export function DataTable({
                     </TableCell>
                   ))}
                   {actions && (
-                    <TableCell className="text-right">{actions(row)}</TableCell>
+                    <TableCell className="overflow-visible text-right">{actions(row)}</TableCell>
                   )}
                 </TableRow>
               ))

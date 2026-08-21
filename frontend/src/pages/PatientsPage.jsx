@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Plus, Pencil, Eye, X } from 'lucide-react';
 import {
@@ -48,7 +48,7 @@ const FILTER_DEFAULTS = {
   insurancePayerIds: [],
 };
 
-const FIELD_HEIGHT_CLASS = '[&_button]:h-10';
+const FIELD_HEIGHT_CLASS = '[&_button]:h-8';
 
 function fullProviderName(provider) {
   return [provider.firstName, provider.middleName, provider.lastName]
@@ -89,6 +89,7 @@ function listTabParam(listTab) {
 
 export function PatientsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [patients, setPatients] = useState([]);
   const [providers, setProviders] = useState([]);
   const [insurancePayers, setInsurancePayers] = useState([]);
@@ -96,6 +97,13 @@ export function PatientsPage() {
   const [listTab, setListTab] = useState(PATIENT_LIST_TABS.ALL);
   const [filters, setFilters] = useState(FILTER_DEFAULTS);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0 });
+  const [successMessage, setSuccessMessage] = useState(location.state?.successMessage || null);
+
+  useEffect(() => {
+    if (!location.state?.successMessage) return;
+    setSuccessMessage(location.state.successMessage);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -230,6 +238,23 @@ export function PatientsPage() {
         }
       />
 
+      {successMessage && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <div className="flex items-start justify-between gap-3">
+            <p>{successMessage}</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-emerald-900"
+              onClick={() => setSuccessMessage(null)}
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
+
       <section className="content-panel rounded-lg px-4 py-3 sm:px-6">
         <Tabs value={listTab} onValueChange={(value) => { setListTab(value); setPagination((p) => ({ ...p, page: 1 })); }}>
           <TabsList className="grid h-auto w-full max-w-xl grid-cols-3">
@@ -240,7 +265,7 @@ export function PatientsPage() {
         </Tabs>
       </section>
 
-      <section className="content-panel space-y-4 rounded-lg p-4 sm:p-6">
+      <section className="content-panel relative z-20 overflow-visible space-y-4 rounded-lg p-4 sm:p-6">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-foreground">Filters</h2>
           <Button
@@ -454,8 +479,14 @@ export function PatientsPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => navigate(`/patient-dashboard/${patient.id}`)}
-                        title="View"
+                        onClick={() => {
+                          if (patient._isQueueDraft) {
+                            handleEditPatient(patient);
+                            return;
+                          }
+                          navigate(`/patients/${patient.id}`);
+                        }}
+                        title="Open chart"
                       >
                         <Eye className="h-4 w-4 icon-action-view" />
                       </Button>

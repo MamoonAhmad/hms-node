@@ -1,12 +1,20 @@
 export const DEFAULT_APPOINTMENT_STATUSES = [
-  { id: 'status-scheduled', name: 'Scheduled', color: '#3b82f6' },
-  { id: 'status-checked-in', name: 'Checked-In', color: '#ca8a04' },
-  { id: 'status-in-progress', name: 'In Progress', color: '#9333ea' },
-  { id: 'status-completed', name: 'Completed', color: '#16a34a' },
-  { id: 'status-cancelled', name: 'Cancelled', color: '#dc2626' },
-  { id: 'status-no-show', name: 'No-Show', color: '#6b7280' },
-  { id: 'status-rescheduled', name: 'Rescheduled', color: '#ea580c' },
+  { id: 'status-scheduled', name: 'Scheduled', color: '#123B5D' },
+  { id: 'status-confirmed', name: 'Confirmed', color: '#0F8B8D' },
+  { id: 'status-arrived', name: 'Arrived', color: '#b45309' },
+  { id: 'status-checked-in', name: 'Checked-In', color: '#b45309' },
+  { id: 'status-in-progress', name: 'In Progress', color: '#0F8B8D' },
+  { id: 'status-completed', name: 'Completed', color: '#15803d' },
+  { id: 'status-cancelled', name: 'Cancelled', color: '#b91c1c' },
+  { id: 'status-no-show', name: 'No-Show', color: '#5c728a' },
+  { id: 'status-rescheduled', name: 'Rescheduled', color: '#c2410c' },
 ];
+
+/** Statuses selectable via quick dropdown (not cancel / no-show / reschedule). */
+export function getManualStatusOptions(catalog = DEFAULT_APPOINTMENT_STATUSES) {
+  const blocked = new Set(['Cancelled', 'No-Show', 'No Show', 'Rescheduled', 'Deleted']);
+  return catalog.filter((s) => !blocked.has(s.name));
+}
 
 export function normalizeHexColor(value) {
   const trimmed = (value || '').trim();

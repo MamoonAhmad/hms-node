@@ -16,6 +16,8 @@ const PATIENT_WRITABLE_FIELDS = [
   'contactNumber',
   'preferredContactMethod',
   'email',
+  'noEmail',
+  'noEmailReason',
   'address',
   'addressLine2',
   'city',
@@ -29,7 +31,9 @@ const PATIENT_WRITABLE_FIELDS = [
   'governmentIdNumber',
   'birthPlace',
   'veteranStatus',
+  'veteranStatusDetail',
   'disabilityStatus',
+  'disabilityType',
   'tribalAffiliation',
   'generalNotes',
   'ethnicity',
@@ -48,6 +52,43 @@ const PATIENT_WRITABLE_FIELDS = [
   'employerState',
   'employerZip',
   'otherInfo',
+  'prefix',
+  'ssnLast4',
+  'county',
+  'mailingSameAsResidential',
+  'mailingAddress',
+  'mailingAddressLine2',
+  'mailingCity',
+  'mailingState',
+  'mailingZip',
+  'mailingCountry',
+  'governmentIdState',
+  'governmentIdExpiration',
+  'medicareBeneficiaryId',
+  'medicaidId',
+  'preferredPharmacyName',
+  'preferredPharmacyPhone',
+  'preferredPharmacyAddress',
+  'smsOptIn',
+  'emailOptIn',
+  'reminderOptIn',
+  'hipaaRoiName',
+  'hipaaRoiRelationship',
+  'hipaaRoiPhone',
+  'hipaaRoiEmail',
+  'advanceDirectiveOnFile',
+  'advanceDirectiveType',
+  'powerOfAttorneyName',
+  'powerOfAttorneyPhone',
+  'workersCompClaimNumber',
+  'autoAccidentClaimNumber',
+  'billingNotes',
+  'accountBalance',
+  'referredBy',
+  'countryOther',
+  'languageOther',
+  'allergyNotes',
+  'noKnownDrugAllergies',
   'insuranceProviderId',
   'policyNumber',
   'copay',
@@ -114,6 +155,11 @@ const PATIENT_WRITABLE_FIELDS = [
   'paymentMethod',
   'assignedToId',
   'consentFormSigned',
+  'chartStatus',
+  'deceasedAt',
+  'financialClass',
+  'lastStatementAt',
+  'lastEligibilityAt',
 ];
 
 const listInclude = {
@@ -163,10 +209,31 @@ function pickPatientData(data) {
   }
   if (payload.dateOfBirth) payload.dateOfBirth = new Date(payload.dateOfBirth);
   if (payload.guarantorDateOfBirth) payload.guarantorDateOfBirth = new Date(payload.guarantorDateOfBirth);
+  if (payload.governmentIdExpiration) payload.governmentIdExpiration = new Date(payload.governmentIdExpiration);
+  if (payload.deceasedAt) payload.deceasedAt = new Date(payload.deceasedAt);
   if (payload.profilePhoto === '') payload.profilePhoto = null;
   if (payload.country === '' || payload.country == null) payload.country = 'US';
   if (payload.billingType === 'self-pay') payload.billingType = 'self_pay';
   if (payload.registrationChannel) payload.registrationChannel = String(payload.registrationChannel).trim();
+  if (payload.ssnLast4) payload.ssnLast4 = String(payload.ssnLast4).replace(/\D/g, '').slice(0, 4);
+  if (payload.mailingSameAsResidential) {
+    payload.mailingAddress = payload.address || payload.mailingAddress || null;
+    payload.mailingAddressLine2 = payload.addressLine2 || payload.mailingAddressLine2 || null;
+    payload.mailingCity = payload.city || payload.mailingCity || null;
+    payload.mailingState = payload.state || payload.mailingState || null;
+    payload.mailingZip = payload.zip || payload.mailingZip || null;
+  }
+  // Avoid FK failures from empty / non-UUID related ids
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (payload.insuranceProviderId && !uuidRe.test(String(payload.insuranceProviderId))) {
+    payload.insuranceProviderId = null;
+  }
+  if (payload.primaryCareProviderId && !uuidRe.test(String(payload.primaryCareProviderId))) {
+    payload.primaryCareProviderId = null;
+  }
+  if (payload.assignedToId && !uuidRe.test(String(payload.assignedToId))) {
+    payload.assignedToId = null;
+  }
   return payload;
 }
 
@@ -209,6 +276,18 @@ function mapInsuranceEntry(entry) {
     copay: entry.copay != null ? entry.copay : null,
     deductible: entry.deductible != null ? entry.deductible : null,
     authorizationNumber: entry.authorizationNumber || null,
+    authorizationRequired: entry.authorizationRequired || null,
+    claimNumber: entry.claimNumber || entry.workersCompClaimNumber || entry.autoAccidentClaimNumber || null,
+    isActive: entry.isActive !== false,
+    cobOrder:
+      entry.cobOrder != null
+        ? parseInt(entry.cobOrder, 10)
+        : normalizedType === 'secondary'
+          ? 2
+          : normalizedType === 'tertiary'
+            ? 3
+            : 1,
+    notes: entry.notes || null,
   };
 }
 
@@ -223,8 +302,17 @@ async function syncInsurances(patientId, insuranceList) {
 
   if (!rows.length) return;
 
+  const providerIds = [...new Set(rows.map((row) => row.insuranceProviderId))];
+  const existingProviders = await prisma.insuranceProvider.findMany({
+    where: { id: { in: providerIds }, deletedAt: null },
+    select: { id: true },
+  });
+  const validProviderIds = new Set(existingProviders.map((p) => p.id));
+  const validRows = rows.filter((row) => validProviderIds.has(row.insuranceProviderId));
+  if (!validRows.length) return;
+
   await prisma.patientInsurance.createMany({
-    data: rows.map((row) => ({ ...row, patientId })),
+    data: validRows.map((row) => ({ ...row, patientId })),
   });
 }
 
@@ -234,13 +322,20 @@ async function syncDocuments(patientId, documents, userId) {
   await prisma.patientDocument.deleteMany({ where: { patientId } });
 
   const rows = documents
-    .filter((doc) => doc && (doc.documentType || doc.type))
+    .filter((doc) => doc && (doc.documentType || doc.type || doc.documentCategory || doc.requiredDocumentType))
     .map((doc) => ({
       patientId,
-      documentType: doc.documentType || doc.type,
+      documentType: doc.documentType || doc.type || doc.documentCategory || doc.requiredDocumentType || 'Other',
+      documentName: doc.documentName || doc.name || null,
       fileName: doc.fileName || doc.name || null,
       fileData: doc.fileData || doc.dataUrl || null,
       mimeType: doc.mimeType || null,
+      documentNotes: doc.documentNotes || null,
+      expirationDate: doc.documentExpirationDate || doc.expirationDate
+        ? new Date(doc.documentExpirationDate || doc.expirationDate)
+        : null,
+      governmentIdType: doc.governmentIdType || null,
+      insuranceCardSide: doc.insuranceCardSide || null,
       uploadedBy: userId || null,
     }));
 
@@ -254,8 +349,18 @@ async function syncConsentSignatures(patientId, signatures, userId) {
 
   await prisma.patientConsentSignature.deleteMany({ where: { patientId } });
 
-  const rows = signatures
-    .filter((sig) => sig && sig.consentFormId && sig.signatureData)
+  const candidates = signatures.filter((sig) => sig && sig.consentFormId && sig.signatureData);
+  if (!candidates.length) return;
+
+  const formIds = [...new Set(candidates.map((sig) => String(sig.consentFormId)))];
+  const existingForms = await prisma.consentForm.findMany({
+    where: { id: { in: formIds }, deletedAt: null },
+    select: { id: true },
+  });
+  const validFormIds = new Set(existingForms.map((f) => f.id));
+
+  const rows = candidates
+    .filter((sig) => validFormIds.has(String(sig.consentFormId)))
     .map((sig) => ({
       patientId,
       consentFormId: sig.consentFormId,
@@ -273,6 +378,132 @@ async function syncConsentSignatures(patientId, signatures, userId) {
 
 function deriveConsentSigned(signatures) {
   return Array.isArray(signatures) && signatures.some((s) => s?.signatureData);
+}
+
+const DEFAULT_REGISTRATION_CONSENT_TYPES = [
+  'general-treatment',
+  'hipaa-privacy',
+  'financial-responsibility',
+  'telehealth',
+  'release-of-information',
+];
+
+const DEFAULT_REGISTRATION_CONSENT_FORMS = [
+  {
+    consentType: 'general-treatment',
+    consentTitle: 'Consent for Treatment (Outpatient)',
+    description: 'General',
+    consentContent:
+      'I authorize the outpatient clinic to provide evaluation and treatment that is considered necessary for my care, including routine examinations, diagnostic procedures, and standard therapeutic services. I understand that no guarantees have been made about the results of treatment.',
+  },
+  {
+    consentType: 'hipaa-privacy',
+    consentTitle: 'Notice of Privacy Practices Acknowledgement (HIPAA)',
+    description: 'Privacy',
+    consentContent:
+      'I acknowledge that I have been offered access to the clinic’s Notice of Privacy Practices and understand how my health information may be used and disclosed.',
+  },
+  {
+    consentType: 'financial-responsibility',
+    consentTitle: 'Financial Responsibility Agreement',
+    description: 'Billing',
+    consentContent:
+      'I agree to be financially responsible for charges not covered by my insurance, including copays, deductibles, coinsurance, and non-covered services. I authorize the clinic to bill my insurance and receive payment on my behalf.',
+  },
+  {
+    consentType: 'telehealth',
+    consentTitle: 'Telehealth Consent',
+    description: 'Telehealth',
+    consentContent:
+      'I consent to receive healthcare services via telehealth, which may include audio, video, or other electronic communications. I understand telehealth has limitations and an in-person visit may be recommended when needed.',
+  },
+  {
+    consentType: 'release-of-information',
+    consentTitle: 'Authorization to Release Medical Information',
+    description: 'Records',
+    consentContent:
+      'I authorize the clinic to release my medical information as needed for treatment, payment, and healthcare operations, and to designated entities involved in my care.',
+  },
+];
+
+async function resolveConsentActorId(userId) {
+  if (userId) return userId;
+  const existing = await prisma.user.findFirst({
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  return existing?.id || null;
+}
+
+async function ensureDefaultRegistrationConsentForms(userId) {
+  const actorId = await resolveConsentActorId(userId);
+  if (!actorId) return;
+
+  const existing = await prisma.consentForm.findMany({
+    where: {
+      deletedAt: null,
+      consentType: { in: DEFAULT_REGISTRATION_CONSENT_TYPES },
+    },
+    select: { consentType: true },
+  });
+  const have = new Set(existing.map((row) => row.consentType));
+  const missing = DEFAULT_REGISTRATION_CONSENT_FORMS.filter((form) => !have.has(form.consentType));
+  if (!missing.length) return;
+
+  await prisma.consentForm.createMany({
+    data: missing.map((form) => ({
+      ...form,
+      status: 'active',
+      isMandatory: true,
+      isSignatureRequired: true,
+      versionNumber: '1.0',
+      createdBy: actorId,
+      updatedBy: actorId,
+    })),
+  });
+}
+
+const VISIT_TYPE_TO_APPOINTMENT_TYPE = {
+  'new-patient': 'New',
+  'follow-up': 'Follow-up',
+  urgent: 'New',
+  telehealth: 'Televisit',
+  procedure: 'New',
+  general: 'New',
+};
+
+async function maybeCreateRegistrationAppointment(patientId, data, userId) {
+  const appointmentDate = data.appointmentDate;
+  const appointmentTime = data.appointmentTime || data.appointmentStartTime;
+  if (!appointmentDate || !appointmentTime) return;
+  if (data.bookAppointment === false) return;
+
+  try {
+    const appointmentService = require('./appointment.service');
+    const appointmentType =
+      VISIT_TYPE_TO_APPOINTMENT_TYPE[data.appointmentVisitType] ||
+      data.appointmentVisitType ||
+      'New';
+    await appointmentService.create(
+      {
+        patientId,
+        appointmentDate,
+        appointmentTime,
+        appointmentEndTime: data.appointmentEndTime || null,
+        appointmentType,
+        visitReason: data.appointmentReason || null,
+        department: data.appointmentDepartment || null,
+        departmentId: data.appointmentDepartmentId || null,
+        provider: data.appointmentProvider || null,
+        providerId: data.appointmentProviderId || null,
+        status: data.status || 'Scheduled',
+        notes: data.appointmentNotes || null,
+      },
+      { id: userId },
+    );
+  } catch (error) {
+    console.error('Registration appointment create failed:', error?.message || error);
+  }
 }
 
 function deriveRegistrationStatus(data, insuranceList, signatures) {
@@ -308,6 +539,7 @@ function serializePatient(row) {
       insuranceTypeKey: ins.insuranceType,
       insuranceType: ins.insuranceType,
       insuranceProviderId: ins.insuranceProviderId,
+      insuranceCompany: ins.insuranceProviderId,
       payerName: ins.insuranceProvider?.name,
       payerId: ins.insuranceProvider?.code,
       memberId: ins.memberId,
@@ -315,6 +547,40 @@ function serializePatient(row) {
       groupNumber: ins.groupNumber,
       planName: ins.planName,
       policyType: ins.policyType,
+      subscriberFirstName: ins.subscriberFirstName,
+      subscriberLastName: ins.subscriberLastName,
+      subscriberRelationship: ins.subscriberRelationship,
+      subscriberGender: ins.subscriberGender,
+      subscriberDateOfBirth: ins.subscriberDateOfBirth,
+      subscriberPhone: ins.subscriberPhone,
+      subscriberEmail: ins.subscriberEmail,
+      subscriberSsnLast4: ins.subscriberSsnLast4,
+      subscriberEmployer: ins.subscriberEmployer,
+      subscriberAddress: ins.subscriberStreetAddress,
+      subscriberCity: ins.subscriberCity,
+      subscriberState: ins.subscriberState,
+      subscriberZip: ins.subscriberZip,
+      coverageStartDate: ins.coverageStartDate,
+      coverageEndDate: ins.coverageEndDate,
+      copay: ins.copay,
+      deductible: ins.deductible,
+      coinsurancePercentage: ins.coinsurancePercentage,
+      authorizationNumber: ins.authorizationNumber,
+      authorizationRequired: ins.authorizationRequired,
+      claimNumber: ins.claimNumber,
+    })),
+    documents: (row.documents || []).map((doc) => ({
+      id: doc.id,
+      documentType: doc.documentType,
+      documentCategory: doc.documentType,
+      documentName: doc.documentName || doc.fileName,
+      fileName: doc.fileName,
+      fileData: doc.fileData,
+      mimeType: doc.mimeType,
+      documentNotes: doc.documentNotes,
+      documentExpirationDate: doc.expirationDate,
+      governmentIdType: doc.governmentIdType,
+      insuranceCardSide: doc.insuranceCardSide,
     })),
     appointmentStatus: latestAppointment?.status || null,
     consentSigned: row.consentFormSigned || (row.consentSignatures?.length > 0),
@@ -339,11 +605,40 @@ const patientService = {
 
     const row = await prisma.patient.create({ data: payload });
 
-    await syncInsurances(row.id, insuranceList);
-    await syncDocuments(row.id, documents, userId);
-    await syncConsentSignatures(row.id, consentSignatures, userId);
+    try {
+      await syncInsurances(row.id, insuranceList);
+      await syncDocuments(row.id, documents, userId);
+      await syncConsentSignatures(row.id, consentSignatures, userId);
+      await maybeCreateRegistrationAppointment(row.id, data, userId);
+    } catch (syncError) {
+      // Patient row is already persisted; do not fail the whole create on related-data sync.
+      console.error('Patient related-data sync failed after create:', syncError);
+    }
 
     return this.findById(row.id);
+  },
+
+  async listRegistrationConsentForms(userId) {
+    await ensureDefaultRegistrationConsentForms(userId);
+    const forms = await prisma.consentForm.findMany({
+      where: {
+        deletedAt: null,
+        status: 'active',
+        consentType: { in: DEFAULT_REGISTRATION_CONSENT_TYPES },
+      },
+      orderBy: { consentTitle: 'asc' },
+      select: {
+        id: true,
+        consentTitle: true,
+        consentType: true,
+        description: true,
+        consentContent: true,
+        versionNumber: true,
+        isMandatory: true,
+        isSignatureRequired: true,
+      },
+    });
+    return forms;
   },
 
   async findAll(filters = {}) {
@@ -353,14 +648,21 @@ const patientService = {
     const conditions = [NOT_DELETED];
 
     if (filters.search) {
-      conditions.push({
-        OR: [
-          { firstName: { contains: filters.search, mode: 'insensitive' } },
-          { lastName: { contains: filters.search, mode: 'insensitive' } },
-          { mrn: { contains: filters.search, mode: 'insensitive' } },
-          { email: { contains: filters.search, mode: 'insensitive' } },
-        ],
-      });
+      const term = String(filters.search).trim();
+      const searchOr = [
+        { firstName: { contains: term, mode: 'insensitive' } },
+        { lastName: { contains: term, mode: 'insensitive' } },
+        { mrn: { contains: term, mode: 'insensitive' } },
+        { email: { contains: term, mode: 'insensitive' } },
+        { contactNumber: { contains: term, mode: 'insensitive' } },
+        { cellPhone: { contains: term, mode: 'insensitive' } },
+        { homePhone: { contains: term, mode: 'insensitive' } },
+        { governmentIdNumber: { contains: term, mode: 'insensitive' } },
+      ];
+      if (/^[0-9a-f-]{8,}$/i.test(term)) {
+        searchOr.push({ id: term });
+      }
+      conditions.push({ OR: searchOr });
     }
 
     if (filters.mrn) {

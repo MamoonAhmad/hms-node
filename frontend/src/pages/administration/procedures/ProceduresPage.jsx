@@ -11,26 +11,52 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { procedureApi } from '@/services/api';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { procedureApi, procedureCategoryApi } from '@/services/api';
+import { CatalogStatusBadge, YesNoBadge } from '@/components/rcm/CatalogStatusBadge';
+import { CPT_CODE_TYPES } from '@/lib/codeCatalog';
 
 const PROCEDURE_COLUMNS = [
   {
-    key: 'procedureDescription',
-    label: 'Procedure Description',
-    cellClassName: 'font-medium',
+    key: 'cptCode',
+    label: 'Code',
+    cellClassName: 'font-mono font-medium',
+    render: (row) => row.cptCode || '—',
   },
   {
-    key: 'genericDescription',
-    label: 'Generic Description',
-    render: (row) => row.genericDescription || '—',
+    key: 'procedureDescription',
+    label: 'Description',
+    cellClassName: 'font-medium',
   },
   {
     key: 'categoryName',
     label: 'Category',
     render: (row) => row.categoryName || row.categories?.map((c) => c.name).join(', ') || '—',
   },
-  { key: 'cptCode', label: 'CPT Code', render: (row) => row.cptCode || '—' },
-  { key: 'revenueCode', label: 'Revenue Code', render: (row) => row.revenueCode || '—' },
+  { key: 'codeType', label: 'Type', render: (row) => row.codeType || 'CPT' },
+  { key: 'revenueCode', label: 'Rev', render: (row) => row.revenueCode || '—' },
+  {
+    key: 'unitPrice',
+    label: 'Charge',
+    render: (row) => (row.unitPrice != null ? `$${Number(row.unitPrice).toFixed(2)}` : '—'),
+  },
+  {
+    key: 'isBillable',
+    label: 'Billable',
+    render: (row) => <YesNoBadge value={row.isBillable !== false} />,
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    render: (row) => <CatalogStatusBadge isActive={row.isActive} />,
+  },
 ];
 
 export function ProceduresPage() {
@@ -45,6 +71,11 @@ export function ProceduresPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [codeTypeFilter, setCodeTypeFilter] = useState('all');
+  const [billableFilter, setBillableFilter] = useState('all');
+  const [categories, setCategories] = useState([]);
 
   const fetchProcedures = useCallback(async () => {
     setIsLoading(true);
@@ -54,6 +85,10 @@ export function ProceduresPage() {
         page: pagination.page,
         limit: pagination.limit,
         search: search || undefined,
+        status: statusFilter,
+        categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
+        codeType: codeTypeFilter !== 'all' ? codeTypeFilter : undefined,
+        isBillable: billableFilter === 'all' ? undefined : billableFilter === 'yes',
       });
       setProcedures(response.data || []);
       setPagination((prev) => ({ ...prev, ...response.pagination }));
@@ -63,11 +98,18 @@ export function ProceduresPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search]);
+  }, [pagination.page, pagination.limit, search, statusFilter, categoryFilter, codeTypeFilter, billableFilter]);
 
   useEffect(() => {
     fetchProcedures();
   }, [fetchProcedures]);
+
+  useEffect(() => {
+    procedureCategoryApi
+      .getAll({ limit: 500 })
+      .then((res) => setCategories(res.data || []))
+      .catch(() => setCategories([]));
+  }, []);
 
   const rows = useMemo(
     () =>
@@ -145,12 +187,100 @@ export function ProceduresPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-2xl font-bold">Procedure Codes</h1>
-          <p className="text-muted-foreground">Manage procedure codes</p>
+          <p className="text-muted-foreground">Maintain CPT and HCPCS procedure codes used for charge capture and claims.</p>
         </div>
         <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
           Add Procedure
         </Button>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="mb-3 text-sm font-medium">Filters</p>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select
+              value={categoryFilter}
+              onValueChange={(value) => {
+                setCategoryFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {categories.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name || item.categoryName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Code type</Label>
+            <Select
+              value={codeTypeFilter}
+              onValueChange={(value) => {
+                setCodeTypeFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {CPT_CODE_TYPES.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Billable</Label>
+            <Select
+              value={billableFilter}
+              onValueChange={(value) => {
+                setBillableFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="yes">Billable</SelectItem>
+                <SelectItem value="no">Not billable</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       {error && (

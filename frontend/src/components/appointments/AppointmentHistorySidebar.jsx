@@ -97,6 +97,42 @@ export function AppointmentHistorySidebar({ open, onClose, history = [], isLoadi
                     )}
                   </>
                 )}
+
+                {['cancelled', 'no_show', 'rescheduled', 'rescheduled_from'].includes(
+                  entry.action,
+                ) && (
+                  <>
+                    {(entry.changedByName || entry.changedBy) && (
+                      <p className="text-sm text-muted-foreground">
+                        By:{' '}
+                        <span className="text-foreground">
+                          {entry.changedByName || entry.changedBy}
+                        </span>
+                      </p>
+                    )}
+                    {Array.isArray(entry.changes) && entry.changes.length > 0 && (
+                      <ul className="space-y-1 text-sm">
+                        {entry.changes.map((change) => (
+                          <li key={`${entry.id}-${change.field}`} className="text-muted-foreground">
+                            <span className="font-medium text-foreground">{change.label}</span>
+                            {change.from != null && (
+                              <>
+                                {' '}
+                                from <span className="text-foreground">{String(change.from)}</span>
+                              </>
+                            )}
+                            {change.to != null && (
+                              <>
+                                {' '}
+                                to <span className="text-foreground">{String(change.to)}</span>
+                              </>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
               </div>
             ))
           )}

@@ -15,6 +15,7 @@ export function PatientFormPage() {
   const [patient, setPatient] = useState(null);
   const [isLoadingPatient, setIsLoadingPatient] = useState(isEditing);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
     if (id) {
@@ -31,18 +32,30 @@ export function PatientFormPage() {
 
   const handleSubmit = async (data) => {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       if (isEditing) {
         await patientApi.update(id, data);
+        navigate('/patients', {
+          state: { successMessage: 'Patient updated successfully.' },
+        });
       } else {
-        await patientApi.create(data);
+        const response = await patientApi.create(data);
         if (queueDraftId) {
           removePatientQueueDraft(queueDraftId);
         }
+        const name = [response?.data?.firstName, response?.data?.lastName].filter(Boolean).join(' ');
+        const mrn = response?.data?.mrn;
+        navigate('/patients', {
+          state: {
+            successMessage: mrn
+              ? `Patient ${name || ''} saved successfully (MRN ${mrn}).`.replace(/\s+/g, ' ').trim()
+              : 'Patient saved successfully.',
+          },
+        });
       }
-      navigate('/patients');
     } catch (err) {
-      alert(err?.message || 'Failed to save patient');
+      setSubmitError(err?.message || 'Failed to save patient');
     } finally {
       setIsSubmitting(false);
     }
@@ -85,6 +98,12 @@ export function PatientFormPage() {
           </p>
         </div>
       </div>
+
+      {submitError && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {submitError}
+        </div>
+      )}
 
       <div className="rounded-lg border bg-card p-6">
         <PatientFormContent

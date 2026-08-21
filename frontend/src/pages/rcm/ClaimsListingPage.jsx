@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,13 +21,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { DataTable } from '@/components/ui/data-table';
+import { RowActionsMenu, RowActionsMenuItem } from '@/components/ui/row-actions-menu';
 import {
   Plus,
   Download,
   RefreshCw,
   Search,
   X,
-  MoreHorizontal,
   Eye,
   Pencil,
   Send,
@@ -40,20 +40,21 @@ import {
   Flag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { rcmApi } from '@/services/api';
+import { claimStatusLabel, submissionStatusLabel } from '@/lib/claimConstants';
 
 // Status options for filter and display (use 'all' not '' for Radix Select)
 const CLAIM_STATUSES = [
   { value: 'all', label: 'All statuses' },
   { value: 'draft', label: 'Draft' },
-  { value: 'ready', label: 'Ready to submit' },
+  { value: 'ready', label: 'Ready' },
   { value: 'submitted', label: 'Submitted' },
   { value: 'accepted', label: 'Accepted' },
   { value: 'rejected', label: 'Rejected' },
-  { value: 'denied', label: 'Denied' },
   { value: 'paid', label: 'Paid' },
-  { value: 'partial', label: 'Partial payment' },
-  { value: 'appealing', label: 'Appealing' },
-  { value: 'voided', label: 'Voided/Cancelled' },
+  { value: 'denied', label: 'Denied' },
+  { value: 'on_hold', label: 'On Hold' },
+  { value: 'cancelled', label: 'Cancelled' },
 ];
 
 const CLAIM_TYPES = [
@@ -74,129 +75,6 @@ const DATE_PRESETS = [
 
 const PAGE_SIZES = [25, 50, 100];
 
-// Mock claims data (sample/dummy for listing)
-const MOCK_CLAIMS = [
-  {
-    id: 'clm-001',
-    claimId: 'CLM-2025-001',
-    patientName: 'Doe, John',
-    patientMrn: 'MRN-1001',
-    dateOfService: '2025-01-15',
-    payer: 'Blue Cross Blue Shield',
-    status: 'submitted',
-    claimType: 'original',
-    totalCharge: 250.0,
-    amountPaid: 0,
-    balanceDue: 250.0,
-    submittedDate: '2025-01-16',
-    renderingProvider: 'Dr. Jane Smith',
-    placeOfService: '11 - Office',
-    rejectionReason: null,
-  },
-  {
-    id: 'clm-002',
-    claimId: 'CLM-2025-002',
-    patientName: 'Smith, Mary',
-    patientMrn: 'MRN-1002',
-    dateOfService: '2025-01-14',
-    payer: 'Aetna',
-    status: 'paid',
-    claimType: 'original',
-    totalCharge: 150.0,
-    amountPaid: 150.0,
-    balanceDue: 0,
-    submittedDate: '2025-01-15',
-    renderingProvider: 'Dr. Jane Smith',
-    placeOfService: '11 - Office',
-    rejectionReason: null,
-  },
-  {
-    id: 'clm-003',
-    claimId: 'CLM-2024-150',
-    patientName: 'Johnson, Robert',
-    patientMrn: 'MRN-1003',
-    dateOfService: '2024-12-20',
-    payer: 'United Healthcare',
-    status: 'rejected',
-    claimType: 'original',
-    totalCharge: 300.0,
-    amountPaid: 0,
-    balanceDue: 300.0,
-    submittedDate: '2024-12-21',
-    renderingProvider: 'Dr. John Lee',
-    placeOfService: '22 - Outpatient Hospital',
-    rejectionReason: 'Duplicate claim',
-  },
-  {
-    id: 'clm-004',
-    claimId: 'CLM-2024-149',
-    patientName: 'Williams, Anna',
-    patientMrn: 'MRN-1004',
-    dateOfService: '2024-12-18',
-    payer: 'Medicare',
-    status: 'accepted',
-    claimType: 'original',
-    totalCharge: 180.0,
-    amountPaid: 0,
-    balanceDue: 180.0,
-    submittedDate: '2024-12-19',
-    renderingProvider: 'Dr. Jane Smith',
-    placeOfService: '11 - Office',
-    rejectionReason: null,
-  },
-  {
-    id: 'clm-005',
-    claimId: 'CLM-2025-003',
-    patientName: 'Brown, James',
-    patientMrn: 'MRN-1005',
-    dateOfService: '2025-01-10',
-    payer: 'Cigna',
-    status: 'draft',
-    claimType: 'original',
-    totalCharge: 95.0,
-    amountPaid: 0,
-    balanceDue: 95.0,
-    submittedDate: null,
-    renderingProvider: 'Dr. John Lee',
-    placeOfService: '11 - Office',
-    rejectionReason: null,
-  },
-  {
-    id: 'clm-006',
-    claimId: 'CLM-2025-004',
-    patientName: 'Davis, Emily',
-    patientMrn: 'MRN-1006',
-    dateOfService: '2025-01-12',
-    payer: 'Blue Cross Blue Shield',
-    status: 'denied',
-    claimType: 'original',
-    totalCharge: 420.0,
-    amountPaid: 0,
-    balanceDue: 420.0,
-    submittedDate: '2025-01-13',
-    renderingProvider: 'Dr. Jane Smith',
-    placeOfService: '23 - Emergency Room',
-    rejectionReason: 'Prior authorization required',
-  },
-  {
-    id: 'clm-007',
-    claimId: 'CLM-2024-148',
-    patientName: 'Garcia, Carlos',
-    patientMrn: 'MRN-1007',
-    dateOfService: '2024-12-10',
-    payer: 'Aetna',
-    status: 'partial',
-    claimType: 'original',
-    totalCharge: 200.0,
-    amountPaid: 120.0,
-    balanceDue: 80.0,
-    submittedDate: '2024-12-11',
-    renderingProvider: 'Dr. John Lee',
-    placeOfService: '11 - Office',
-    rejectionReason: null,
-  },
-];
-
 function getStatusBadgeVariant(status) {
   const map = {
     draft: 'secondary',
@@ -206,6 +84,8 @@ function getStatusBadgeVariant(status) {
     rejected: 'destructive',
     denied: 'destructive',
     paid: 'default',
+    on_hold: 'outline',
+    cancelled: 'secondary',
     partial: 'outline',
     appealing: 'outline',
     voided: 'secondary',
@@ -214,19 +94,7 @@ function getStatusBadgeVariant(status) {
 }
 
 function getStatusLabel(status) {
-  const map = {
-    draft: 'Draft',
-    ready: 'Ready to submit',
-    submitted: 'Submitted',
-    accepted: 'Accepted',
-    rejected: 'Rejected',
-    denied: 'Denied',
-    paid: 'Paid',
-    partial: 'Partial',
-    appealing: 'Appealing',
-    voided: 'Voided',
-  };
-  return map[status] || status;
+  return claimStatusLabel(status);
 }
 
 function getDateRange(preset) {
@@ -262,8 +130,9 @@ function getDateRange(preset) {
 }
 
 export function ClaimsListingPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [claims, setClaims] = useState(MOCK_CLAIMS);
+  const [claims, setClaims] = useState([]);
 
   // Filters
   const [globalSearch, setGlobalSearch] = useState('');
@@ -286,14 +155,37 @@ export function ClaimsListingPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  // Row actions menu
-  const [openRowMenuId, setOpenRowMenuId] = useState(null);
-
   // Bulk / confirm dialogs
   const [confirmVoid, setConfirmVoid] = useState(false);
   const [confirmWriteOff, setConfirmWriteOff] = useState(false);
   const [confirmCollections, setConfirmCollections] = useState(false);
   const [viewingClaim, setViewingClaim] = useState(null);
+
+  const loadClaims = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await rcmApi.listClaims({
+        search: globalSearchDebounced || undefined,
+        status: statusFilter,
+        claimType: claimTypeFilter,
+        payer: payerFilter || undefined,
+        dosFrom: dosFrom || undefined,
+        dosTo: dosTo || undefined,
+        page: 1,
+        limit: 200,
+      });
+      setClaims(res.data?.data || res.data || []);
+    } catch (err) {
+      console.error(err);
+      setClaims([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [globalSearchDebounced, statusFilter, claimTypeFilter, payerFilter, dosFrom, dosTo]);
+
+  useEffect(() => {
+    loadClaims();
+  }, [loadClaims]);
 
   // Debounce global search
   useEffect(() => {
@@ -464,9 +356,8 @@ export function ClaimsListingPage() {
   const canExportSelected = selectedClaims.length > 0;
 
   const handleRefresh = useCallback(() => {
-    setLoading(true);
-    setTimeout(() => setLoading(false), 600);
-  }, []);
+    loadClaims();
+  }, [loadClaims]);
 
   const handleExport = useCallback(() => {
     const data = selectedClaims.length ? selectedClaims : sortedClaims.slice(0, 5000);
@@ -691,10 +582,10 @@ export function ClaimsListingPage() {
                 cellClassName: 'font-mono text-xs',
                 render: (row) => (
                   <Link
-                    to={`/rcm/cms-1500?claimId=${row.claimId}`}
+                    to={`/rcm/cms-1500?claimId=${row.id}`}
                     className="text-primary hover:underline"
                   >
-                    {row.claimId}
+                    {row.claimNumber || row.claimId}
                   </Link>
                 ),
               },
@@ -704,7 +595,7 @@ export function ClaimsListingPage() {
                 cellClassName: 'font-medium',
                 render: (row) => (
                   <Link
-                    to={`/patient-dashboard/${row.patientMrn}`}
+                    to="/patients"
                     className="text-primary hover:underline"
                   >
                     {row.patientName}
@@ -716,11 +607,21 @@ export function ClaimsListingPage() {
                 label: 'MRN',
                 cellClassName: 'font-mono text-xs text-muted-foreground',
               },
-              { key: 'dateOfService', label: 'DOS' },
-              { key: 'payer', label: 'Payer' },
+              { key: 'dateOfService', label: 'Date of Service' },
+              { key: 'payer', label: 'Primary Insurance' },
+              {
+                key: 'renderingProvider',
+                label: 'Rendering Provider',
+                cellClassName: 'text-muted-foreground text-xs',
+              },
+              {
+                key: 'billingProvider',
+                label: 'Billing Provider',
+                cellClassName: 'text-muted-foreground text-xs',
+              },
               {
                 key: 'status',
-                label: 'Status',
+                label: 'Claim Status',
                 render: (row) => (
                   <Badge
                     variant={getStatusBadgeVariant(row.status)}
@@ -729,6 +630,11 @@ export function ClaimsListingPage() {
                     {getStatusLabel(row.status)}
                   </Badge>
                 ),
+              },
+              {
+                key: 'submissionStatus',
+                label: 'Submission Status',
+                render: (row) => submissionStatusLabel(row.submissionStatus),
               },
               {
                 key: 'totalCharge',
@@ -750,15 +656,16 @@ export function ClaimsListingPage() {
                 render: (row) => `$${Number(row.balanceDue).toFixed(2)}`,
               },
               {
-                key: 'submittedDate',
-                label: 'Submitted',
+                key: 'createdAt',
+                label: 'Created Date',
                 cellClassName: 'text-muted-foreground',
-                render: (row) => row.submittedDate || '—',
+                render: (row) => row.createdAt ? String(row.createdAt).slice(0, 10) : '—',
               },
               {
-                key: 'renderingProvider',
-                label: 'Rendering provider',
-                cellClassName: 'text-muted-foreground text-xs',
+                key: 'updatedAt',
+                label: 'Updated Date',
+                cellClassName: 'text-muted-foreground',
+                render: (row) => row.updatedAt ? String(row.updatedAt).slice(0, 10) : '—',
               },
             ]}
             data={pageClaims}
@@ -792,102 +699,82 @@ export function ClaimsListingPage() {
                   <Eye className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8" asChild aria-label="Edit claim">
-                  <Link to={`/rcm/cms-1500?claimId=${claim.claimId}`}>
+                  <Link to={`/rcm/cms-1500?claimId=${claim.id}`}>
                     <Pencil className="h-4 w-4" />
                   </Link>
                 </Button>
-                <div className="relative">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setOpenRowMenuId(openRowMenuId === claim.id ? null : claim.id)}
-                    aria-label="More actions"
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  asChild
+                  aria-label="Print claim"
+                >
+                  <Link to={`/rcm/claims/${claim.id}/print`} target="_blank" rel="noreferrer">
+                    <Printer className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <RowActionsMenu aria-label="More actions">
+                  <RowActionsMenuItem onClick={() => setViewingClaim(claim)}>
+                    <Eye className="h-4 w-4" /> View claim
+                  </RowActionsMenuItem>
+                  <RowActionsMenuItem asChild>
+                    <Link to={`/rcm/cms-1500?claimId=${claim.id}`}>
+                      <Pencil className="h-4 w-4" /> Edit
+                    </Link>
+                  </RowActionsMenuItem>
+                  <RowActionsMenuItem asChild>
+                    <Link to={`/rcm/claims/${claim.id}/print`} target="_blank" rel="noreferrer">
+                      <Printer className="h-4 w-4" /> Print
+                    </Link>
+                  </RowActionsMenuItem>
+                  <RowActionsMenuItem
+                    onClick={async () => {
+                      try {
+                        const res = await rcmApi.copyClaim(claim.id);
+                        const copied = res.data || res;
+                        if (copied?.id) navigate(`/rcm/cms-1500?claimId=${copied.id}`);
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }}
                   >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                  {openRowMenuId === claim.id && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        aria-hidden
-                        onClick={() => setOpenRowMenuId(null)}
-                      />
-                      <div className="absolute right-0 top-full z-20 mt-1 w-56 rounded-md border bg-popover p-1 shadow-lg">
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start"
-                          onClick={() => {
-                            setViewingClaim(claim);
-                            setOpenRowMenuId(null);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" /> View claim
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start" asChild>
-                          <Link
-                            to={`/rcm/cms-1500?claimId=${claim.claimId}`}
-                            onClick={() => setOpenRowMenuId(null)}
-                          >
-                            <Pencil className="h-4 w-4" /> Edit claim
-                          </Link>
-                        </Button>
-                        {(claim.status === 'draft' || claim.status === 'ready') && (
-                          <Button variant="ghost" className="w-full justify-start">
-                            <Send className="h-4 w-4" /> Submit to payer
-                          </Button>
-                        )}
-                        {(claim.status === 'rejected' || claim.status === 'denied') && (
-                          <Button variant="ghost" className="w-full justify-start">
-                            <Send className="h-4 w-4" /> Re-submit
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start"
-                          onClick={() => {
-                            window.print();
-                            setOpenRowMenuId(null);
-                          }}
-                        >
-                          <Printer className="h-4 w-4" /> Print claim
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start">
-                          <Copy className="h-4 w-4" /> Copy claim
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start">
-                          <DollarSign className="h-4 w-4" /> Post payment
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start">
-                          <AlertCircle className="h-4 w-4" /> Appeal
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start"
-                          onClick={() => {
-                            setConfirmWriteOff(true);
-                            setOpenRowMenuId(null);
-                          }}
-                        >
-                          <FileText className="h-4 w-4" /> Write off
-                        </Button>
-                        <Button variant="ghost" className="w-full justify-start">
-                          <Flag className="h-4 w-4" /> Add note / flag
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          className="w-full justify-start text-destructive"
-                          onClick={() => {
-                            setConfirmVoid(true);
-                            setOpenRowMenuId(null);
-                          }}
-                        >
-                          <Ban className="h-4 w-4" /> Void / Cancel
-                        </Button>
-                      </div>
-                    </>
+                    <Copy className="h-4 w-4" /> Copy Claim
+                  </RowActionsMenuItem>
+                  {(claim.status === 'draft' || claim.status === 'ready') && (
+                    <RowActionsMenuItem>
+                      <Send className="h-4 w-4" /> Submit to payer
+                    </RowActionsMenuItem>
                   )}
-                </div>
+                  {(claim.status === 'rejected' || claim.status === 'denied') && (
+                    <RowActionsMenuItem>
+                      <Send className="h-4 w-4" /> Re-submit
+                    </RowActionsMenuItem>
+                  )}
+                  <RowActionsMenuItem asChild>
+                    <Link to={`/rcm/cms-1500?claimId=${claim.id}`}>
+                      <FileText className="h-4 w-4" /> Split / History / Preview
+                    </Link>
+                  </RowActionsMenuItem>
+                  <RowActionsMenuItem>
+                    <DollarSign className="h-4 w-4" /> Post payment
+                  </RowActionsMenuItem>
+                  <RowActionsMenuItem>
+                    <AlertCircle className="h-4 w-4" /> Appeal
+                  </RowActionsMenuItem>
+                  <RowActionsMenuItem onClick={() => setConfirmWriteOff(true)}>
+                    <FileText className="h-4 w-4" /> Write off
+                  </RowActionsMenuItem>
+                  <RowActionsMenuItem>
+                    <Flag className="h-4 w-4" /> Add note / flag
+                  </RowActionsMenuItem>
+                  <RowActionsMenuItem
+                    className="text-destructive"
+                    onClick={() => setConfirmVoid(true)}
+                  >
+                    <Ban className="h-4 w-4" /> Void / Cancel
+                  </RowActionsMenuItem>
+                </RowActionsMenu>
               </div>
             )}
           />
@@ -940,7 +827,7 @@ export function ClaimsListingPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewingClaim(null)}>Close</Button>
             <Button asChild>
-              <Link to={viewingClaim ? `/rcm/cms-1500?claimId=${viewingClaim.claimId}` : '#'} onClick={() => setViewingClaim(null)}>
+              <Link to={viewingClaim ? `/rcm/cms-1500?claimId=${viewingClaim.id}` : '#'} onClick={() => setViewingClaim(null)}>
                 Edit claim
               </Link>
             </Button>

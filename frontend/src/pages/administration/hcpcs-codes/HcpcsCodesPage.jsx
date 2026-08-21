@@ -10,8 +10,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { HcpcsCodeFormDialog } from './HcpcsCodeFormDialog';
+import { CatalogStatusBadge, YesNoBadge } from '@/components/rcm/CatalogStatusBadge';
 import { hcpcsCodeApi } from '@/services/api';
+import { HCPCS_CATEGORIES, COVERAGE_STATUSES } from '@/lib/codeCatalog';
 
 function formatDisplayDate(value) {
   if (!value) return '—';
@@ -26,6 +36,10 @@ export function HcpcsCodesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [billableFilter, setBillableFilter] = useState('all');
+  const [coverageFilter, setCoverageFilter] = useState('all');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formMode, setFormMode] = useState('create');
@@ -41,6 +55,10 @@ export function HcpcsCodesPage() {
         page: pagination.page,
         limit: pagination.limit,
         search: search || undefined,
+        status: statusFilter,
+        category: categoryFilter !== 'all' ? categoryFilter : undefined,
+        isBillable: billableFilter === 'all' ? undefined : billableFilter === 'yes',
+        coverageStatus: coverageFilter !== 'all' ? coverageFilter : undefined,
       });
       setItems(response.data || []);
       setPagination((prev) => ({ ...prev, ...response.pagination }));
@@ -50,7 +68,7 @@ export function HcpcsCodesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [pagination.page, pagination.limit, search]);
+  }, [pagination.page, pagination.limit, search, statusFilter, categoryFilter, billableFilter, coverageFilter]);
 
   useEffect(() => {
     fetchCodes();
@@ -142,6 +160,94 @@ export function HcpcsCodesPage() {
         </Button>
       </div>
 
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="mb-3 text-sm font-medium">Filters</p>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => {
+                setStatusFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select
+              value={categoryFilter}
+              onValueChange={(value) => {
+                setCategoryFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {HCPCS_CATEGORIES.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Billable</Label>
+            <Select
+              value={billableFilter}
+              onValueChange={(value) => {
+                setBillableFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="yes">Billable</SelectItem>
+                <SelectItem value="no">Not billable</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Coverage</Label>
+            <Select
+              value={coverageFilter}
+              onValueChange={(value) => {
+                setCoverageFilter(value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {COVERAGE_STATUSES.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
           {error}
@@ -164,9 +270,39 @@ export function HcpcsCodesPage() {
             cellClassName: 'font-mono font-medium',
           },
           {
+            key: 'description',
+            label: 'Description',
+            render: (row) => row.shortDescription || row.description,
+          },
+          {
+            key: 'category',
+            label: 'Category',
+            render: (row) => row.category || '—',
+          },
+          {
+            key: 'unitPrice',
+            label: 'Unit $',
+            render: (row) => (row.unitPrice != null ? `$${Number(row.unitPrice).toFixed(2)}` : '—'),
+          },
+          {
+            key: 'coverageStatus',
+            label: 'Coverage',
+            render: (row) => row.coverageStatus?.replace('_', ' ') || '—',
+          },
+          {
+            key: 'isBillable',
+            label: 'Billable',
+            render: (row) => <YesNoBadge value={row.isBillable !== false} />,
+          },
+          {
             key: 'effectiveDate',
-            label: 'Effective Date',
+            label: 'Effective',
             render: (row) => formatDisplayDate(row.effectiveDate),
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (row) => <CatalogStatusBadge isActive={row.isActive} />,
           },
         ]}
         data={rows}

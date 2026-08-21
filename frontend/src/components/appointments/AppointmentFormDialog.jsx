@@ -25,6 +25,7 @@ import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 import {
   getDefaultAppointmentStatusName,
   getAppointmentStatusesFallback,
+  getManualStatusOptions,
 } from '@/lib/appointmentStatuses';
 import { buildPatientSearchOption } from '@/lib/appointmentUtils';
 import {
@@ -114,7 +115,7 @@ export function AppointmentFormDialog({
   }, [open, mode, appointment?.id]);
 
   const statusSelectOptions = useMemo(() => {
-    const options = [...statusOptions];
+    const options = [...getManualStatusOptions(statusOptions)];
     const current = formData.status;
     if (current && !options.some((s) => s.name === current)) {
       options.unshift({ id: 'legacy-status', name: current, color: '#6b7280' });
@@ -452,6 +453,7 @@ export function AppointmentFormDialog({
                   appointmentTypeOptions={
                     appointmentTypeOptions.length ? appointmentTypeOptions : undefined
                   }
+                  referringProviders={providers}
                   readOnly={readOnly}
                   availableDates={availableDates}
                   availableDatesLoading={availableDatesLoading}

@@ -28,13 +28,13 @@ import { appointmentStatusApi } from '@/services/api';
 
 const emptyForm = () => ({
   name: '',
-  color: '#3b82f6',
+  color: '#123B5D',
 });
 
 function rowToForm(row) {
   return {
     name: row?.name || '',
-    color: normalizeHexColor(row?.color) || '#3b82f6',
+    color: normalizeHexColor(row?.color) || '#123B5D',
   };
 }
 
@@ -123,7 +123,7 @@ export function AppointmentStatusPage() {
 
     const color = normalizeHexColor(form.color);
     if (!color) {
-      setColorError('Enter a valid color code (e.g. #3b82f6)');
+      setColorError('Enter a valid color code (e.g. #123B5D)');
       return;
     }
 
@@ -166,7 +166,7 @@ export function AppointmentStatusPage() {
     }
   };
 
-  const pickerValue = normalizeHexColor(form.color) || '#3b82f6';
+  const pickerValue = normalizeHexColor(form.color) || '#123B5D';
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -239,7 +239,7 @@ export function AppointmentStatusPage() {
                     id="appointmentStatusColor"
                     value={form.color}
                     onChange={(e) => handleColorTextChange(e.target.value)}
-                    placeholder="#3b82f6"
+                    placeholder="#123B5D"
                     className={cn(colorError && 'border-destructive')}
                   />
                   {colorError && <p className="text-xs text-destructive">{colorError}</p>}

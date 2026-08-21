@@ -63,13 +63,13 @@ export function todayIsoDate() {
 }
 
 export const STATUS_CHIP_COLORS = {
-  Scheduled: { stripe: 'bg-blue-500', pill: 'bg-blue-50 text-blue-800 border-blue-200' },
-  Arrived: { stripe: 'bg-sky-500', pill: 'bg-sky-50 text-sky-800 border-sky-200' },
-  'Checked-In': { stripe: 'bg-yellow-500', pill: 'bg-yellow-50 text-yellow-900 border-yellow-200' },
-  Roomed: { stripe: 'bg-violet-500', pill: 'bg-violet-50 text-violet-800 border-violet-200' },
-  'With Provider': { stripe: 'bg-purple-500', pill: 'bg-purple-50 text-purple-800 border-purple-200' },
-  'In Progress': { stripe: 'bg-purple-500', pill: 'bg-purple-50 text-purple-800 border-purple-200' },
-  'Provider Out': { stripe: 'bg-indigo-500', pill: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
-  'Check out': { stripe: 'bg-green-500', pill: 'bg-green-50 text-green-800 border-green-200' },
-  Completed: { stripe: 'bg-green-500', pill: 'bg-green-50 text-green-800 border-green-200' },
+  Scheduled: { stripe: 'bg-primary', pill: 'bg-primary/10 text-primary border-primary/25' },
+  Arrived: { stripe: 'bg-teal-600', pill: 'bg-teal-50 text-teal-900 border-teal-200' },
+  'Checked-In': { stripe: 'bg-amber-500', pill: 'bg-amber-50 text-amber-900 border-amber-200' },
+  Roomed: { stripe: 'bg-slate-500', pill: 'bg-slate-100 text-slate-800 border-slate-200' },
+  'With Provider': { stripe: 'bg-teal-700', pill: 'bg-teal-100 text-teal-900 border-teal-300' },
+  'In Progress': { stripe: 'bg-teal-700', pill: 'bg-teal-100 text-teal-900 border-teal-300' },
+  'Provider Out': { stripe: 'bg-slate-600', pill: 'bg-slate-50 text-slate-800 border-slate-300' },
+  'Check out': { stripe: 'bg-emerald-600', pill: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  Completed: { stripe: 'bg-emerald-600', pill: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
 };

@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'http://localhost:5000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const TOKEN_KEY = 'hms_token';
 
@@ -25,7 +25,17 @@ export async function handleResponse(response) {
         window.location.href = '/login';
       }
     }
-    throw new Error(data.message || data.error || 'An error occurred');
+    const details = Array.isArray(data.errors)
+      ? data.errors.filter(Boolean).join('; ')
+      : data.errors && typeof data.errors === 'object'
+        ? Object.values(data.errors).filter(Boolean).join('; ')
+        : '';
+    const base = data.message || data.error || 'An error occurred';
+    const err = new Error(details ? `${base}: ${details}` : base);
+    if (data.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
+      err.fieldErrors = data.errors;
+    }
+    throw err;
   }
   return data;
 }

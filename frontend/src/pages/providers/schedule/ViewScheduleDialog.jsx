@@ -23,7 +23,7 @@ export function ViewScheduleDialog({ open, onOpenChange, schedule }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[800px] max-w-lg">
+      <DialogContent className="min-w-[900px] max-w-lg">
         <DialogHeader>
           <DialogTitle>Schedule Details</DialogTitle>
         </DialogHeader>

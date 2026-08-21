@@ -2,7 +2,8 @@ const prisma = require('../lib/prisma');
 const appointmentStatusService = require('./appointmentStatus.service');
 const appointmentAvailabilityService = require('./appointmentAvailability.service');
 
-const HIDDEN_TIMELINE_STATUSES = ['Cancelled', 'No Show', 'No-Show', 'Deleted'];
+const HIDDEN_TIMELINE_STATUSES = ['Cancelled', 'No Show', 'No-Show', 'Deleted', 'Rescheduled'];
+const LIFECYCLE_ONLY_STATUSES = ['Cancelled', 'No-Show', 'No Show', 'Rescheduled'];
 
 const FIELD_LABELS = {
   patientId: 'Patient',
@@ -47,6 +48,17 @@ const includeRelations = {
   providerRef: { select: providerSelect },
   departmentRef: { select: { id: true, departmentName: true } },
   appointmentTypeRef: { select: { id: true, name: true } },
+  location: { select: { id: true, name: true, address: true, city: true, state: true } },
+  room: { select: { id: true, roomNumber: true, displayName: true } },
+  primaryInsurance: {
+    include: { insuranceProvider: { select: { id: true, name: true } } },
+  },
+  secondaryInsurance: {
+    include: { insuranceProvider: { select: { id: true, name: true } } },
+  },
+  latestEligibility: true,
+  priorAuthorization: true,
+  referral: true,
 };
 
 function serializeAppointment(appointment) {
@@ -240,6 +252,7 @@ const appointmentService = {
       appointmentTime: data.appointmentTime,
       appointmentEndTime: data.appointmentEndTime,
       duration: data.duration,
+      excludeAppointmentId: data.excludeAppointmentId,
     });
 
     const encounterNumber = await generateEncounterNumber();
@@ -259,11 +272,23 @@ const appointmentService = {
         status,
         notes: data.notes,
         patientId: data.patientId,
+        locationId: data.locationId || null,
+        placeOfService: data.placeOfService || null,
+        primaryInsuranceId: data.primaryInsuranceId || null,
+        secondaryInsuranceId: data.secondaryInsuranceId || null,
+        roomId: data.roomId || null,
         createdBy: user?.id || null,
         updatedBy: user?.id || null,
       },
       include: includeRelations,
     });
+
+    try {
+      const notificationService = require('./notification.service');
+      await notificationService.notifyAppointmentEvent(appointment.id, 'appointment.confirmation');
+    } catch (_) {
+      /* non-blocking */
+    }
 
     await recordHistory(appointment.id, {
       action: 'created',
@@ -352,10 +377,23 @@ const appointmentService = {
     const existing = await prisma.appointment.findUnique({ where: { id } });
     if (!existing) return null;
 
+    if (
+      data.status !== undefined &&
+      LIFECYCLE_ONLY_STATUSES.includes(String(data.status).trim())
+    ) {
+      const err = new Error(
+        'Use POST /appointments/:id/cancel, /no-show, or /reschedule for Cancelled, No-Show, or Rescheduled',
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
     const updateData = { ...data, updatedBy: user?.id || existing.updatedBy };
 
     if (data.appointmentDate) updateData.appointmentDate = new Date(data.appointmentDate);
     if (data.status !== undefined) {
+      const appointmentWorkflowService = require('./appointmentWorkflow.service');
+      appointmentWorkflowService.assertTransition(existing.status, data.status);
       updateData.status = await appointmentStatusService.assertActiveStatusName(data.status);
     }
     if (data.duration !== undefined && data.duration !== null) {

@@ -1,57 +1,77 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { PhoneNumberInput } from '@/components/ui/phone-number-input';
+import { UsStateSelect } from '@/components/ui/us-state-select';
+import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 import {
   NEXT_OF_KIN_RELATIONSHIP_OPTIONS,
   shouldShowLegalGuardianSection,
 } from '@/components/patients/patientContactsConstants';
+import { normalizeUsZipInput } from '@/lib/usZip';
 
-function RelationshipSelect({
-  id,
-  value,
-  onChange,
-  options = NEXT_OF_KIN_RELATIONSHIP_OPTIONS,
-  placeholder,
-}) {
+function RelationshipSelect({ id, value, onChange, error }) {
   return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger id={id} className="w-full">
-        <SelectValue placeholder={placeholder || 'Select relationship'} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <>
+      <SearchableSelect
+        value={value}
+        onValueChange={onChange}
+        options={NEXT_OF_KIN_RELATIONSHIP_OPTIONS}
+        placeholder="Select relationship"
+        triggerClassName={error ? 'border-destructive' : ''}
+      />
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </>
   );
 }
 
-function PhoneField({ id, label, value, onChange, error, required, placeholder = '(123) 123-1234' }) {
+function AddressRow({ prefix, formData, errors, onChange }) {
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>
-        {label}
-        {required && <span className="text-destructive ml-0.5">*</span>}
-      </Label>
-      <Input
-        id={id}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        className={error ? 'border-destructive' : ''}
-      />
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+    <>
+      <div className="space-y-2">
+        <Label htmlFor={`${prefix}Address`}>Street address</Label>
+        <Input
+          id={`${prefix}Address`}
+          value={formData[`${prefix}Address`] || ''}
+          onChange={(e) => onChange(`${prefix}Address`, e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor={`${prefix}City`}>City</Label>
+          <Input
+            id={`${prefix}City`}
+            value={formData[`${prefix}City`] || ''}
+            onChange={(e) => onChange(`${prefix}City`, e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${prefix}State`}>State</Label>
+          <UsStateSelect
+            id={`${prefix}State`}
+            value={formData[`${prefix}State`] || ''}
+            onChange={(value) => onChange(`${prefix}State`, value)}
+            error={errors[`${prefix}State`]}
+          />
+          {errors[`${prefix}State`] && (
+            <p className="text-xs text-destructive">{errors[`${prefix}State`]}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${prefix}Zip`}>ZIP</Label>
+          <Input
+            id={`${prefix}Zip`}
+            value={formData[`${prefix}Zip`] || ''}
+            onChange={(e) => onChange(`${prefix}Zip`, normalizeUsZipInput(e.target.value))}
+            placeholder="12345 or 12345-6789"
+            className={errors[`${prefix}Zip`] ? 'border-destructive' : ''}
+          />
+          {errors[`${prefix}Zip`] && (
+            <p className="text-xs text-destructive">{errors[`${prefix}Zip`]}</p>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -82,18 +102,18 @@ export function PatientRegistrationContactsFields({
               id="emergencyContactRelationship"
               value={formData.emergencyContactRelationship}
               onChange={(value) => onChange('emergencyContactRelationship', value)}
+              error={errors.emergencyContactRelationship}
             />
-            {errors.emergencyContactRelationship && (
-              <p className="text-xs text-destructive">{errors.emergencyContactRelationship}</p>
-            )}
           </div>
-          <PhoneField
-            id="emergencyContactNumber"
-            label="Emergency Contact Number"
-            value={formData.emergencyContactNumber}
-            onChange={(e) => onChange('emergencyContactNumber', e.target.value)}
-            error={errors.emergencyContactNumber}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="emergencyContactNumber">Emergency Contact Number</Label>
+            <PhoneNumberInput
+              id="emergencyContactNumber"
+              value={formData.emergencyContactNumber}
+              onChange={(value) => onChange('emergencyContactNumber', value)}
+              error={errors.emergencyContactNumber}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="emergencyContactEmail">Email</Label>
             <Input
@@ -108,40 +128,7 @@ export function PatientRegistrationContactsFields({
             )}
           </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="emergencyContactAddress">Street address</Label>
-          <Input
-            id="emergencyContactAddress"
-            value={formData.emergencyContactAddress}
-            onChange={(e) => onChange('emergencyContactAddress', e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactCity">City</Label>
-            <Input
-              id="emergencyContactCity"
-              value={formData.emergencyContactCity}
-              onChange={(e) => onChange('emergencyContactCity', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactState">State</Label>
-            <Input
-              id="emergencyContactState"
-              value={formData.emergencyContactState}
-              onChange={(e) => onChange('emergencyContactState', e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="emergencyContactZip">ZIP</Label>
-            <Input
-              id="emergencyContactZip"
-              value={formData.emergencyContactZip}
-              onChange={(e) => onChange('emergencyContactZip', e.target.value)}
-            />
-          </div>
-        </div>
+        <AddressRow prefix="emergencyContact" formData={formData} errors={errors} onChange={onChange} />
       </div>
 
       <div className="space-y-4 rounded-lg border p-4">
@@ -156,20 +143,22 @@ export function PatientRegistrationContactsFields({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="secondaryEmergencyContactRelationship">Relationship</Label>
+            <Label htmlFor="secondaryEmergencyContactRelationship">Relationship to patient</Label>
             <RelationshipSelect
               id="secondaryEmergencyContactRelationship"
               value={formData.secondaryEmergencyContactRelationship}
               onChange={(value) => onChange('secondaryEmergencyContactRelationship', value)}
             />
           </div>
-          <PhoneField
-            id="secondaryEmergencyContactNumber"
-            label="Phone"
-            value={formData.secondaryEmergencyContactNumber}
-            onChange={(e) => onChange('secondaryEmergencyContactNumber', e.target.value)}
-            error={errors.secondaryEmergencyContactNumber}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="secondaryEmergencyContactNumber">Phone</Label>
+            <PhoneNumberInput
+              id="secondaryEmergencyContactNumber"
+              value={formData.secondaryEmergencyContactNumber}
+              onChange={(value) => onChange('secondaryEmergencyContactNumber', value)}
+              error={errors.secondaryEmergencyContactNumber}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="secondaryEmergencyContactEmail">Email</Label>
             <Input
@@ -184,6 +173,12 @@ export function PatientRegistrationContactsFields({
             )}
           </div>
         </div>
+        <AddressRow
+          prefix="secondaryEmergencyContact"
+          formData={formData}
+          errors={errors}
+          onChange={onChange}
+        />
       </div>
 
       <div className="space-y-4 border-t pt-4">
@@ -198,20 +193,22 @@ export function PatientRegistrationContactsFields({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="authorizedRepresentativeRelationship">Relationship</Label>
+            <Label htmlFor="authorizedRepresentativeRelationship">Relationship to patient</Label>
             <RelationshipSelect
               id="authorizedRepresentativeRelationship"
               value={formData.authorizedRepresentativeRelationship}
               onChange={(value) => onChange('authorizedRepresentativeRelationship', value)}
             />
           </div>
-          <PhoneField
-            id="authorizedRepresentativePhone"
-            label="Phone"
-            value={formData.authorizedRepresentativePhone}
-            onChange={(e) => onChange('authorizedRepresentativePhone', e.target.value)}
-            error={errors.authorizedRepresentativePhone}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="authorizedRepresentativePhone">Phone</Label>
+            <PhoneNumberInput
+              id="authorizedRepresentativePhone"
+              value={formData.authorizedRepresentativePhone}
+              onChange={(value) => onChange('authorizedRepresentativePhone', value)}
+              error={errors.authorizedRepresentativePhone}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="authorizedRepresentativeEmail">Email</Label>
             <Input
@@ -226,6 +223,12 @@ export function PatientRegistrationContactsFields({
             )}
           </div>
         </div>
+        <AddressRow
+          prefix="authorizedRepresentative"
+          formData={formData}
+          errors={errors}
+          onChange={onChange}
+        />
       </div>
 
       {(showLegalGuardian || !dateOfBirth) && (
@@ -246,58 +249,61 @@ export function PatientRegistrationContactsFields({
             )}
           </div>
           {showLegalGuardian && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="legalGuardianName">Legal guardian name</Label>
-                <Input
-                  id="legalGuardianName"
-                  value={formData.legalGuardianName}
-                  onChange={(e) => onChange('legalGuardianName', e.target.value)}
-                  className={errors.legalGuardianName ? 'border-destructive' : ''}
-                />
-                {errors.legalGuardianName && (
-                  <p className="text-xs text-destructive">{errors.legalGuardianName}</p>
-                )}
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="legalGuardianName">Legal guardian name</Label>
+                  <Input
+                    id="legalGuardianName"
+                    value={formData.legalGuardianName}
+                    onChange={(e) => onChange('legalGuardianName', e.target.value)}
+                    className={errors.legalGuardianName ? 'border-destructive' : ''}
+                  />
+                  {errors.legalGuardianName && (
+                    <p className="text-xs text-destructive">{errors.legalGuardianName}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="legalGuardianRelationship">Relationship to patient</Label>
+                  <RelationshipSelect
+                    id="legalGuardianRelationship"
+                    value={formData.legalGuardianRelationship}
+                    onChange={(value) => onChange('legalGuardianRelationship', value)}
+                    error={errors.legalGuardianRelationship}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="legalGuardianPhone">Phone</Label>
+                  <PhoneNumberInput
+                    id="legalGuardianPhone"
+                    value={formData.legalGuardianPhone}
+                    onChange={(value) => onChange('legalGuardianPhone', value)}
+                    error={errors.legalGuardianPhone}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="legalGuardianEmail">Email</Label>
+                  <Input
+                    id="legalGuardianEmail"
+                    type="email"
+                    value={formData.legalGuardianEmail}
+                    onChange={(e) => onChange('legalGuardianEmail', e.target.value)}
+                    className={errors.legalGuardianEmail ? 'border-destructive' : ''}
+                  />
+                  {errors.legalGuardianEmail && (
+                    <p className="text-xs text-destructive">{errors.legalGuardianEmail}</p>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="legalGuardianRelationship">Relationship</Label>
-                <RelationshipSelect
-                  id="legalGuardianRelationship"
-                  value={formData.legalGuardianRelationship}
-                  onChange={(value) => onChange('legalGuardianRelationship', value)}
-                />
-                {errors.legalGuardianRelationship && (
-                  <p className="text-xs text-destructive">{errors.legalGuardianRelationship}</p>
-                )}
-              </div>
-              <PhoneField
-                id="legalGuardianPhone"
-                label="Phone"
-                value={formData.legalGuardianPhone}
-                onChange={(e) => onChange('legalGuardianPhone', e.target.value)}
-                error={errors.legalGuardianPhone}
-              />
-              <div className="space-y-2">
-                <Label htmlFor="legalGuardianEmail">Email</Label>
-                <Input
-                  id="legalGuardianEmail"
-                  type="email"
-                  value={formData.legalGuardianEmail}
-                  onChange={(e) => onChange('legalGuardianEmail', e.target.value)}
-                  className={errors.legalGuardianEmail ? 'border-destructive' : ''}
-                />
-                {errors.legalGuardianEmail && (
-                  <p className="text-xs text-destructive">{errors.legalGuardianEmail}</p>
-                )}
-              </div>
-            </div>
+              <AddressRow prefix="legalGuardian" formData={formData} errors={errors} onChange={onChange} />
+            </>
           )}
         </div>
       )}
 
       <div className="space-y-4 border-t pt-4 rounded-lg border p-4">
         <h3 className="text-sm font-semibold text-foreground">Secondary Next of Kin</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="secondaryNextOfKinName">Name</Label>
             <Input
@@ -307,21 +313,24 @@ export function PatientRegistrationContactsFields({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="secondaryNextOfKinRelationship">Relationship</Label>
+            <Label htmlFor="secondaryNextOfKinRelationship">Relationship to patient</Label>
             <RelationshipSelect
               id="secondaryNextOfKinRelationship"
               value={formData.secondaryNextOfKinRelationship}
               onChange={(value) => onChange('secondaryNextOfKinRelationship', value)}
             />
           </div>
-          <PhoneField
-            id="secondaryNextOfKinPhone"
-            label="Phone"
-            value={formData.secondaryNextOfKinPhone}
-            onChange={(e) => onChange('secondaryNextOfKinPhone', e.target.value)}
-            error={errors.secondaryNextOfKinPhone}
-          />
+          <div className="space-y-2">
+            <Label htmlFor="secondaryNextOfKinPhone">Phone</Label>
+            <PhoneNumberInput
+              id="secondaryNextOfKinPhone"
+              value={formData.secondaryNextOfKinPhone}
+              onChange={(value) => onChange('secondaryNextOfKinPhone', value)}
+              error={errors.secondaryNextOfKinPhone}
+            />
+          </div>
         </div>
+        <AddressRow prefix="secondaryNextOfKin" formData={formData} errors={errors} onChange={onChange} />
       </div>
     </div>
   );

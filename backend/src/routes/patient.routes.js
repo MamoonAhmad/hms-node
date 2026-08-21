@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const patientController = require('../controllers/patient.controller');
-const patientProblemRoutes = require('./patientProblem.routes');
-const clinicalNoteRoutes = require('./clinicalNote.routes');
 const {
   createPatientSchema,
   updatePatientSchema,
@@ -11,184 +9,34 @@ const {
   patientIdSchema,
   patientMrnSchema,
   patientSummaryQuerySchema,
+  chartStatusSchema,
+  ledgerPaymentSchema,
+  ledgerReverseSchema,
+  statementCreateSchema,
+  statementActionSchema,
+  eligibilityVerifySchema,
+  claimCreateSchema,
+  claimUpdateSchema,
+  claimIdSchema,
+  statementIdSchema,
+  ledgerTxnIdSchema,
+  insuranceBodySchema,
+  insuranceUpdateSchema,
+  insuranceIdParamsSchema,
+  guarantorBodySchema,
+  chargeBodySchema,
+  allocateBodySchema,
+  eraBodySchema,
+  mergeBodySchema,
+  collectionStatusSchema,
+  worklistQuerySchema,
   validate,
 } = require('../validation/patient.validation');
 
-/**
- * @swagger
- * tags:
- *   name: Patients
- *   description: Patient management endpoints
- */
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     Patient:
- *       type: object
- *       properties:
- *         id:
- *           type: string
- *           format: uuid
- *           description: Patient unique identifier
- *         mrn:
- *           type: string
- *           description: Medical Record Number (auto-generated)
- *         firstName:
- *           type: string
- *           description: Patient's first name
- *         middleName:
- *           type: string
- *           description: Patient's middle name
- *         lastName:
- *           type: string
- *           description: Patient's last name
- *         dateOfBirth:
- *           type: string
- *           format: date
- *           description: Patient's date of birth
- *         gender:
- *           type: string
- *           enum: [male, female, other]
- *           description: Patient's gender
- *         contactNumber:
- *           type: string
- *           description: Patient's contact phone number
- *         email:
- *           type: string
- *           format: email
- *           description: Patient's email address
- *         address:
- *           type: string
- *           description: Patient's address
- *         insuranceProvider:
- *           type: string
- *           description: Insurance provider name
- *         policyNumber:
- *           type: string
- *           description: Insurance policy number
- *         copay:
- *           type: number
- *           format: decimal
- *           description: Copay amount
- *         deductible:
- *           type: number
- *           format: decimal
- *           description: Deductible amount
- *         primaryCarePhysician:
- *           type: string
- *           description: Primary care physician name
- *         createdAt:
- *           type: string
- *           format: date-time
- *           description: Record creation timestamp
- *         updatedAt:
- *           type: string
- *           format: date-time
- *           description: Record last update timestamp
- *
- *     CreatePatient:
- *       type: object
- *       required:
- *         - firstName
- *         - lastName
- *         - dateOfBirth
- *         - gender
- *         - contactNumber
- *       properties:
- *         firstName:
- *           type: string
- *           example: John
- *         middleName:
- *           type: string
- *           example: Michael
- *         lastName:
- *           type: string
- *           example: Doe
- *         dateOfBirth:
- *           type: string
- *           format: date
- *           example: "1990-05-15"
- *         gender:
- *           type: string
- *           enum: [male, female, other]
- *           example: male
- *         contactNumber:
- *           type: string
- *           example: "+1234567890"
- *         email:
- *           type: string
- *           format: email
- *           example: john.doe@example.com
- *         address:
- *           type: string
- *           example: "123 Main St, City, State 12345"
- *         insuranceProvider:
- *           type: string
- *           example: Blue Cross
- *         policyNumber:
- *           type: string
- *           example: POL123456
- *         copay:
- *           type: number
- *           example: 25.00
- *         deductible:
- *           type: number
- *           example: 500.00
- *         primaryCarePhysician:
- *           type: string
- *           example: Dr. Jane Smith
- *
- *     UpdatePatient:
- *       type: object
- *       properties:
- *         firstName:
- *           type: string
- *         middleName:
- *           type: string
- *         lastName:
- *           type: string
- *         dateOfBirth:
- *           type: string
- *           format: date
- *         gender:
- *           type: string
- *           enum: [male, female, other]
- *         contactNumber:
- *           type: string
- *         email:
- *           type: string
- *           format: email
- *         address:
- *           type: string
- *         insuranceProvider:
- *           type: string
- *         policyNumber:
- *           type: string
- *         copay:
- *           type: number
- *         deductible:
- *           type: number
- *         primaryCarePhysician:
- *           type: string
- *
- *     Pagination:
- *       type: object
- *       properties:
- *         page:
- *           type: integer
- *         limit:
- *           type: integer
- *         total:
- *           type: integer
- *         totalPages:
- *           type: integer
- */
-
-// Create a new patient
 router.post('/', validate(createPatientSchema, 'body'), patientController.create);
 router.post('/check-duplicates', validate(checkDuplicatesSchema, 'body'), patientController.checkDuplicates);
+router.get('/consent-forms', patientController.listConsentForms);
+router.get('/worklists', validate(worklistQuerySchema, 'query'), patientController.getWorklists);
 router.get('/', validate(queryPatientSchema, 'query'), patientController.findAll);
 router.get('/mrn/:mrn', validate(patientMrnSchema, 'params'), patientController.findByMrn);
 router.post('/:id/assign-me', validate(patientIdSchema, 'params'), patientController.assignToMe);
@@ -198,17 +46,128 @@ router.get(
   validate(patientSummaryQuerySchema, 'query'),
   patientController.getSummary,
 );
+router.get(
+  '/:id/appointment-history',
+  validate(patientIdSchema, 'params'),
+  patientController.getAppointmentHistory,
+);
+router.get('/:id/ledger', validate(patientIdSchema, 'params'), patientController.getLedger);
+router.get('/:id/aging', validate(patientIdSchema, 'params'), patientController.getAging);
+router.get('/:id/chart', validate(patientIdSchema, 'params'), patientController.getChart);
+router.patch(
+  '/:id/chart-status',
+  validate(patientIdSchema, 'params'),
+  validate(chartStatusSchema, 'body'),
+  patientController.updateChartStatus,
+);
+router.patch(
+  '/:id/collection-status',
+  validate(patientIdSchema, 'params'),
+  validate(collectionStatusSchema, 'body'),
+  patientController.updateCollectionStatus,
+);
+router.post(
+  '/:id/eligibility',
+  validate(patientIdSchema, 'params'),
+  validate(eligibilityVerifySchema, 'body'),
+  patientController.verifyEligibility,
+);
+router.post(
+  '/:id/ledger/payments',
+  validate(patientIdSchema, 'params'),
+  validate(ledgerPaymentSchema, 'body'),
+  patientController.postLedgerPayment,
+);
+router.post(
+  '/:id/ledger/charges',
+  validate(patientIdSchema, 'params'),
+  validate(chargeBodySchema, 'body'),
+  patientController.postCharge,
+);
+router.post(
+  '/:id/ledger/allocate',
+  validate(patientIdSchema, 'params'),
+  validate(allocateBodySchema, 'body'),
+  patientController.allocatePayment,
+);
+router.post(
+  '/:id/ledger/era',
+  validate(patientIdSchema, 'params'),
+  validate(eraBodySchema, 'body'),
+  patientController.postEra,
+);
+router.post(
+  '/:id/ledger/:txnId/reverse',
+  validate(ledgerTxnIdSchema, 'params'),
+  validate(ledgerReverseSchema, 'body'),
+  patientController.reverseLedgerPayment,
+);
+router.post(
+  '/:id/statements',
+  validate(patientIdSchema, 'params'),
+  validate(statementCreateSchema, 'body'),
+  patientController.createStatement,
+);
+router.patch(
+  '/:id/statements/:statementId',
+  validate(statementIdSchema, 'params'),
+  validate(statementActionSchema, 'body'),
+  patientController.markStatement,
+);
+router.post(
+  '/:id/claims',
+  validate(patientIdSchema, 'params'),
+  validate(claimCreateSchema, 'body'),
+  patientController.createClaim,
+);
+router.patch(
+  '/:id/claims/:claimId',
+  validate(claimIdSchema, 'params'),
+  validate(claimUpdateSchema, 'body'),
+  patientController.updateClaim,
+);
 
-router.use('/:id/problems', validate(patientIdSchema, 'params'), patientProblemRoutes);
-router.use('/:id/clinical-notes', validate(patientIdSchema, 'params'), clinicalNoteRoutes);
+router.get('/:id/insurances', validate(patientIdSchema, 'params'), patientController.listInsurances);
+router.post(
+  '/:id/insurances',
+  validate(patientIdSchema, 'params'),
+  validate(insuranceBodySchema, 'body'),
+  patientController.createInsurance,
+);
+router.put(
+  '/:id/insurances/:insuranceId',
+  validate(insuranceIdParamsSchema, 'params'),
+  validate(insuranceUpdateSchema, 'body'),
+  patientController.updateInsurance,
+);
+router.delete(
+  '/:id/insurances/:insuranceId',
+  validate(insuranceIdParamsSchema, 'params'),
+  patientController.deactivateInsurance,
+);
 
-// Get patient by ID
+router.get('/:id/guarantor', validate(patientIdSchema, 'params'), patientController.getGuarantor);
+router.put(
+  '/:id/guarantor',
+  validate(patientIdSchema, 'params'),
+  validate(guarantorBodySchema, 'body'),
+  patientController.upsertGuarantor,
+);
+
+router.post(
+  '/:id/merge',
+  validate(patientIdSchema, 'params'),
+  validate(mergeBodySchema, 'body'),
+  patientController.mergePatient,
+);
+
 router.get('/:id', validate(patientIdSchema, 'params'), patientController.findById);
-
-// Update patient
-router.put('/:id', validate(patientIdSchema, 'params'), validate(updatePatientSchema, 'body'), patientController.update);
-
-// Delete patient
+router.put(
+  '/:id',
+  validate(patientIdSchema, 'params'),
+  validate(updatePatientSchema, 'body'),
+  patientController.update,
+);
 router.delete('/:id', validate(patientIdSchema, 'params'), patientController.delete);
 
 module.exports = router;

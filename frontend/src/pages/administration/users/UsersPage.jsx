@@ -202,7 +202,7 @@ export function UsersPage() {
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[900px] max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete User</DialogTitle>
             <DialogDescription>

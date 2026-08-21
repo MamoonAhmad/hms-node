@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
+import { RowActionsMenu, RowActionsMenuItem } from '@/components/ui/row-actions-menu';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import {
   Select,
@@ -85,7 +86,6 @@ export function EncountersWorkListPage() {
   const [providers, setProviders] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [statusOptions, setStatusOptions] = useState([]);
-  const [openRowMenuId, setOpenRowMenuId] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -156,7 +156,6 @@ export function EncountersWorkListPage() {
 
   const handleAssignToMe = async (row) => {
     setActionLoading(true);
-    setOpenRowMenuId(null);
     try {
       await patientApi.assignToMe(row.patient.id);
       await fetchList();
@@ -404,57 +403,17 @@ export function EncountersWorkListPage() {
         searchPlaceholder="Search patient, MRN, encounter, provider..."
         emptyMessage={loading ? 'Loading encounters…' : 'No eligible encounters match the current filters'}
         actions={(row) => (
-          <div className="relative flex justify-end">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              disabled={actionLoading}
-              onClick={() => setOpenRowMenuId(openRowMenuId === row.id ? null : row.id)}
-              aria-label="Actions"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-            {openRowMenuId === row.id && (
-              <>
-                <button
-                  type="button"
-                  className="fixed inset-0 z-10"
-                  aria-hidden
-                  onClick={() => setOpenRowMenuId(null)}
-                />
-                <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-md border bg-popover p-1 shadow-lg">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      navigate(`/patient-dashboard/${row.patient.id}?appointmentId=${row.id}`);
-                      setOpenRowMenuId(null);
-                    }}
-                  >
-                    Open workspace
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      navigate(`/patient-chart/${row.patient.id}?appointmentId=${row.id}`);
-                      setOpenRowMenuId(null);
-                    }}
-                  >
-                    Open chart
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start"
-                    onClick={() => handleAssignToMe(row)}
-                  >
-                    Assign to me
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
+          <RowActionsMenu disabled={actionLoading}>
+            <RowActionsMenuItem onClick={() => navigate(`/rcm/encounters/${row.id}`)}>
+              Open workspace
+            </RowActionsMenuItem>
+            <RowActionsMenuItem onClick={() => navigate(`/patients/edit/${row.patient.id}`)}>
+              Open patient
+            </RowActionsMenuItem>
+            <RowActionsMenuItem onClick={() => handleAssignToMe(row)}>
+              Assign to me
+            </RowActionsMenuItem>
+          </RowActionsMenu>
         )}
       />
     </div>

@@ -60,7 +60,7 @@ export function SpecialtyFormDialog({ open, onOpenChange, specialty, mode = 'cre
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[700px] max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[900px] max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl">{title}</DialogTitle>
         </DialogHeader>

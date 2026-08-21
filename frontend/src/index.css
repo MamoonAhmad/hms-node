@@ -3,7 +3,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Meta / Facebook design system — #F0F2F5 canvas, #1877F2 primary, white cards */
+/* RCM brand palette — Deep Navy primary, Teal secondary */
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
@@ -13,60 +13,65 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --radius: 0.5rem;
-  --shadow-elevation-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-elevation-md: 0 2px 12px rgba(0, 0, 0, 0.15);
-  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --radius: 0.25rem;
+  --shadow-elevation-sm: 0 1px 2px rgba(18, 59, 93, 0.07);
+  --shadow-elevation-md: 0 10px 28px rgba(18, 59, 93, 0.12);
+  --shadow-panel: 0 1px 3px rgba(18, 59, 93, 0.06);
 
   /* Workspace */
-  --background: #f0f2f5;
-  --foreground: #050505;
+  --background: #f5f7fa;
+  --foreground: #1f2937;
   --card: #ffffff;
-  --card-foreground: #050505;
+  --card-foreground: #1f2937;
   --popover: #ffffff;
-  --popover-foreground: #050505;
+  --popover-foreground: #1f2937;
 
-  /* Facebook blue */
-  --primary: #1877f2;
+  /* Primary: Deep Navy | Secondary: Teal */
+  --primary: #123b5d;
   --primary-foreground: #ffffff;
-  --primary-hover: #166fe5;
+  --primary-hover: #0d2f4a;
+  --teal: #0f8b8d;
+  --teal-foreground: #ffffff;
+  --teal-muted: #d9f3f2;
 
-  --secondary: #e4e6eb;
-  --secondary-foreground: #050505;
-  --muted: #f2f3f5;
-  --muted-foreground: #65676b;
-  --accent: #e7f3ff;
-  --accent-foreground: #1877f2;
-  --destructive: #e41e3f;
+  --secondary: #0f8b8d;
+  --secondary-foreground: #ffffff;
+  --muted: #eef2f6;
+  --muted-foreground: #64748b;
+  --accent: #d9f3f2;
+  --accent-foreground: #0f8b8d;
+  --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
-  --border: #ced0d4;
-  --input: #e4e6eb;
-  --ring: #1877f2;
+  --success: #15803d;
+  --warning: #b45309;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #0f8b8d;
 
   --form-section-bg: #ffffff;
-  --form-section-header: #f0f2f5;
-  --chart-1: #1877f2;
-  --chart-2: #42b72a;
-  --chart-3: #f7b928;
-  --chart-4: #e41e3f;
-  --chart-5: #65676b;
+  --form-section-header: #eef2f6;
+  --chart-1: #123b5d;
+  --chart-2: #0f8b8d;
+  --chart-3: #b45309;
+  --chart-4: #b91c1c;
+  --chart-5: #64748b;
 
-  /* Sidebar — white panel, blue active state */
+  /* Sidebar */
   --sidebar: #ffffff;
-  --sidebar-foreground: #050505;
-  --sidebar-primary: #1877f2;
+  --sidebar-foreground: #1f2937;
+  --sidebar-primary: #123b5d;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e7f3ff;
-  --sidebar-accent-foreground: #1877f2;
-  --sidebar-border: #e4e6eb;
-  --sidebar-ring: #1877f2;
-  --sidebar-active-bar: #1877f2;
-  --sidebar-icon: #65676b;
-  --sidebar-icon-hover: #1877f2;
+  --sidebar-accent: #d9f3f2;
+  --sidebar-accent-foreground: #0f8b8d;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #0f8b8d;
+  --sidebar-active-bar: #123b5d;
+  --sidebar-icon: #64748b;
+  --sidebar-icon-hover: #0f8b8d;
 
-  --theme-gradient-start: #1877f2;
-  --theme-gradient-mid: #0d65d9;
-  --theme-gradient-end: #0866ff;
+  --theme-gradient-start: #123b5d;
+  --theme-gradient-mid: #0f8b8d;
+  --theme-gradient-end: #0d7577;
 }
 
 html {
@@ -78,8 +83,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   line-height: 1.34;
-  background-color: #f0f2f5;
-  color: #050505;
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
 #root {
@@ -129,40 +134,45 @@ body {
 }
 
 .dark {
-  --background: #18191a;
-  --foreground: #e4e6eb;
-  --card: #242526;
-  --card-foreground: #e4e6eb;
-  --popover: #242526;
-  --popover-foreground: #e4e6eb;
-  --primary: #2d88ff;
+  --background: #0c1824;
+  --foreground: #e8eef5;
+  --card: #142333;
+  --card-foreground: #e8eef5;
+  --popover: #142333;
+  --popover-foreground: #e8eef5;
+  --primary: #3d8fb0;
   --primary-foreground: #ffffff;
-  --primary-hover: #1877f2;
-  --secondary: #3a3b3c;
-  --secondary-foreground: #e4e6eb;
-  --muted: #3a3b3c;
-  --muted-foreground: #b0b3b8;
-  --accent: #263951;
-  --accent-foreground: #2d88ff;
-  --destructive: #f02849;
-  --border: #3e4042;
-  --input: #3a3b3c;
-  --ring: #2d88ff;
-  --form-section-bg: #242526;
-  --form-section-header: #3a3b3c;
-  --sidebar: #242526;
-  --sidebar-foreground: #e4e6eb;
-  --sidebar-primary: #2d88ff;
-  --sidebar-accent: #263951;
-  --sidebar-accent-foreground: #2d88ff;
-  --sidebar-border: #3e4042;
-  --sidebar-icon: #b0b3b8;
-  --sidebar-icon-hover: #2d88ff;
-  --sidebar-active-bar: #2d88ff;
-  --shadow-panel: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --theme-gradient-start: #2d88ff;
-  --theme-gradient-mid: #1877f2;
-  --theme-gradient-end: #0d65d9;
+  --primary-hover: #347a97;
+  --teal: #2dd4bf;
+  --teal-foreground: #042f2e;
+  --teal-muted: #134e4a;
+  --secondary: #0f8b8d;
+  --secondary-foreground: #ffffff;
+  --muted: #1e3044;
+  --muted-foreground: #94a3b8;
+  --accent: #134e4a;
+  --accent-foreground: #5eead4;
+  --destructive: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --border: #2a4058;
+  --input: #1e3044;
+  --ring: #2dd4bf;
+  --form-section-bg: #142333;
+  --form-section-header: #1a2c3f;
+  --sidebar: #142333;
+  --sidebar-foreground: #e8eef5;
+  --sidebar-primary: #3d8fb0;
+  --sidebar-accent: #134e4a;
+  --sidebar-accent-foreground: #5eead4;
+  --sidebar-border: #2a4058;
+  --sidebar-icon: #94a3b8;
+  --sidebar-icon-hover: #5eead4;
+  --sidebar-active-bar: #3d8fb0;
+  --shadow-panel: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --theme-gradient-start: #3d8fb0;
+  --theme-gradient-mid: #0f8b8d;
+  --theme-gradient-end: #0d7577;
 }
 
 @layer base {
@@ -193,16 +203,16 @@ body {
     );
   }
   .icon-action-delete {
-    @apply text-[#e41e3f];
+    color: var(--destructive);
   }
   .icon-action-edit {
-    @apply text-[#42b72a];
+    color: var(--success);
   }
   .icon-action-view {
-    @apply text-[#1877f2];
+    color: var(--primary);
   }
   .icon-action-print {
-    @apply text-[#e41e3f];
+    color: var(--destructive);
   }
   .border-l-sidebar-active-bar {
     border-left-color: var(--sidebar-active-bar);
@@ -331,22 +341,59 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #bcc0c4 transparent;
+  scrollbar-color: #9db0c3 transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #bcc0c4;
+  background: #9db0c3;
   border-radius: 4px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #8a8d91;
+  background: #6b8299;
 }
 
 .dialog-form-min {
-  min-width: 800px;
+  min-width: 900px;
+}
+
+@media (min-width: 640px) {
+  [data-slot="dialog-content"]:not([data-dialog-size="sm"]):not([data-dialog-size="md"]) {
+    min-width: min(900px, calc(100vw - 2rem)) !important;
+  }
+  [data-slot="dialog-content"][data-dialog-size="sm"] {
+    min-width: 0 !important;
+    width: min(28rem, calc(100vw - 2rem)) !important;
+    max-width: 28rem !important;
+  }
+  [data-slot="dialog-content"][data-dialog-size="md"] {
+    min-width: 0 !important;
+    width: min(40rem, calc(100vw - 2rem)) !important;
+    max-width: 40rem !important;
+  }
+}
+
+[data-slot="dialog-content"][data-dialog-size="sm"] [data-slot="dialog-header"],
+[data-slot="dialog-content"][data-dialog-size="md"] [data-slot="dialog-header"] {
+  @apply px-4 py-2.5 pr-11 sm:px-4;
+}
+[data-slot="dialog-content"][data-dialog-size="sm"] [data-slot="dialog-footer"],
+[data-slot="dialog-content"][data-dialog-size="md"] [data-slot="dialog-footer"] {
+  @apply px-4 py-2.5 sm:px-4;
+}
+[data-slot="dialog-content"][data-dialog-size="sm"] [data-slot="dialog-body"],
+[data-slot="dialog-content"][data-dialog-size="md"] [data-slot="dialog-body"],
+[data-slot="dialog-content"][data-dialog-size="sm"]
+  > :not([data-slot="dialog-header"]):not([data-slot="dialog-footer"]):not([data-slot="dialog-body"]),
+[data-slot="dialog-content"][data-dialog-size="md"]
+  > :not([data-slot="dialog-header"]):not([data-slot="dialog-footer"]):not([data-slot="dialog-body"]) {
+  @apply bg-card px-4 py-3 sm:px-4;
+}
+[data-slot="dialog-content"][data-dialog-size="sm"] [data-slot="dialog-title"],
+[data-slot="dialog-content"][data-dialog-size="md"] [data-slot="dialog-title"] {
+  @apply text-sm font-semibold;
 }
 
 [data-slot="dialog-content"] [data-slot="input"],
@@ -356,7 +403,7 @@ body {
   min-width: 0;
 }
 [data-slot="dialog-content"] select {
-  height: 2.5rem;
+  height: 2rem;
 }
 .form-same-width [data-slot="input"],
 .form-same-width [data-slot="select-trigger"],

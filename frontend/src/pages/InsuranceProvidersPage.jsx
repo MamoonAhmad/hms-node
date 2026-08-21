@@ -277,7 +277,7 @@ export function InsuranceProvidersPage() {
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[520px] max-w-lg">
+        <DialogContent className="min-w-[900px] max-w-lg">
           <DialogHeader>
             <DialogTitle>Delete Payer</DialogTitle>
             <DialogDescription>

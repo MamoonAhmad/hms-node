@@ -47,6 +47,41 @@ const authService = {
     return user;
   },
 
+  async updateProfile(userId, data) {
+    const existing = await authDb.findUserById(userId);
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    const username = data.username?.trim() || null;
+    if (username) {
+      const taken = await authDb.findUserByUsername(username, userId);
+      if (taken) {
+        throw new Error('Username is already taken');
+      }
+    }
+
+    const firstName = data.firstName?.trim() || '';
+    const middleName = data.middleName?.trim() || '';
+    const lastName = data.lastName?.trim() || '';
+    const name = [firstName, middleName, lastName].filter(Boolean).join(' ').trim();
+
+    return authDb.updateUserProfile(userId, {
+      username,
+      firstName,
+      middleName,
+      lastName,
+      name,
+      phoneNumber: data.phoneNumber?.trim() || null,
+      address: data.address?.trim() || null,
+      addressLine2: data.addressLine2?.trim() || null,
+      city: data.city?.trim() || null,
+      state: data.state?.trim() || null,
+      zip: data.zip?.trim() || null,
+      profilePicture: data.profilePicture || null,
+    });
+  },
+
   /**
    * Create a new user (for seeding or admin purposes)
    */

@@ -18,6 +18,7 @@ export function PatientPhotoUpload({
   error,
   disabled = false,
   id = 'patientPhoto',
+  label = 'Patient photo',
 }) {
   const inputRef = useRef(null);
 
@@ -51,7 +52,7 @@ export function PatientPhotoUpload({
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>Patient photo</Label>
+      <Label htmlFor={id}>{label}</Label>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <div
           className={cn(

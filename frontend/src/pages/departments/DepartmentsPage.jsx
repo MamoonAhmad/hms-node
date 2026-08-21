@@ -259,7 +259,7 @@ export function DepartmentsPage() {
       />
 
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="min-w-[520px] max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="min-w-[900px] max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Delete Department</DialogTitle>
             <DialogDescription>

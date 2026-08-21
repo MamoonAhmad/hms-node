@@ -136,9 +136,6 @@ export function PatientQuickRegistrationDemographics({
           error={errors.cellPhone}
           aria-invalid={!!errors.cellPhone}
         />
-        {errors.cellPhone && (
-          <p className="text-xs text-destructive">{errors.cellPhone}</p>
-        )}
       </div>
 
       <div className="space-y-2">

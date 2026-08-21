@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { auth } = require('../middleware/auth.middleware');
+const { validate, updateProfileSchema } = require('../validation/auth.validation');
 
 /**
  * @swagger
@@ -131,6 +132,13 @@ router.post('/login', authController.login);
  *         description: Unauthorized - Invalid or missing token
  */
 router.get('/me', auth, authController.me);
+
+router.put(
+  '/profile',
+  auth,
+  validate(updateProfileSchema, 'body'),
+  authController.updateProfile,
+);
 
 module.exports = router;
 

@@ -27,12 +27,19 @@ const RACE_LABELS = {
   'native-hawaiian': 'Native Hawaiian or Other Pacific Islander',
   white: 'White',
   other: 'Other',
+  'more-than-one': 'More than one race',
+  unknown: 'Unknown',
+  declined: 'Declined to specify',
 };
 
 const LANGUAGE_LABELS = {
   english: 'English',
   spanish: 'Spanish',
   french: 'French',
+  chinese: 'Chinese',
+  arabic: 'Arabic',
+  hindi: 'Hindi',
+  portuguese: 'Portuguese',
   other: 'Other',
 };
 
@@ -184,6 +191,7 @@ export function buildDemographicsReviewItems(formData, helpers) {
   }
   return [
     ...items,
+    { label: 'Prefix', value: formData.prefix },
     { label: 'First Name', value: formData.firstName },
     { label: 'Middle Name', value: formData.middleName },
     { label: 'Last Name', value: formData.lastName },
@@ -210,6 +218,35 @@ export function buildDemographicsReviewItems(formData, helpers) {
     { label: 'City', value: formData.city },
     { label: 'State', value: formData.state },
     { label: 'Zip', value: formData.zip },
+    { label: 'County', value: formData.county },
+    {
+      label: 'Mailing Same As Residential',
+      value: formatReviewBoolean(formData.mailingSameAsResidential !== false),
+    },
+    { label: 'Mailing Address', value: formData.mailingAddress },
+    { label: 'Mailing City', value: formData.mailingCity },
+    { label: 'Mailing State', value: formData.mailingState },
+    { label: 'Mailing ZIP', value: formData.mailingZip },
+    { label: 'Patient SSN (last 4)', value: formData.ssnLast4 ? `••••${formData.ssnLast4}` : '' },
+    { label: 'ID Issuing State', value: formData.governmentIdState },
+    { label: 'ID Expiration', value: formatDateValue(formData.governmentIdExpiration) },
+    { label: 'Medicare Beneficiary ID', value: formData.medicareBeneficiaryId },
+    { label: 'Medicaid ID', value: formData.medicaidId },
+    { label: 'Preferred Pharmacy', value: formData.preferredPharmacyName },
+    { label: 'Pharmacy Phone', value: formData.preferredPharmacyPhone },
+    { label: 'SMS Opt-in', value: formatReviewBoolean(formData.smsOptIn) },
+    { label: 'Email Opt-in', value: formatReviewBoolean(formData.emailOptIn) },
+    { label: 'Reminder Opt-in', value: formatReviewBoolean(formData.reminderOptIn) },
+    { label: 'HIPAA ROI Name', value: formData.hipaaRoiName },
+    { label: 'HIPAA ROI Relationship', value: formData.hipaaRoiRelationship },
+    { label: 'HIPAA ROI Phone', value: formData.hipaaRoiPhone },
+    { label: 'Advance Directive On File', value: formatReviewBoolean(formData.advanceDirectiveOnFile) },
+    { label: 'Advance Directive Type', value: formData.advanceDirectiveType },
+    { label: 'Power of Attorney', value: formData.powerOfAttorneyName },
+    { label: 'NKDA', value: formatReviewBoolean(formData.noKnownDrugAllergies) },
+    { label: 'Allergy Notes', value: formData.allergyNotes },
+    { label: 'Billing Notes', value: formData.billingNotes },
+    { label: 'Account Balance', value: formData.accountBalance },
     {
       label: 'Country',
       value: formatDemographicsLabel('country', formData.country || DEFAULT_COUNTRY),
@@ -490,6 +527,10 @@ export function buildInsuranceReviewItems(formData, helpers) {
     {
       label: 'Authorization Number',
       value: whenInsurance(formData, formData.authorizationNumber),
+    },
+    {
+      label: 'Claim Number',
+      value: whenInsurance(formData, formData.claimNumber),
     },
   ].map(({ label, value }) => ({ label, value: formatValue(value) }));
 }

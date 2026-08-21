@@ -64,11 +64,11 @@ export function DashboardPage() {
 
   const statusColors = {
     Scheduled: 'text-primary',
-    'Checked-In': 'text-yellow-600',
-    'In Progress': 'text-purple-600',
-    Completed: 'text-green-600',
+    'Checked-In': 'text-amber-600',
+    'In Progress': 'text-teal-700',
+    Completed: 'text-emerald-600',
     Cancelled: 'text-red-600',
-    'No-Show': 'text-gray-600',
+    'No-Show': 'text-slate-600',
     Rescheduled: 'text-orange-600',
   };
 

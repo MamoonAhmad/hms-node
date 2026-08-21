@@ -48,7 +48,7 @@ export function PermissionHeaderFormDialog({ open, onOpenChange, header, onSubmi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[800px] max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[900px] max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {header ? 'Edit Permission Header' : 'Add Permission Header'}

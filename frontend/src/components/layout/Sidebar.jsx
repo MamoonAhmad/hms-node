@@ -10,7 +10,6 @@ import {
   Building2,
   MapPin,
   ClipboardList,
-  MessageSquare,
   Code,
   FolderTree,
   FileText,
@@ -18,24 +17,19 @@ import {
   ChevronRight,
   PanelLeft,
   PanelLeftClose,
-  ListOrdered,
   Activity,
-  FlaskConical,
-  Camera,
-  Pill,
   Calendar,
   CalendarClock,
   LogOut as LogoutIcon,
   BarChart2,
-  Hospital,
   ListChecks,
+  ListOrdered,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./SidebarContext";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Provider menu: visible to Admin, Super Admin, Credentialing/Provider Management (role check can be wired here)
 const providersItems = [
   { name: "Provider List", href: "/providers", icon: UserCheck },
   { name: "Specialities", href: "/providers/specialities", icon: Stethoscope },
@@ -44,16 +38,6 @@ const providersItems = [
 
 const administrationItems = [
   { name: "Payers Management", href: "/insurance-providers", icon: Shield },
-  {
-    name: "Chief Complaints",
-    href: "/administration/chief-complaint",
-    icon: MessageSquare,
-  },
-  {
-    name: "Consent Forms",
-    href: "/administration/consent-forms",
-    icon: FileText,
-  },
   {
     name: "Procedure Categories",
     href: "/administration/procedure-categories",
@@ -75,6 +59,16 @@ const administrationItems = [
     icon: Stethoscope,
   },
   {
+    name: "Place of Service",
+    href: "/administration/place-of-service",
+    icon: MapPin,
+  },
+  {
+    name: "Charge Master",
+    href: "/administration/charge-master",
+    icon: ClipboardList,
+  },
+  {
     name: "Billing Providers",
     href: "/administration/billing-providers",
     icon: UserCheck,
@@ -86,40 +80,20 @@ const administrationItems = [
   },
   { name: "Departments", href: "/departments", icon: Building2 },
   { name: "Locations", href: "/providers/locations", icon: MapPin },
+  { name: "Users", href: "/administration/users", icon: Users },
+  { name: "Roles", href: "/administration/roles", icon: Shield },
+  { name: "Permissions", href: "/administration/permissions", icon: Shield },
+  { name: "Permission Headers", href: "/administration/permission-headers", icon: Shield },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
 const patientManagementItems = [
   { name: "Patients", href: "/patients", icon: Users },
-  { name: "Nurse Assessment", href: "/nurse-assessment", icon: Stethoscope },
-  {
-    name: "Patient Tracking",
-    href: "/nurse-tracking-board",
-    icon: Activity,
-  },
+  { name: "RCM Worklists", href: "/patients/worklists", icon: ListChecks },
   {
     name: "Encounters Work List",
     href: "/encounters-work-list",
     icon: ListChecks,
-  },
-  {
-    name: "Patient Dashboard",
-    href: "/patient-dashboard",
-    icon: ClipboardList,
-  },
-  {
-    name: "Custom Order Set",
-    href: "/custom-order-set",
-    icon: ListOrdered,
-  },
-  {
-    name: "Rooms Management",
-    icon: Hospital,
-    children: [
-      { name: "Rooms Type", href: "/patient-management/room-types" },
-      { name: "Rooms", href: "/patient-management/rooms" },
-      { name: "Beds", href: "/patient-management/beds" },
-    ],
   },
 ];
 
@@ -135,69 +109,14 @@ const appointmentsItems = [
     icon: Calendar,
   },
   { name: "Appointments", href: "/appointments", icon: Calendar },
+  { name: "Waitlist", href: "/appointments/waitlist", icon: ListOrdered },
+  { name: "Appointment Policy", href: "/appointments/policy", icon: Settings },
+  { name: "Appointment Reports", href: "/appointments/reports", icon: BarChart2 },
   { name: "Block Hours", href: "/appointments/block-hours", icon: CalendarClock },
   {
     name: "Appointment Status",
     href: "/appointments/appointment-status",
     icon: ListChecks,
-  },
-];
-
-const physiologicalTestsItems = [
-  {
-    name: "Physiological order management",
-    href: "/physiological-tests/order-management",
-    icon: Activity,
-  },
-  {
-    name: "Outside physiological tests",
-    href: "/physiological-tests/outside",
-    icon: Activity,
-  },
-];
-
-const laboratoryManagementItems = [
-  {
-    name: "Onsite Laboratory Management",
-    href: "/laboratory-management",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Specimen Collection",
-    href: "/laboratory-management/specimen-collection",
-    icon: FlaskConical,
-  },
-  {
-    name: "Result Management",
-    href: "/laboratory-management/result-management",
-    icon: FlaskConical,
-  },
-  {
-    name: "Outside Labs management",
-    href: "/laboratory-management/outside-labs",
-    icon: FlaskConical,
-  },
-];
-
-const radiologyManagementItems = [
-  {
-    name: "Radiology Order & Report Management",
-    href: "/radiology-management/order-management",
-    icon: Camera,
-  },
-  {
-    name: "Outside radiology orders",
-    href: "/radiology-management/outside-radiology-orders",
-    icon: Camera,
-  },
-];
-
-const pharmacyItems = [
-  { name: "Inventory Reports", href: "/pharmacy?report=inventory", icon: Pill },
-  {
-    name: "Medication Prescriptions",
-    href: "/pharmacy/e-prescribe-med-reconciliation",
-    icon: Pill,
   },
 ];
 
@@ -229,6 +148,8 @@ const claimsReportItems = [
 ];
 
 const claimsItems = [
+  { name: "RCM Worklist", href: "/rcm/worklist", icon: ListChecks },
+  { name: "RCM Encounters", href: "/encounters-work-list", icon: ListChecks },
   { name: "Claim Tracker", href: "/rcm/claim-tracker", icon: Activity },
   { name: "Claims listing", href: "/rcm/claims", icon: ClipboardList },
   { name: "Follow Up Management", href: "/rcm/follow-up-management", icon: CalendarClock },
@@ -249,7 +170,6 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
   const location = useLocation();
   const ResolvedIcon = Icon ?? LayoutDashboard;
 
-  // Check if any item (or nested child) in the dropdown is active
   const isActive = items.some((item) => {
     const hrefs = getItemHrefs(item);
     const locPath = location.pathname;
@@ -259,14 +179,12 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
     });
   });
 
-  // Auto-open if any item is active
   useEffect(() => {
     if (isActive) {
       setIsOpen(true);
     }
   }, [isActive]);
 
-  // Auto-collapse when sidebar is collapsed
   useEffect(() => {
     if (isCollapsed) {
       setIsOpen(false);
@@ -274,7 +192,6 @@ function MenuDropdown({ title, items, icon: Icon, isCollapsed }) {
     }
   }, [isCollapsed]);
 
-  // Auto-open nested section (e.g. Reports) when a child route is active
   useEffect(() => {
     const activeNested = items.find((item) => {
       if (!item.children) return false;
@@ -404,14 +321,14 @@ export function Sidebar() {
         {!isCollapsed && (
           <>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary shadow-sm">
-              <span className="text-base font-bold text-primary-foreground">H</span>
+              <span className="text-base font-bold text-primary-foreground">R</span>
             </div>
             <div className="min-w-0">
               <span className="block text-base font-semibold tracking-tight text-sidebar-foreground">
-                HMS
+                RCM
               </span>
               <span className="block truncate text-[0.65rem] font-medium uppercase tracking-wider text-sidebar-foreground/50">
-                Clinical Platform
+                Revenue Cycle
               </span>
             </div>
           </>
@@ -434,7 +351,6 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-1 min-h-0 flex-col gap-0.5 p-3 overflow-y-auto">
-        {/* Dashboard */}
         <NavLink
           to="/"
           className={({ isActive }) =>
@@ -452,11 +368,8 @@ export function Sidebar() {
           {!isCollapsed && <span>Dashboard</span>}
         </NavLink>
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="border-t border-sidebar-border my-2" />}
 
-        {/* Providers Dropdown */}
         <MenuDropdown
           title="Providers"
           items={providersItems}
@@ -464,11 +377,8 @@ export function Sidebar() {
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="border-t border-sidebar-border my-2" />}
 
-        {/* Appointments Dropdown */}
         <MenuDropdown
           title="Appointments"
           items={appointmentsItems}
@@ -476,11 +386,8 @@ export function Sidebar() {
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="border-t border-sidebar-border my-2" />}
 
-        {/* Administration Dropdown */}
         <MenuDropdown
           title="Administration"
           items={administrationItems}
@@ -488,11 +395,8 @@ export function Sidebar() {
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="border-t border-sidebar-border my-2" />}
 
-        {/* Patient Management Dropdown */}
         <MenuDropdown
           title="Patient Management"
           items={patientManagementItems}
@@ -500,59 +404,8 @@ export function Sidebar() {
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="border-t border-sidebar-border my-2" />}
 
-        {/* Physiological tests Dropdown */}
-        <MenuDropdown
-          title="Physiological tests"
-          items={physiologicalTestsItems}
-          icon={Activity}
-          isCollapsed={isCollapsed}
-        />
-
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
-
-        {/* Laboratory Management Dropdown */}
-        <MenuDropdown
-          title="Laboratory Management"
-          items={laboratoryManagementItems}
-          icon={FlaskConical}
-          isCollapsed={isCollapsed}
-        />
-
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
-
-        {/* Pharmacy Dropdown */}
-        <MenuDropdown
-          title="Pharmacy"
-          items={pharmacyItems}
-          icon={Pill}
-          isCollapsed={isCollapsed}
-        />
-
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
-
-        {/* Radiology Management Dropdown */}
-        <MenuDropdown
-          title="Radiology Management"
-          items={radiologyManagementItems}
-          icon={Camera}
-          isCollapsed={isCollapsed}
-        />
-
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
-
-        {/* Claims Dropdown */}
         <MenuDropdown
           title="Claims"
           items={claimsItems}
@@ -560,12 +413,9 @@ export function Sidebar() {
           isCollapsed={isCollapsed}
         />
 
-        {!isCollapsed && (
-          <div className="border-t border-sidebar-border my-2" />
-        )}
+        {!isCollapsed && <div className="border-t border-sidebar-border my-2" />}
       </nav>
 
-      {/* User section at bottom */}
       <div className="shrink-0 p-3 border-t border-sidebar-border bg-sidebar/80">
         <div className="rounded-xl bg-sidebar-accent/50 p-3 mb-2">
           <div className="flex items-center gap-3">

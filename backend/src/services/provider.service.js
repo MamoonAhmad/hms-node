@@ -53,6 +53,14 @@ function pickDepartmentId(payload) {
   return fkOrUndefined(payload.departmentId);
 }
 
+function blankToNull(data) {
+  const out = { ...data };
+  for (const [key, value] of Object.entries(out)) {
+    if (value === '') out[key] = null;
+  }
+  return out;
+}
+
 const providerService = {
   providerInclude,
 
@@ -61,7 +69,7 @@ const providerService = {
 
     const departmentId = pickDepartmentId(data);
 
-    const { specialtyId: _s, subSpecialtyId: _sub, departmentId: _dep, ...rest } = data;
+    const { specialtyId: _s, subSpecialtyId: _sub, departmentId: _dep, ...rest } = blankToNull(data);
 
     return prisma.provider.create({
       data: {
@@ -159,7 +167,7 @@ const providerService = {
 
     const departmentId = pickDepartmentId(data);
 
-    const prismaData = { ...data };
+    const prismaData = blankToNull(data);
 
     const clinicalTouched = Object.prototype.hasOwnProperty.call(data, 'specialtyId') || Object.prototype.hasOwnProperty.call(data, 'subSpecialtyId');
     if (clinicalTouched) {

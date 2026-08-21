@@ -81,7 +81,7 @@ export function SearchableSelect({
   }, [normalizedOptions, query]);
 
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+    <Select value={value || undefined} onValueChange={onValueChange} disabled={disabled}>
       <SelectTrigger className={cn('w-full', triggerClassName, className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
@@ -101,7 +101,7 @@ export function SearchableSelect({
         ) : (
           filtered.map((o) => (
             <SelectItem key={o.value} value={o.value}>
-              {o.displayLabel}
+              {o.displayLabel || o.label}
             </SelectItem>
           ))
         )}
@@ -183,6 +183,18 @@ export function InsuranceDetailsBlock({ title, details, onUpdate }) {
             onValueChange={(v) => onUpdate('referralType', v)}
             options={REFERRAL_TYPE_OPTIONS}
           />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm">Subscriber Name</Label>
+          <Input value={details.subscriberName || ''} onChange={(e) => onUpdate('subscriberName', e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm">Subscriber DOB</Label>
+          <Input type="date" value={details.subscriberDob || ''} onChange={(e) => onUpdate('subscriberDob', e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm">Relationship to Subscriber</Label>
+          <Input value={details.subscriberRelationship || ''} onChange={(e) => onUpdate('subscriberRelationship', e.target.value)} placeholder="self / spouse / child" />
         </div>
       </div>
     </div>

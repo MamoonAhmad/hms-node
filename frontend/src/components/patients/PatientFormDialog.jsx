@@ -27,15 +27,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Eye, Edit, Trash2, Plus, Upload, FileText } from 'lucide-react';
-import { insuranceProviderApi, providerApi, appointmentStatusApi, patientApi } from '@/services/api';
+import { Edit, Trash2, Plus, Upload, FileText, ShieldCheck } from 'lucide-react';
+import {
+  insuranceProviderApi,
+  providerApi,
+  appointmentStatusApi,
+  appointmentTypeApi,
+  appointmentApi,
+  departmentApi,
+  patientApi,
+  userApi,
+  providerScheduleApi,
+} from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  APPOINTMENT_TIME_SLOT_OPTIONS,
   buildAppointmentSubmitPayloadFromRegistration,
   formatAppointmentTimeSlot,
   formatDepartmentForReview,
   formatReferredByForReview,
+  getProviderAppointmentTypeNames,
+  getProviderDepartmentIds,
+  isProviderInDepartment,
   validateRegistrationAppointmentFields,
 } from '@/components/patients/patientRegistrationAppointmentConstants';
 import {
@@ -43,6 +55,8 @@ import {
   INSURANCE_BILLING_TYPE_OPTIONS,
   PAYMENT_METHOD_SELECT_VALUE,
   SELF_PAY_PAYMENT_METHOD_OPTIONS,
+  buildInsuranceListEntry,
+  copySubscriberFromPatient,
 } from '@/components/patients/patientRegistrationInsuranceConstants';
 import {
   getDefaultAppointmentStatusName,
@@ -57,6 +71,12 @@ import {
 } from '@/components/patients/patientRegistrationReview';
 import { PatientRegistrationAppointmentFields } from '@/components/patients/PatientRegistrationAppointmentFields';
 import { PatientRegistrationContactsFields } from '@/components/patients/PatientRegistrationContactsFields';
+import { PatientRegistrationGuarantorFields } from '@/components/patients/PatientRegistrationGuarantorFields';
+import { PatientRegistrationExtendedFields } from '@/components/patients/PatientRegistrationExtendedFields';
+import { PhoneNumberInput } from '@/components/ui/phone-number-input';
+import { UsStateSelect } from '@/components/ui/us-state-select';
+import { MultiSelect } from '@/components/ui/multi-select';
+import { SearchableSelect } from '@/pages/rcm/claimInsuranceShared';
 import { PatientRegistrationDocumentsTab } from '@/components/patients/PatientRegistrationDocumentsTab';
 import {
   DOCUMENT_CHECKLIST_ITEMS,
@@ -70,18 +90,27 @@ import {
 import { PatientPhotoUpload } from '@/components/patients/PatientPhotoUpload';
 import {
   formatContactRelationship,
-  PHONE_REGEX,
+  GUARANTOR_RELATIONSHIP_OPTIONS,
+  NEXT_OF_KIN_RELATIONSHIP_OPTIONS,
+  PATIENT_RELATIONSHIP_OPTIONS,
   shouldShowLegalGuardianSection,
 } from '@/components/patients/patientContactsConstants';
 import {
   COUNTRY_OPTIONS,
   DEFAULT_COUNTRY,
   DISABILITY_STATUS_OPTIONS,
+  DISABILITY_TYPE_OPTIONS,
   GENDER_IDENTITY_OPTIONS,
   GOVERNMENT_ID_MIN_LENGTH,
   GOVERNMENT_ID_TYPE_OPTIONS,
+  LANGUAGE_OPTIONS,
+  NO_EMAIL_REASON_OPTIONS,
+  PREFIX_OPTIONS,
   PREFERRED_CONTACT_METHOD_OPTIONS,
   PRONOUN_OPTIONS,
+  RACE_OPTIONS,
+  SUFFIX_OPTIONS,
+  VETERAN_STATUS_DETAIL_OPTIONS,
   YES_NO_UNKNOWN_OPTIONS,
   formatDemographicsLabel,
   formatProviderDisplayName,
@@ -91,7 +120,13 @@ import {
 import { RegistrationChannelField } from '@/components/patients/RegistrationChannelField';
 import { PatientQuickRegistrationDemographics } from '@/components/patients/PatientQuickRegistrationDemographics';
 import { getPatientQueueDraftById } from '@/components/patients/patientRegistrationQueue';
-import { validatePhoneNumber } from '@/lib/phoneNumberUtils';
+import { getPhoneValidationError, validatePhoneNumber } from '@/lib/phoneNumberUtils';
+import { getUsZipValidationError, normalizeUsZipInput } from '@/lib/usZip';
+import { formatLanguageList, parseCsvList, toCsvList } from '@/lib/worldCatalog';
+import {
+  firstValidationTab,
+  formatValidationBannerItems,
+} from '@/components/patients/patientRegistrationValidation';
 
 function RequiredFieldLabel({ htmlFor, children }) {
   return (
@@ -112,6 +147,43 @@ const initialFormData = {
   firstName: '',
   middleName: '',
   suffix: '',
+  prefix: '',
+  ssnLast4: '',
+  county: '',
+  mailingSameAsResidential: true,
+  mailingAddress: '',
+  mailingAddressLine2: '',
+  mailingCity: '',
+  mailingState: '',
+  mailingZip: '',
+  mailingCountry: DEFAULT_COUNTRY,
+  governmentIdState: '',
+  governmentIdExpiration: '',
+  medicareBeneficiaryId: '',
+  medicaidId: '',
+  preferredPharmacyName: '',
+  preferredPharmacyPhone: '',
+  preferredPharmacyAddress: '',
+  smsOptIn: false,
+  emailOptIn: false,
+  reminderOptIn: false,
+  hipaaRoiName: '',
+  hipaaRoiRelationship: '',
+  hipaaRoiPhone: '',
+  hipaaRoiEmail: '',
+  advanceDirectiveOnFile: false,
+  advanceDirectiveType: '',
+  powerOfAttorneyName: '',
+  powerOfAttorneyPhone: '',
+  workersCompClaimNumber: '',
+  autoAccidentClaimNumber: '',
+  countryOther: '',
+  languageOther: '',
+  allergyNotes: '',
+  noKnownDrugAllergies: false,
+  assignedToId: '',
+  primaryCareProviderId: '',
+  claimNumber: '',
   preferredName: '',
   previousName: '',
   gender: '',
@@ -120,6 +192,8 @@ const initialFormData = {
   pronounsOther: '',
   dateOfBirth: '',
   email: '',
+  noEmail: false,
+  noEmailReason: '',
   address: '',
   addressLine2: '',
   city: '',
@@ -135,9 +209,12 @@ const initialFormData = {
   primaryCarePhysician: '',
   birthPlace: '',
   veteranStatus: '',
+  veteranStatusDetail: '',
   disabilityStatus: '',
+  disabilityType: '',
   tribalAffiliation: '',
   referredBy: '',
+  referringProviderId: '',
   referringPhysicianFirstName: '',
   referringPhysicianLastName: '',
   referringPhysicianNpi: '',
@@ -152,10 +229,12 @@ const initialFormData = {
   profilePhotoFileName: '',
   ethnicity: '',
   language: '',
+  languages: [],
   race: '',
   sexualOrientation: '',
   interpreterRequired: false,
   interpreterLanguageRequired: '',
+  interpreterLanguages: [],
   // Contacts tab
   emergencyContactName: '',
   emergencyContactNumber: '',
@@ -169,6 +248,10 @@ const initialFormData = {
   secondaryEmergencyContactRelationship: '',
   secondaryEmergencyContactNumber: '',
   secondaryEmergencyContactEmail: '',
+  secondaryEmergencyContactAddress: '',
+  secondaryEmergencyContactCity: '',
+  secondaryEmergencyContactState: '',
+  secondaryEmergencyContactZip: '',
   guarantorName: '',
   guarantorPhone: '',
   guarantorContactName: '',
@@ -184,17 +267,33 @@ const initialFormData = {
   authorizedRepresentativeRelationship: '',
   authorizedRepresentativePhone: '',
   authorizedRepresentativeEmail: '',
+  authorizedRepresentativeAddress: '',
+  authorizedRepresentativeCity: '',
+  authorizedRepresentativeState: '',
+  authorizedRepresentativeZip: '',
   legalGuardianName: '',
   legalGuardianRelationship: '',
   legalGuardianPhone: '',
   legalGuardianEmail: '',
+  legalGuardianAddress: '',
+  legalGuardianCity: '',
+  legalGuardianState: '',
+  legalGuardianZip: '',
   patientIsMinor: false,
   primaryNextOfKinName: '',
   primaryNextOfKinRelationship: '',
   primaryNextOfKinPhone: '',
+  primaryNextOfKinAddress: '',
+  primaryNextOfKinCity: '',
+  primaryNextOfKinState: '',
+  primaryNextOfKinZip: '',
   secondaryNextOfKinName: '',
   secondaryNextOfKinRelationship: '',
   secondaryNextOfKinPhone: '',
+  secondaryNextOfKinAddress: '',
+  secondaryNextOfKinCity: '',
+  secondaryNextOfKinState: '',
+  secondaryNextOfKinZip: '',
   maritalStatus: '',
   employmentStatus: '',
   employerName: '',
@@ -246,8 +345,12 @@ const initialFormData = {
   appointmentStartTime: '',
   appointmentEndTime: '',
   appointmentVisitType: '',
+  appointmentTypeName: '',
   appointmentDepartment: '',
   appointmentProvider: '',
+  appointmentProviderId: '',
+  appointmentDepartmentId: '',
+  appointmentDepartmentIds: [],
   appointmentReason: '',
   appointmentNotes: '',
   status: getDefaultAppointmentStatusName(),
@@ -289,9 +392,10 @@ const INSURANCE_ENTRY_FIELD_KEYS = [
   'coinsurancePercentage',
   'authorizationRequired',
   'authorizationNumber',
+  'claimNumber',
 ];
 
-const consentForms = [
+const FALLBACK_CONSENT_FORMS = [
   {
     id: 'consent-general-treatment',
     title: 'Consent for Treatment (Outpatient)',
@@ -417,6 +521,14 @@ export function PatientFormContent({
   const [loadingProviders, setLoadingProviders] = useState(false);
   const [careProviders, setCareProviders] = useState([]);
   const [loadingCareProviders, setLoadingCareProviders] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [appointmentTypes, setAppointmentTypes] = useState([]);
+  const [providerSchedules, setProviderSchedules] = useState([]);
+  const [timeSlotOptions, setTimeSlotOptions] = useState(null);
+  const [availableDates, setAvailableDates] = useState(null);
+  const [availableDatesLoading, setAvailableDatesLoading] = useState(false);
+  const [staffUsers, setStaffUsers] = useState([]);
+  const [registrationConsentForms, setRegistrationConsentForms] = useState(FALLBACK_CONSENT_FORMS);
   const [activeTab, setActiveTab] = useState('patient');
   const [documents, setDocuments] = useState([]);
   const [insuranceList, setInsuranceList] = useState([]);
@@ -450,6 +562,7 @@ export function PatientFormContent({
   const [consentSignatures, setConsentSignatures] = useState({});
   const [duplicateWarning, setDuplicateWarning] = useState(null);
   const [consentDialogOpen, setConsentDialogOpen] = useState(false);
+  const [formBannerErrors, setFormBannerErrors] = useState([]);
   const [activeConsentFormId, setActiveConsentFormId] = useState(null);
   const [signatureMode, setSignatureMode] = useState('draw'); // draw | type
   const [typedSignature, setTypedSignature] = useState('');
@@ -459,9 +572,10 @@ export function PatientFormContent({
   const drawingRef = useRef(false);
   const lastPointRef = useRef({ x: 0, y: 0 });
 
+  const consentForms = registrationConsentForms;
   const activeConsentForm = useMemo(
     () => consentForms.find((f) => f.id === activeConsentFormId) || null,
-    [activeConsentFormId],
+    [consentForms, activeConsentFormId],
   );
 
   const formatSignedAt = (isoString) => {
@@ -500,7 +614,7 @@ export function PatientFormContent({
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#0f172a';
+    ctx.strokeStyle = '#123B5D';
     return ctx;
   };
 
@@ -637,6 +751,56 @@ export function PatientFormContent({
     return options;
   }, [statusOptions, formData.status]);
 
+  const departmentOptions = useMemo(
+    () =>
+      departments.map((department) => ({
+        value: department.id,
+        label: department.departmentName,
+        displayLabel: department.departmentName,
+      })),
+    [departments],
+  );
+
+  const filteredCareProviders = useMemo(() => {
+    const selectedIds = Array.isArray(formData.appointmentDepartmentIds)
+      ? formData.appointmentDepartmentIds.filter(Boolean)
+      : [];
+    const departmentId = selectedIds[0] || formData.appointmentDepartmentId;
+    if (!departmentId) return careProviders;
+    return careProviders.filter((provider) =>
+      isProviderInDepartment(provider, departmentId, departments) ||
+      selectedIds.some((id) => isProviderInDepartment(provider, id, departments)),
+    );
+  }, [careProviders, departments, formData.appointmentDepartmentId, formData.appointmentDepartmentIds]);
+
+  const appointmentProviderOptions = useMemo(
+    () =>
+      filteredCareProviders.map((provider) => ({
+        value: provider.id,
+        label: formatProviderDisplayName(provider),
+        displayLabel: provider.npi
+          ? `${formatProviderDisplayName(provider)} (${provider.npi})`
+          : formatProviderDisplayName(provider),
+      })),
+    [filteredCareProviders],
+  );
+
+  const appointmentTypeOptions = useMemo(() => {
+    const allTypes = appointmentTypes.map((type) => ({
+      value: type.name,
+      label: type.name,
+      displayLabel: type.name,
+    }));
+    if (!formData.appointmentProviderId) return allTypes;
+    const assignedNames = getProviderAppointmentTypeNames(
+      formData.appointmentProviderId,
+      providerSchedules,
+    );
+    if (!assignedNames.length) return [];
+    const assigned = allTypes.filter((type) => assignedNames.includes(type.value));
+    return assigned.length ? assigned : [];
+  }, [appointmentTypes, formData.appointmentProviderId, providerSchedules]);
+
   const reviewHelpers = useMemo(
     () => ({
       formatValue,
@@ -709,21 +873,136 @@ export function PatientFormContent({
   }, [isOpen]);
 
   useEffect(() => {
-    const fetchCareProviders = async () => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    const fetchAppointmentCatalogs = async () => {
       setLoadingCareProviders(true);
       try {
-        const response = await providerApi.getAll({ limit: 100, isActive: true });
-        setCareProviders(response.data || []);
+        const [provRes, deptRes, typeRes, scheduleRes] = await Promise.all([
+          providerApi.getAll({ limit: 500, isActive: true }).catch(() => ({ data: [] })),
+          departmentApi.getAll({ limit: 200 }).catch(() => ({ data: [] })),
+          appointmentTypeApi.getActive().catch(() => ({ data: [] })),
+          providerScheduleApi.getAll({ limit: 500, status: 'Active' }).catch(() => ({ data: [] })),
+        ]);
+        if (cancelled) return;
+        setCareProviders(Array.isArray(provRes.data) ? provRes.data : []);
+        setDepartments(Array.isArray(deptRes.data) ? deptRes.data : []);
+        setAppointmentTypes(Array.isArray(typeRes.data) ? typeRes.data : []);
+        setProviderSchedules(Array.isArray(scheduleRes.data) ? scheduleRes.data : []);
       } catch (err) {
-        console.error('Failed to fetch providers:', err);
+        console.error('Failed to fetch appointment catalogs:', err);
       } finally {
-        setLoadingCareProviders(false);
+        if (!cancelled) setLoadingCareProviders(false);
       }
     };
 
-    if (isOpen) {
-      fetchCareProviders();
+    fetchAppointmentCatalogs();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !formData.appointmentProviderId || !formData.appointmentVisitType) {
+      setAvailableDates(null);
+      setAvailableDatesLoading(false);
+      return;
     }
+    let cancelled = false;
+    setAvailableDatesLoading(true);
+    appointmentApi
+      .getAvailableDates({
+        providerId: formData.appointmentProviderId,
+        appointmentType: formData.appointmentVisitType,
+      })
+      .then((res) => {
+        if (cancelled) return;
+        setAvailableDates(new Set(res.data?.dates || []));
+      })
+      .catch(() => {
+        if (!cancelled) setAvailableDates(new Set());
+      })
+      .finally(() => {
+        if (!cancelled) setAvailableDatesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, formData.appointmentProviderId, formData.appointmentVisitType]);
+
+  useEffect(() => {
+    if (!isOpen || !formData.appointmentProviderId || !formData.appointmentDate) {
+      setTimeSlotOptions(null);
+      return;
+    }
+    let cancelled = false;
+    setTimeSlotOptions(null);
+    appointmentApi
+      .getAvailableSlots({
+        providerId: formData.appointmentProviderId,
+        date: formData.appointmentDate,
+        appointmentType: formData.appointmentVisitType || undefined,
+      })
+      .then((res) => {
+        if (cancelled) return;
+        const slots = (res.data?.slots || []).map((slot) => ({
+          value: slot.value || slot.startTime,
+          label: slot.label || `${slot.startTime} – ${slot.endTime}`,
+        }));
+        setTimeSlotOptions(slots.length ? slots : []);
+      })
+      .catch(() => {
+        if (!cancelled) setTimeSlotOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, formData.appointmentProviderId, formData.appointmentDate, formData.appointmentVisitType]);
+
+  useEffect(() => {
+    if (!formData.referringPhysicianNpi || formData.referringProviderId) return;
+    const match = careProviders.find((provider) => provider.npi === formData.referringPhysicianNpi);
+    if (match) {
+      setFormData((prev) => ({ ...prev, referringProviderId: match.id }));
+    }
+  }, [careProviders, formData.referringPhysicianNpi, formData.referringProviderId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [usersRes, consentsRes] = await Promise.all([
+          userApi.getAll({ limit: 200 }).catch(() => ({ data: [] })),
+          patientApi.listConsentForms().catch(() => ({ data: [] })),
+        ]);
+        if (cancelled) return;
+        const users = Array.isArray(usersRes?.data) ? usersRes.data : [];
+        setStaffUsers(users);
+        const forms = Array.isArray(consentsRes?.data) ? consentsRes.data : [];
+        if (forms.length) {
+          setRegistrationConsentForms(
+            forms.map((form) => ({
+              id: form.id,
+              title: form.consentTitle || form.title,
+              category: form.description || form.consentType || 'General',
+              version: form.versionNumber || '1.0',
+              body: form.consentContent
+                ? [{ heading: 'Agreement', text: form.consentContent }]
+                : FALLBACK_CONSENT_FORMS.find((f) => f.id.includes(form.consentType))?.body || [],
+            })),
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setStaffUsers([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -735,11 +1014,51 @@ export function PatientFormContent({
         (o) => o.value !== 'other' && o.value === storedPronouns,
       );
       setFormData({
+        ...initialFormData,
         mrn: patient.mrn || '',
         lastName: patient.lastName || '',
         firstName: patient.firstName || '',
         middleName: patient.middleName || '',
         suffix: patient.suffix || '',
+        prefix: patient.prefix || '',
+        ssnLast4: patient.ssnLast4 || '',
+        county: patient.county || '',
+        mailingSameAsResidential: patient.mailingSameAsResidential !== false,
+        mailingAddress: patient.mailingAddress || '',
+        mailingAddressLine2: patient.mailingAddressLine2 || '',
+        mailingCity: patient.mailingCity || '',
+        mailingState: patient.mailingState || '',
+        mailingZip: patient.mailingZip || '',
+        mailingCountry: patient.mailingCountry || DEFAULT_COUNTRY,
+        governmentIdState: patient.governmentIdState || '',
+        governmentIdExpiration: patient.governmentIdExpiration
+          ? String(patient.governmentIdExpiration).split('T')[0]
+          : '',
+        medicareBeneficiaryId: patient.medicareBeneficiaryId || '',
+        medicaidId: patient.medicaidId || '',
+        preferredPharmacyName: patient.preferredPharmacyName || '',
+        preferredPharmacyPhone: patient.preferredPharmacyPhone || '',
+        preferredPharmacyAddress: patient.preferredPharmacyAddress || '',
+        smsOptIn: !!patient.smsOptIn,
+        emailOptIn: !!patient.emailOptIn,
+        reminderOptIn: !!patient.reminderOptIn,
+        hipaaRoiName: patient.hipaaRoiName || '',
+        hipaaRoiRelationship: patient.hipaaRoiRelationship || '',
+        hipaaRoiPhone: patient.hipaaRoiPhone || '',
+        hipaaRoiEmail: patient.hipaaRoiEmail || '',
+        advanceDirectiveOnFile: !!patient.advanceDirectiveOnFile,
+        advanceDirectiveType: patient.advanceDirectiveType || '',
+        powerOfAttorneyName: patient.powerOfAttorneyName || '',
+        powerOfAttorneyPhone: patient.powerOfAttorneyPhone || '',
+        workersCompClaimNumber: patient.workersCompClaimNumber || '',
+        autoAccidentClaimNumber: patient.autoAccidentClaimNumber || '',
+        countryOther: patient.countryOther || '',
+        languageOther: patient.languageOther || '',
+        allergyNotes: patient.allergyNotes || '',
+        noKnownDrugAllergies: !!patient.noKnownDrugAllergies,
+        assignedToId: patient.assignedToId || '',
+        primaryCareProviderId: patient.primaryCareProviderId || '',
+        claimNumber: patient.claimNumber || '',
         preferredName: patient.preferredName || '',
         previousName: patient.previousName || '',
         gender: patient.gender || '',
@@ -748,6 +1067,8 @@ export function PatientFormContent({
         pronounsOther: isPresetPronoun ? '' : storedPronouns,
         dateOfBirth: patient.dateOfBirth ? patient.dateOfBirth.split('T')[0] : '',
         email: patient.email || '',
+        noEmail: !!patient.noEmail,
+        noEmailReason: patient.noEmailReason || '',
         address: patient.address || '',
         addressLine2: patient.addressLine2 || '',
         city: patient.city || '',
@@ -763,9 +1084,12 @@ export function PatientFormContent({
         primaryCarePhysician: patient.primaryCarePhysician || '',
         birthPlace: patient.birthPlace || '',
         veteranStatus: patient.veteranStatus || '',
+        veteranStatusDetail: patient.veteranStatusDetail || '',
         disabilityStatus: patient.disabilityStatus || '',
+        disabilityType: patient.disabilityType || '',
         tribalAffiliation: patient.tribalAffiliation || '',
         referredBy: patient.referredBy || '',
+        referringProviderId: patient.referringProviderId || '',
         referringPhysicianFirstName: patient.referringPhysicianFirstName || '',
         referringPhysicianLastName: patient.referringPhysicianLastName || '',
         referringPhysicianNpi: patient.referringPhysicianNpi || '',
@@ -780,10 +1104,12 @@ export function PatientFormContent({
         profilePhotoFileName: patient.profilePhotoFileName || '',
         ethnicity: patient.ethnicity || '',
         language: patient.language || '',
+        languages: parseCsvList(patient.language),
         race: patient.race || '',
         sexualOrientation: patient.sexualOrientation || '',
         interpreterRequired: patient.interpreterRequired || false,
         interpreterLanguageRequired: patient.interpreterLanguageRequired || '',
+        interpreterLanguages: parseCsvList(patient.interpreterLanguageRequired),
         emergencyContactName: patient.emergencyContactName || '',
         emergencyContactNumber: patient.emergencyContactNumber || patient.emergencyContactPhone || '',
         emergencyContactRelationship: patient.emergencyContactRelationship || '',
@@ -796,6 +1122,10 @@ export function PatientFormContent({
         secondaryEmergencyContactRelationship: patient.secondaryEmergencyContactRelationship || '',
         secondaryEmergencyContactNumber: patient.secondaryEmergencyContactNumber || '',
         secondaryEmergencyContactEmail: patient.secondaryEmergencyContactEmail || '',
+        secondaryEmergencyContactAddress: patient.secondaryEmergencyContactAddress || '',
+        secondaryEmergencyContactCity: patient.secondaryEmergencyContactCity || '',
+        secondaryEmergencyContactState: patient.secondaryEmergencyContactState || '',
+        secondaryEmergencyContactZip: patient.secondaryEmergencyContactZip || '',
         guarantorName: patient.guarantorName || patient.guarantorContactName || '',
         guarantorPhone: patient.guarantorPhone || patient.guarantorContactNumber || '',
         guarantorContactName: patient.guarantorContactName || patient.guarantorName || '',
@@ -813,17 +1143,33 @@ export function PatientFormContent({
         authorizedRepresentativeRelationship: patient.authorizedRepresentativeRelationship || '',
         authorizedRepresentativePhone: patient.authorizedRepresentativePhone || '',
         authorizedRepresentativeEmail: patient.authorizedRepresentativeEmail || '',
+        authorizedRepresentativeAddress: patient.authorizedRepresentativeAddress || '',
+        authorizedRepresentativeCity: patient.authorizedRepresentativeCity || '',
+        authorizedRepresentativeState: patient.authorizedRepresentativeState || '',
+        authorizedRepresentativeZip: patient.authorizedRepresentativeZip || '',
         legalGuardianName: patient.legalGuardianName || '',
         legalGuardianRelationship: patient.legalGuardianRelationship || '',
         legalGuardianPhone: patient.legalGuardianPhone || '',
         legalGuardianEmail: patient.legalGuardianEmail || '',
+        legalGuardianAddress: patient.legalGuardianAddress || '',
+        legalGuardianCity: patient.legalGuardianCity || '',
+        legalGuardianState: patient.legalGuardianState || '',
+        legalGuardianZip: patient.legalGuardianZip || '',
         patientIsMinor: patient.patientIsMinor || false,
         primaryNextOfKinName: patient.primaryNextOfKinName || '',
         primaryNextOfKinRelationship: patient.primaryNextOfKinRelationship || '',
         primaryNextOfKinPhone: patient.primaryNextOfKinPhone || '',
+        primaryNextOfKinAddress: patient.primaryNextOfKinAddress || '',
+        primaryNextOfKinCity: patient.primaryNextOfKinCity || '',
+        primaryNextOfKinState: patient.primaryNextOfKinState || '',
+        primaryNextOfKinZip: patient.primaryNextOfKinZip || '',
         secondaryNextOfKinName: patient.secondaryNextOfKinName || '',
         secondaryNextOfKinRelationship: patient.secondaryNextOfKinRelationship || '',
         secondaryNextOfKinPhone: patient.secondaryNextOfKinPhone || '',
+        secondaryNextOfKinAddress: patient.secondaryNextOfKinAddress || '',
+        secondaryNextOfKinCity: patient.secondaryNextOfKinCity || '',
+        secondaryNextOfKinState: patient.secondaryNextOfKinState || '',
+        secondaryNextOfKinZip: patient.secondaryNextOfKinZip || '',
         maritalStatus: patient.maritalStatus || '',
         employmentStatus: patient.employmentStatus || '',
         employerName: patient.employerName || '',
@@ -872,14 +1218,37 @@ export function PatientFormContent({
         appointmentStartTime: patient.appointmentStartTime || '',
         appointmentEndTime: patient.appointmentEndTime || '',
         appointmentVisitType: patient.appointmentVisitType || '',
+        appointmentTypeName: patient.appointmentTypeName || patient.appointmentVisitType || '',
         appointmentDepartment: patient.appointmentDepartment || patient.department || '',
+        appointmentDepartmentId: patient.appointmentDepartmentId || '',
+        appointmentDepartmentIds: patient.appointmentDepartmentId
+          ? [patient.appointmentDepartmentId]
+          : [],
         appointmentProvider: patient.appointmentProvider || '',
+        appointmentProviderId: patient.appointmentProviderId || '',
         appointmentReason: patient.appointmentReason || '',
         appointmentNotes: patient.appointmentNotes || '',
         status: patient.status || patient.appointmentStatus || getDefaultAppointmentStatusName(),
       });
       setDocuments(Array.isArray(patient.documents) ? patient.documents : []);
       setInsuranceList(Array.isArray(patient.insuranceList) ? patient.insuranceList : []);
+      if (Array.isArray(patient.consentSignatures) && patient.consentSignatures.length) {
+        const mapped = {};
+        patient.consentSignatures.forEach((sig) => {
+          if (!sig?.consentFormId) return;
+          mapped[sig.consentFormId] = {
+            mode: sig.signatureType === 'drawn' ? 'draw' : 'type',
+            value: sig.signatureData || '',
+            signedAt: sig.signedAt,
+            signedBy: sig.signedBy?.name || '',
+            scrolledToEnd: !!sig.scrolledToEnd,
+            nameMatched: !!sig.nameMatched,
+          };
+        });
+        setConsentSignatures(mapped);
+      } else {
+        setConsentSignatures({});
+      }
     } else if (queueDraftId) {
       const draft = getPatientQueueDraftById(queueDraftId);
       if (draft?.formData) {
@@ -907,6 +1276,7 @@ export function PatientFormContent({
     setNewDocument(emptyNewDocument());
     setDocumentFormErrors({});
     setErrors({});
+    setFormBannerErrors([]);
     setActiveTab('patient');
   }, [patient, isOpen, queueDraftId, isQuickRegistration]);
 
@@ -964,7 +1334,13 @@ export function PatientFormContent({
   ]);
 
   const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'appointmentVisitType') {
+        next.appointmentTypeName = value;
+      }
+      return next;
+    });
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: null }));
     }
@@ -1022,13 +1398,14 @@ export function PatientFormContent({
     }
 
     if (bookAppointment) {
-      validateRegistrationAppointmentFields(formData, newErrors);
-      if (formData.referringPhysicianPhone && !PHONE_REGEX.test(formData.referringPhysicianPhone)) {
-        newErrors.referringPhysicianPhone = 'Invalid phone number format';
-      }
-      if (formData.referringPhysicianFax && !PHONE_REGEX.test(formData.referringPhysicianFax)) {
-        newErrors.referringPhysicianFax = 'Invalid fax number format';
-      }
+      validateRegistrationAppointmentFields(formData, newErrors, {
+        requireProvider: true,
+        timeSlotOptions: timeSlotOptions || undefined,
+      });
+      const referringPhoneError = getPhoneValidationError(formData.referringPhysicianPhone);
+      if (referringPhoneError) newErrors.referringPhysicianPhone = referringPhoneError;
+      const referringFaxError = getPhoneValidationError(formData.referringPhysicianFax, 'Invalid fax number format');
+      if (referringFaxError) newErrors.referringPhysicianFax = referringFaxError;
     }
 
     setErrors(newErrors);
@@ -1070,6 +1447,10 @@ export function PatientFormContent({
     if (!formData.city?.trim()) newErrors.city = 'City is required';
     if (!formData.state?.trim()) newErrors.state = 'State is required';
     if (!formData.zip?.trim()) newErrors.zip = 'Zip is required';
+    else {
+      const zipError = getUsZipValidationError(formData.zip);
+      if (zipError) newErrors.zip = zipError;
+    }
     if (!formData.preferredContactMethod) {
       newErrors.preferredContactMethod = 'Preferred contact method is required';
     }
@@ -1084,7 +1465,14 @@ export function PatientFormContent({
     if (method === 'work' && !formData.workPhone?.trim()) {
       newErrors.workPhone = 'Work phone is required when work is the preferred contact method';
     }
-    if (method === 'email' && !formData.email?.trim()) {
+    if (formData.noEmail) {
+      if (!formData.noEmailReason) {
+        newErrors.noEmailReason = 'Select a reason for not having an email address';
+      }
+      if (method === 'email') {
+        newErrors.preferredContactMethod = 'Preferred contact cannot be email when No email is selected';
+      }
+    } else if (method === 'email' && !formData.email?.trim()) {
       newErrors.email = 'Email is required when email is the preferred contact method';
     }
 
@@ -1107,8 +1495,22 @@ export function PatientFormContent({
     }
     
     // Validate email format
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (!formData.noEmail && formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
+    }
+
+    if (formData.veteranStatus === 'yes' && !formData.veteranStatusDetail) {
+      newErrors.veteranStatusDetail = 'Select veteran status details';
+    }
+    if (formData.disabilityStatus === 'yes' && !formData.disabilityType) {
+      newErrors.disabilityType = 'Select a disability type';
+    }
+    if (formData.interpreterRequired && !(formData.interpreterLanguages || []).length && !formData.interpreterLanguageRequired) {
+      newErrors.interpreterLanguageRequired = 'Select at least one interpreter language';
+    }
+    if (formData.mailingSameAsResidential === false) {
+      const mailingZipError = getUsZipValidationError(formData.mailingZip);
+      if (mailingZipError) newErrors.mailingZip = mailingZipError;
     }
     }
 
@@ -1127,17 +1529,10 @@ export function PatientFormContent({
       }
     });
 
-    // Validate phone formats (basic)
-    if (formData.homePhone && !PHONE_REGEX.test(formData.homePhone)) {
-      newErrors.homePhone = 'Invalid phone number format';
-    }
-    if (formData.workPhone && !PHONE_REGEX.test(formData.workPhone)) {
-      newErrors.workPhone = 'Invalid phone number format';
-    }
-    if (formData.cellPhone && !PHONE_REGEX.test(formData.cellPhone)) {
-      newErrors.cellPhone = 'Invalid phone number format';
-    }
-    const contactPhones = [
+    [
+      ['homePhone', formData.homePhone],
+      ['workPhone', formData.workPhone],
+      ['cellPhone', formData.cellPhone],
       ['emergencyContactNumber', formData.emergencyContactNumber],
       ['secondaryEmergencyContactNumber', formData.secondaryEmergencyContactNumber],
       ['guarantorPhone', formData.guarantorPhone],
@@ -1145,33 +1540,76 @@ export function PatientFormContent({
       ['legalGuardianPhone', formData.legalGuardianPhone],
       ['primaryNextOfKinPhone', formData.primaryNextOfKinPhone],
       ['secondaryNextOfKinPhone', formData.secondaryNextOfKinPhone],
-    ];
-    contactPhones.forEach(([field, value]) => {
-      if (value && !PHONE_REGEX.test(value)) {
-        newErrors[field] = 'Invalid phone number format';
-      }
+      ['employerPhoneNumber', formData.employerPhoneNumber],
+      ['referringPhysicianPhone', formData.referringPhysicianPhone],
+    ].forEach(([field, value]) => {
+      const phoneError = getPhoneValidationError(value);
+      if (phoneError) newErrors[field] = phoneError;
     });
-    if (formData.employerPhoneNumber && !PHONE_REGEX.test(formData.employerPhoneNumber)) {
-      newErrors.employerPhoneNumber = 'Invalid phone number format';
-    }
-    if (formData.referringPhysicianPhone && !PHONE_REGEX.test(formData.referringPhysicianPhone)) {
-      newErrors.referringPhysicianPhone = 'Invalid phone number format';
-    }
-    if (formData.referringPhysicianFax && !PHONE_REGEX.test(formData.referringPhysicianFax)) {
-      newErrors.referringPhysicianFax = 'Invalid fax number format';
-    }
+    [
+      ['emergencyContactZip', formData.emergencyContactZip],
+      ['secondaryEmergencyContactZip', formData.secondaryEmergencyContactZip],
+      ['guarantorZip', formData.guarantorZip],
+      ['authorizedRepresentativeZip', formData.authorizedRepresentativeZip],
+      ['legalGuardianZip', formData.legalGuardianZip],
+      ['primaryNextOfKinZip', formData.primaryNextOfKinZip],
+      ['secondaryNextOfKinZip', formData.secondaryNextOfKinZip],
+      ['employerZip', formData.employerZip],
+    ].forEach(([field, value]) => {
+      const zipError = getUsZipValidationError(value);
+      if (zipError) newErrors[field] = zipError;
+    });
+    const referringFaxError = getPhoneValidationError(
+      formData.referringPhysicianFax,
+      'Invalid fax number format',
+    );
+    if (referringFaxError) newErrors.referringPhysicianFax = referringFaxError;
     }
 
     if (scope === 'all') {
-    if (formData.subscriberPhone && !PHONE_REGEX.test(formData.subscriberPhone)) {
-      newErrors.subscriberPhone = 'Invalid subscriber phone number format';
-    }
+    const subscriberPhoneError = getPhoneValidationError(
+      formData.subscriberPhone,
+      'Invalid subscriber phone number format',
+    );
+    if (subscriberPhoneError) newErrors.subscriberPhone = subscriberPhoneError;
     if (formData.subscriberEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.subscriberEmail)) {
       newErrors.subscriberEmail = 'Invalid subscriber email format';
     }
     if (formData.subscriberSsnLast4 && !/^\d{4}$/.test(formData.subscriberSsnLast4.replace(/\D/g, ''))) {
       newErrors.subscriberSsnLast4 = 'Enter exactly 4 digits for SSN last 4';
     }
+    if (formData.ssnLast4 && !/^\d{4}$/.test(String(formData.ssnLast4).replace(/\D/g, ''))) {
+      newErrors.ssnLast4 = 'Enter exactly 4 digits for SSN last 4';
+    }
+    if (formData.hipaaRoiEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.hipaaRoiEmail)) {
+      newErrors.hipaaRoiEmail = 'Invalid email format';
+    }
+    const subscriberZipError = getUsZipValidationError(formData.subscriberZip);
+    if (subscriberZipError) newErrors.subscriberZip = subscriberZipError;
+    const referringZipError = getUsZipValidationError(formData.referringPhysicianZip);
+    if (referringZipError) newErrors.referringPhysicianZip = referringZipError;
+    }
+
+    if (includeContacts && formData.registrationChannel === 'walk_in') {
+      if (formData.emergencyContactName?.trim()) {
+        if (!formData.emergencyContactNumber?.trim()) {
+          newErrors.emergencyContactNumber = 'Emergency contact phone is required when a name is provided';
+        }
+        if (!formData.emergencyContactRelationship) {
+          newErrors.emergencyContactRelationship = 'Emergency contact relationship is required when a name is provided';
+        }
+      }
+      if (shouldShowLegalGuardianSection(formData.dateOfBirth, formData.patientIsMinor)) {
+        if (!formData.legalGuardianName?.trim()) {
+          newErrors.legalGuardianName = 'Legal guardian name is required for minor patients';
+        }
+        if (!formData.legalGuardianRelationship) {
+          newErrors.legalGuardianRelationship = 'Legal guardian relationship is required for minor patients';
+        }
+        if (!formData.legalGuardianPhone?.trim()) {
+          newErrors.legalGuardianPhone = 'Legal guardian phone is required for minor patients';
+        }
+      }
     }
 
     let docValidation = { errors: {}, warnings: [], missingRequired: [] };
@@ -1198,6 +1636,7 @@ export function PatientFormContent({
       'legalGuardianPhone',
       'legalGuardianEmail',
       'primaryNextOfKinPhone',
+      'primaryNextOfKinRelationship',
       'secondaryNextOfKinPhone',
     ]);
     const patientErrorKeys = new Set([
@@ -1214,9 +1653,17 @@ export function PatientFormContent({
       'homePhone',
       'workPhone',
       'email',
+      'noEmailReason',
       'governmentIdNumber',
+      'ssnLast4',
+      'hipaaRoiEmail',
+      'veteranStatusDetail',
+      'disabilityType',
+      'interpreterLanguageRequired',
+      'mailingZip',
     ]);
-    let errorTab = 'patient';
+    const bannerItems = formatValidationBannerItems(newErrors);
+    let errorTab = firstValidationTab(bannerItems);
     if (Object.keys(newErrors).some((key) => documentErrorKeys.has(key))) {
       errorTab = 'documents';
     } else if (Object.keys(newErrors).some((key) => contactErrorKeys.has(key))) {
@@ -1228,6 +1675,8 @@ export function PatientFormContent({
     return {
       isValid: Object.keys(newErrors).length === 0,
       errorTab,
+      errors: newErrors,
+      bannerItems,
       documentWarnings: docValidation.warnings,
       missingRequiredDocuments: docValidation.missingRequired,
     };
@@ -1250,16 +1699,7 @@ export function PatientFormContent({
     const typeKey = formData.insuranceType || nextAvailableInsuranceType || 'primary';
     if (usedInsuranceTypeKeys.has(typeKey)) return;
 
-    const coverageDate = formData.coverageStartDate || formData.coverageEndDate || '';
-    const entry = {
-      id: `ins-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      insuranceTypeKey: typeKey,
-      insuranceType: INSURANCE_TYPE_LABELS[typeKey] || typeKey,
-      payerName: getPayerName(formData.insuranceCompany) || '—',
-      policyNumber: formData.policyNumber || '',
-      coverageDate: coverageDate || new Date().toISOString().slice(0, 10),
-      effectiveDate: formData.coverageStartDate || coverageDate || new Date().toISOString().slice(0, 10),
-    };
+    const entry = buildInsuranceListEntry(formData, getPayerName);
 
     const updatedList = [...insuranceList, entry];
     setInsuranceList(updatedList);
@@ -1281,10 +1721,38 @@ export function PatientFormContent({
     }
   }, [formData.insuranceBillingType, formData.insuranceType, usedInsuranceTypeKeys]);
 
-  const buildSubmitPayload = () => {
+  const buildSubmitPayload = async () => {
     const submitData = { ...formData };
     submitData.pronouns = resolvedPronouns();
     delete submitData.pronounsOther;
+    submitData.language = toCsvList(submitData.languages?.length ? submitData.languages : submitData.language);
+    submitData.interpreterLanguageRequired = toCsvList(
+      submitData.interpreterLanguages?.length
+        ? submitData.interpreterLanguages
+        : submitData.interpreterLanguageRequired,
+    );
+    delete submitData.languages;
+    delete submitData.interpreterLanguages;
+    delete submitData.appointmentDepartmentIds;
+    if (submitData.noEmail) {
+      submitData.email = '';
+    }
+    if (submitData.veteranStatus !== 'yes') submitData.veteranStatusDetail = '';
+    if (submitData.disabilityStatus !== 'yes') submitData.disabilityType = '';
+    if (!submitData.guarantorName && submitData.guarantorContactName) {
+      submitData.guarantorName = submitData.guarantorContactName;
+    }
+    if (!submitData.guarantorPhone && submitData.guarantorContactNumber) {
+      submitData.guarantorPhone = submitData.guarantorContactNumber;
+    }
+    delete submitData.guarantorContactName;
+    delete submitData.guarantorContactNumber;
+    if (submitData.language === 'other' && submitData.languageOther) {
+      submitData.language = submitData.languageOther;
+    }
+    if (submitData.country === 'OTHER' && submitData.countryOther) {
+      submitData.countryOther = submitData.countryOther;
+    }
     if (isQuickRegistration) {
       submitData.preferredContactMethod = 'cell';
       submitData.registrationChannel = submitData.registrationChannel || 'appointment';
@@ -1317,11 +1785,38 @@ export function PatientFormContent({
     if (submitData.insuranceBillingType !== 'self-pay') {
       submitData.paymentMethod = null;
     }
+    if (formData.policyType === 'WC' && formData.claimNumber) {
+      submitData.workersCompClaimNumber = formData.claimNumber;
+    }
+    if (formData.policyType === 'AU' && formData.claimNumber) {
+      submitData.autoAccidentClaimNumber = formData.claimNumber;
+    }
+    if (!submitData.assignedToId && user?.id) {
+      submitData.assignedToId = user.id;
+    }
 
     delete submitData.profilePhotoFileName;
     delete submitData.mrn;
-    submitData.documents = serializeDocumentsForSubmit(documents);
-    submitData.insuranceList = insuranceList;
+    submitData.documents = await serializeDocumentsForSubmit(documents);
+
+    // Include the in-progress insurance entry even if user never clicked "Add another"
+    let finalInsuranceList = [...insuranceList];
+    if (
+      submitData.insuranceBillingType === 'insurance' &&
+      submitData.insuranceCompany &&
+      (submitData.policyNumber || formData.policyNumber)
+    ) {
+      const typeKey = formData.insuranceType || 'primary';
+      const alreadyAdded = finalInsuranceList.some((item) => item.insuranceTypeKey === typeKey);
+      if (!alreadyAdded) {
+        finalInsuranceList = [
+          ...finalInsuranceList,
+          buildInsuranceListEntry(formData, getPayerName),
+        ];
+      }
+    }
+    submitData.insuranceList = finalInsuranceList;
+
     submitData.consentSignatures = Object.entries(consentSignatures).map(([consentFormId, sig]) => ({
       consentFormId,
       signatureType: sig.mode === 'draw' ? 'drawn' : 'typed',
@@ -1333,28 +1828,37 @@ export function PatientFormContent({
     return submitData;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (isQuickRegistration && activeTab === 'appointment') {
-      handleBookAppointment();
+      await handleBookAppointment();
       return;
     }
     const validation = validate();
     if (!validation.isValid) {
       setActiveTab(validation.errorTab);
+      setFormBannerErrors(
+        validation.bannerItems?.length
+          ? validation.bannerItems
+          : [{ field: 'form', text: 'Please fix the highlighted required fields before saving.' }],
+      );
+      requestAnimationFrame(() => {
+        document.querySelector('.ehr-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       return;
     }
-    onSubmit(buildSubmitPayload());
+    setFormBannerErrors([]);
+    onSubmit(await buildSubmitPayload());
   };
 
-  const handleBookAppointment = () => {
+  const handleBookAppointment = async () => {
     const validation = validateQuickRegistration({ bookAppointment: true });
     if (!validation.isValid) {
       setActiveTab(validation.errorTab);
       return;
     }
     onSubmit({
-      ...buildSubmitPayload(),
+      ...(await buildSubmitPayload()),
       bookAppointment: true,
     });
   };
@@ -1407,6 +1911,16 @@ export function PatientFormContent({
 
   return (
     <form onSubmit={handleSubmit} className="ehr-form space-y-4">
+          {formBannerErrors.length > 0 && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive space-y-2">
+              <p className="font-medium">Please fix the following validation issues:</p>
+              <ul className="list-disc space-y-1 pl-5">
+                {formBannerErrors.map((item) => (
+                  <li key={item.field}>{item.text}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             {isQuickRegistration ? (
               <TabsList className="grid w-full grid-cols-3">
@@ -1478,8 +1992,25 @@ export function PatientFormContent({
                   </div>
                 )}
 
-                {/* Row 1: First Name, Middle Name, Last Name, Suffix */}
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-5 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="prefix">Prefix</Label>
+                    <Select
+                      value={formData.prefix}
+                      onValueChange={(value) => handleChange('prefix', value)}
+                    >
+                      <SelectTrigger id="prefix" className="w-full">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PREFIX_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <RequiredFieldLabel htmlFor="firstName">First Name</RequiredFieldLabel>
                     <Input
@@ -1514,10 +2045,11 @@ export function PatientFormContent({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="suffix">Suffix</Label>
-                    <Input
-                      id="suffix"
+                    <SearchableSelect
                       value={formData.suffix}
-                      onChange={(e) => handleChange('suffix', e.target.value)}
+                      onValueChange={(value) => handleChange('suffix', value)}
+                      options={SUFFIX_OPTIONS}
+                      placeholder="Select suffix"
                     />
                   </div>
                 </div>
@@ -1583,10 +2115,42 @@ export function PatientFormContent({
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleChange('email', e.target.value)}
+                      disabled={formData.noEmail}
                       className={errors.email ? 'border-destructive' : ''}
                     />
                     {errors.email && (
                       <p className="text-xs text-destructive">{errors.email}</p>
+                    )}
+                    <div className="flex items-center space-x-2 pt-1">
+                      <Checkbox
+                        id="noEmail"
+                        checked={formData.noEmail}
+                        onCheckedChange={(checked) => {
+                          handleChange('noEmail', checked);
+                          if (checked) {
+                            handleChange('email', '');
+                          } else {
+                            handleChange('noEmailReason', '');
+                          }
+                        }}
+                      />
+                      <Label htmlFor="noEmail" className="text-sm font-normal cursor-pointer">
+                        No email
+                      </Label>
+                    </div>
+                    {formData.noEmail && (
+                      <div className="space-y-1 pt-1">
+                        <SearchableSelect
+                          value={formData.noEmailReason}
+                          onValueChange={(value) => handleChange('noEmailReason', value)}
+                          options={NO_EMAIL_REASON_OPTIONS}
+                          placeholder="Select reason for not having email"
+                          triggerClassName={errors.noEmailReason ? 'border-destructive' : ''}
+                        />
+                        {errors.noEmailReason && (
+                          <p className="text-xs text-destructive">{errors.noEmailReason}</p>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1663,8 +2227,7 @@ export function PatientFormContent({
                   />
                 </div>
 
-                {/* Row 4: City, State, Zip (required) */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <RequiredFieldLabel htmlFor="city">City</RequiredFieldLabel>
                     <Input
@@ -1677,11 +2240,11 @@ export function PatientFormContent({
                   </div>
                   <div className="space-y-2">
                     <RequiredFieldLabel htmlFor="state">State</RequiredFieldLabel>
-                    <Input
+                    <UsStateSelect
                       id="state"
                       value={formData.state}
-                      onChange={(e) => handleChange('state', e.target.value)}
-                      className={errors.state ? 'border-destructive' : ''}
+                      onChange={(value) => handleChange('state', value)}
+                      error={errors.state}
                     />
                     {errors.state && <p className="text-xs text-destructive">{errors.state}</p>}
                   </div>
@@ -1690,69 +2253,71 @@ export function PatientFormContent({
                     <Input
                       id="zip"
                       value={formData.zip}
-                      onChange={(e) => handleChange('zip', e.target.value)}
+                      onChange={(e) => handleChange('zip', normalizeUsZipInput(e.target.value))}
+                      placeholder="12345 or 12345-6789"
                       className={errors.zip ? 'border-destructive' : ''}
                     />
                     {errors.zip && <p className="text-xs text-destructive">{errors.zip}</p>}
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="county">County</Label>
+                    <Input
+                      id="county"
+                      value={formData.county}
+                      onChange={(e) => handleChange('county', e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2 max-w-xs">
-                  <Label htmlFor="country">Country</Label>
-                  <Select
-                    value={formData.country || DEFAULT_COUNTRY}
-                    onValueChange={(value) => handleChange('country', value)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRY_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4 max-w-xl">
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country</Label>
+                    <SearchableSelect
+                      value={formData.country || DEFAULT_COUNTRY}
+                      onValueChange={(value) => handleChange('country', value)}
+                      options={COUNTRY_OPTIONS}
+                      placeholder="Select country"
+                    />
+                  </div>
+                  {formData.country === 'OTHER' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="countryOther">Country name</Label>
+                      <Input
+                        id="countryOther"
+                        value={formData.countryOther}
+                        onChange={(e) => handleChange('countryOther', e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Row 5: Home Phone, Work Phone, Cell Phone */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="homePhone">Home Phone</Label>
-                    <Input
+                    <PhoneNumberInput
                       id="homePhone"
                       value={formData.homePhone}
-                      onChange={(e) => handleChange('homePhone', e.target.value)}
-                      className={errors.homePhone ? 'border-destructive' : ''}
+                      onChange={(value) => handleChange('homePhone', value)}
+                      error={errors.homePhone}
                     />
-                    {errors.homePhone && (
-                      <p className="text-xs text-destructive">{errors.homePhone}</p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="workPhone">Work Phone</Label>
-                    <Input
+                    <PhoneNumberInput
                       id="workPhone"
                       value={formData.workPhone}
-                      onChange={(e) => handleChange('workPhone', e.target.value)}
-                      className={errors.workPhone ? 'border-destructive' : ''}
+                      onChange={(value) => handleChange('workPhone', value)}
+                      error={errors.workPhone}
                     />
-                    {errors.workPhone && (
-                      <p className="text-xs text-destructive">{errors.workPhone}</p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="cellPhone">Cell Phone</Label>
-                    <Input
+                    <PhoneNumberInput
                       id="cellPhone"
                       value={formData.cellPhone}
-                      onChange={(e) => handleChange('cellPhone', e.target.value)}
-                      className={errors.cellPhone ? 'border-destructive' : ''}
+                      onChange={(value) => handleChange('cellPhone', value)}
+                      error={errors.cellPhone}
                     />
-                    {errors.cellPhone && (
-                      <p className="text-xs text-destructive">{errors.cellPhone}</p>
-                    )}
                   </div>
                 </div>
 
@@ -1787,6 +2352,23 @@ export function PatientFormContent({
                 <h3 className="text-sm font-semibold text-foreground">Identification</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
+                    <Label htmlFor="ssnLast4">Patient SSN (last 4)</Label>
+                    <Input
+                      id="ssnLast4"
+                      value={formData.ssnLast4}
+                      onChange={(e) =>
+                        handleChange('ssnLast4', e.target.value.replace(/\D/g, '').slice(0, 4))
+                      }
+                      placeholder="Last 4 digits"
+                      inputMode="numeric"
+                      maxLength={4}
+                      className={errors.ssnLast4 ? 'border-destructive' : ''}
+                    />
+                    {errors.ssnLast4 && (
+                      <p className="text-xs text-destructive">{errors.ssnLast4}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="governmentIdType">Government ID type</Label>
                     <Select
                       value={formData.governmentIdType}
@@ -1819,6 +2401,23 @@ export function PatientFormContent({
                       <p className="text-xs text-destructive">{errors.governmentIdNumber}</p>
                     )}
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="governmentIdState">ID issuing state</Label>
+                    <UsStateSelect
+                      id="governmentIdState"
+                      value={formData.governmentIdState}
+                      onChange={(value) => handleChange('governmentIdState', value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="governmentIdExpiration">ID expiration</Label>
+                    <Input
+                      id="governmentIdExpiration"
+                      type="date"
+                      value={formData.governmentIdExpiration}
+                      onChange={(e) => handleChange('governmentIdExpiration', e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1828,8 +2427,15 @@ export function PatientFormContent({
                   <div className="space-y-2">
                     <Label htmlFor="primaryCarePhysician">Primary care physician</Label>
                     <Select
-                      value={formData.primaryCarePhysician}
-                      onValueChange={(value) => handleChange('primaryCarePhysician', value)}
+                      value={formData.primaryCareProviderId || formData.primaryCarePhysician}
+                      onValueChange={(value) => {
+                        const provider = careProviders.find((item) => item.id === value);
+                        handleChange('primaryCareProviderId', value);
+                        handleChange(
+                          'primaryCarePhysician',
+                          provider ? formatProviderDisplayName(provider) : value,
+                        );
+                      }}
                       disabled={loadingCareProviders}
                     >
                       <SelectTrigger className="w-full">
@@ -1841,7 +2447,7 @@ export function PatientFormContent({
                       </SelectTrigger>
                       <SelectContent>
                         {careProviders.map((provider) => (
-                          <SelectItem key={provider.id} value={formatProviderDisplayName(provider)}>
+                          <SelectItem key={provider.id} value={provider.id}>
                             {formatProviderDisplayName(provider)}
                           </SelectItem>
                         ))}
@@ -1850,18 +2456,21 @@ export function PatientFormContent({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="birthPlace">Place of birth</Label>
-                    <Input
-                      id="birthPlace"
+                    <SearchableSelect
                       value={formData.birthPlace}
-                      onChange={(e) => handleChange('birthPlace', e.target.value)}
-                      placeholder="City, state/country"
+                      onValueChange={(value) => handleChange('birthPlace', value)}
+                      options={COUNTRY_OPTIONS}
+                      placeholder="Select country of birth"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="veteranStatus">Veteran status</Label>
                     <Select
                       value={formData.veteranStatus}
-                      onValueChange={(value) => handleChange('veteranStatus', value)}
+                      onValueChange={(value) => {
+                        handleChange('veteranStatus', value);
+                        if (value !== 'yes') handleChange('veteranStatusDetail', '');
+                      }}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select veteran status" />
@@ -1874,12 +2483,29 @@ export function PatientFormContent({
                         ))}
                       </SelectContent>
                     </Select>
+                    {formData.veteranStatus === 'yes' && (
+                      <div className="space-y-1 pt-1">
+                        <SearchableSelect
+                          value={formData.veteranStatusDetail}
+                          onValueChange={(value) => handleChange('veteranStatusDetail', value)}
+                          options={VETERAN_STATUS_DETAIL_OPTIONS}
+                          placeholder="Select veteran status details"
+                          triggerClassName={errors.veteranStatusDetail ? 'border-destructive' : ''}
+                        />
+                        {errors.veteranStatusDetail && (
+                          <p className="text-xs text-destructive">{errors.veteranStatusDetail}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="disabilityStatus">Disability status</Label>
                     <Select
                       value={formData.disabilityStatus}
-                      onValueChange={(value) => handleChange('disabilityStatus', value)}
+                      onValueChange={(value) => {
+                        handleChange('disabilityStatus', value);
+                        if (value !== 'yes') handleChange('disabilityType', '');
+                      }}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select disability status" />
@@ -1892,6 +2518,20 @@ export function PatientFormContent({
                         ))}
                       </SelectContent>
                     </Select>
+                    {formData.disabilityStatus === 'yes' && (
+                      <div className="space-y-1 pt-1">
+                        <SearchableSelect
+                          value={formData.disabilityType}
+                          onValueChange={(value) => handleChange('disabilityType', value)}
+                          options={DISABILITY_TYPE_OPTIONS}
+                          placeholder="Select disability type"
+                          triggerClassName={errors.disabilityType ? 'border-destructive' : ''}
+                        />
+                        {errors.disabilityType && (
+                          <p className="text-xs text-destructive">{errors.disabilityType}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2 col-span-2">
                     <Label htmlFor="tribalAffiliation">Tribal affiliation</Label>
@@ -1970,12 +2610,11 @@ export function PatientFormContent({
                         <SelectValue placeholder="Select race" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="american-indian">American Indian or Alaska Native</SelectItem>
-                        <SelectItem value="asian">Asian</SelectItem>
-                        <SelectItem value="black">Black or African American</SelectItem>
-                        <SelectItem value="native-hawaiian">Native Hawaiian or Other Pacific Islander</SelectItem>
-                        <SelectItem value="white">White</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
+                        {RACE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1983,21 +2622,29 @@ export function PatientFormContent({
                 {/* Row 2: Language, Interpreter Required */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="language">Language</Label>
-                    <Select
-                      value={formData.language}
-                      onValueChange={(value) => handleChange('language', value)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="english">English</SelectItem>
-                        <SelectItem value="spanish">Spanish</SelectItem>
-                        <SelectItem value="french">French</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="languages">Languages</Label>
+                    <MultiSelect
+                      id="languages"
+                      options={LANGUAGE_OPTIONS}
+                      value={
+                        formData.languages?.length
+                          ? formData.languages
+                          : formData.language
+                            ? [formData.language]
+                            : []
+                      }
+                      onChange={(values) => {
+                        handleChange('languages', values);
+                        handleChange('language', values[0] || '');
+                      }}
+                      placeholder="Select languages"
+                      searchable
+                      searchPlaceholder="Search languages..."
+                      error={Boolean(errors.languages || errors.language)}
+                    />
+                    {(errors.languages || errors.language) && (
+                      <p className="text-xs text-destructive">{errors.languages || errors.language}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="interpreterRequired">Interpreter Required</Label>
@@ -2017,22 +2664,29 @@ export function PatientFormContent({
                 {formData.interpreterRequired && (
                   <div className="grid grid-cols-1 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="interpreterLanguageRequired">Interpreter Language Required</Label>
-                      <Select
-                        value={formData.interpreterLanguageRequired}
-                        onValueChange={(value) => handleChange('interpreterLanguageRequired', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select language" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="spanish">Spanish</SelectItem>
-                          <SelectItem value="french">French</SelectItem>
-                          <SelectItem value="chinese">Chinese</SelectItem>
-                          <SelectItem value="arabic">Arabic</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="interpreterLanguages">Interpreter Language Required</Label>
+                      <MultiSelect
+                        id="interpreterLanguages"
+                        options={LANGUAGE_OPTIONS}
+                        value={
+                          formData.interpreterLanguages?.length
+                            ? formData.interpreterLanguages
+                            : formData.interpreterLanguageRequired
+                              ? parseCsvList(formData.interpreterLanguageRequired)
+                              : []
+                        }
+                        onChange={(values) => {
+                          handleChange('interpreterLanguages', values);
+                          handleChange('interpreterLanguageRequired', values.join(','));
+                        }}
+                        placeholder="Select interpreter languages"
+                        searchable
+                        searchPlaceholder="Search languages..."
+                        error={Boolean(errors.interpreterLanguageRequired)}
+                      />
+                      {errors.interpreterLanguageRequired && (
+                        <p className="text-xs text-destructive">{errors.interpreterLanguageRequired}</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2058,6 +2712,8 @@ export function PatientFormContent({
                         <SelectItem value="divorced">Divorced</SelectItem>
                         <SelectItem value="widowed">Widowed</SelectItem>
                         <SelectItem value="separated">Separated</SelectItem>
+                        <SelectItem value="domestic-partner">Domestic partner</SelectItem>
+                        <SelectItem value="unknown">Unknown</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -2082,7 +2738,7 @@ export function PatientFormContent({
                 </div>
 
                 {/* Employment Details - Show when Employed or Retired */}
-                {(formData.employmentStatus === 'employed' || formData.employmentStatus === 'retired') && (
+                {(formData.employmentStatus === 'employed' || formData.employmentStatus === 'retired' || formData.employmentStatus === 'self-employed') && (
                   <div className="space-y-4 border-t pt-4">
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase">Employment Details</h4>
                     <div className="grid grid-cols-2 gap-4">
@@ -2106,16 +2762,12 @@ export function PatientFormContent({
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="employerPhoneNumber">Employer Phone Number</Label>
-                        <Input
+                        <PhoneNumberInput
                           id="employerPhoneNumber"
                           value={formData.employerPhoneNumber}
-                          onChange={(e) => handleChange('employerPhoneNumber', e.target.value)}
-                          placeholder="(123) 123-1234"
-                          className={errors.employerPhoneNumber ? 'border-destructive' : ''}
+                          onChange={(value) => handleChange('employerPhoneNumber', value)}
+                          error={errors.employerPhoneNumber}
                         />
-                        {errors.employerPhoneNumber && (
-                          <p className="text-xs text-destructive">{errors.employerPhoneNumber}</p>
-                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-4 gap-4">
@@ -2139,11 +2791,11 @@ export function PatientFormContent({
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="employerState">State</Label>
-                        <Input
+                        <UsStateSelect
                           id="employerState"
                           value={formData.employerState}
-                          onChange={(e) => handleChange('employerState', e.target.value)}
-                          placeholder="Enter state"
+                          onChange={(value) => handleChange('employerState', value)}
+                          error={errors.employerState}
                         />
                       </div>
                       <div className="space-y-2">
@@ -2151,9 +2803,13 @@ export function PatientFormContent({
                         <Input
                           id="employerZip"
                           value={formData.employerZip}
-                          onChange={(e) => handleChange('employerZip', e.target.value)}
-                          placeholder="Enter zip"
+                          onChange={(e) => handleChange('employerZip', normalizeUsZipInput(e.target.value))}
+                          placeholder="12345 or 12345-6789"
+                          className={errors.employerZip ? 'border-destructive' : ''}
                         />
+                        {errors.employerZip && (
+                          <p className="text-xs text-destructive">{errors.employerZip}</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2169,6 +2825,13 @@ export function PatientFormContent({
                   />
                 </div>
               </div>
+
+              <PatientRegistrationExtendedFields
+                formData={formData}
+                errors={errors}
+                onChange={handleChange}
+                users={staffUsers}
+              />
                 </>
               )}
             </TabsContent>
@@ -2183,30 +2846,11 @@ export function PatientFormContent({
                 dateOfBirth={formData.dateOfBirth}
               />
 
-              {/* Guarantor Information */}
-              <div className="space-y-4 border-t pt-4">
-                <h3 className="text-sm font-semibold text-foreground">Guarantor Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="guarantorContactName">Guarantor Contact Name</Label>
-                    <Input
-                      id="guarantorContactName"
-                      value={formData.guarantorContactName}
-                      onChange={(e) => handleChange('guarantorContactName', e.target.value)}
-                      placeholder="Enter full name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="guarantorContactNumber">Guarantor Contact Number</Label>
-                    <Input
-                      id="guarantorContactNumber"
-                      value={formData.guarantorContactNumber}
-                      onChange={(e) => handleChange('guarantorContactNumber', e.target.value)}
-                      placeholder="(123) 123-1234"
-                    />
-                  </div>
-                </div>
-              </div>
+              <PatientRegistrationGuarantorFields
+                formData={formData}
+                errors={errors}
+                onChange={handleChange}
+              />
 
               {/* Primary Next of Kin */}
               <div className="space-y-4 border-t pt-4">
@@ -2223,29 +2867,24 @@ export function PatientFormContent({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="primaryNextOfKinRelationship">Relationship to Patient</Label>
-                    <Select
+                    <SearchableSelect
                       value={formData.primaryNextOfKinRelationship}
                       onValueChange={(value) => handleChange('primaryNextOfKinRelationship', value)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select relationship" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="spouse">Spouse</SelectItem>
-                        <SelectItem value="parent">Parent</SelectItem>
-                        <SelectItem value="child">Child</SelectItem>
-                        <SelectItem value="sibling">Sibling</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      options={NEXT_OF_KIN_RELATIONSHIP_OPTIONS}
+                      placeholder="Select relationship"
+                      triggerClassName={errors.primaryNextOfKinRelationship ? 'border-destructive' : ''}
+                    />
+                    {errors.primaryNextOfKinRelationship && (
+                      <p className="text-xs text-destructive">{errors.primaryNextOfKinRelationship}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="primaryNextOfKinPhone">Phone Number</Label>
-                    <Input
+                    <PhoneNumberInput
                       id="primaryNextOfKinPhone"
                       value={formData.primaryNextOfKinPhone}
-                      onChange={(e) => handleChange('primaryNextOfKinPhone', e.target.value)}
-                      placeholder="(123) 123-1234"
+                      onChange={(value) => handleChange('primaryNextOfKinPhone', value)}
+                      error={errors.primaryNextOfKinPhone}
                     />
                   </div>
                 </div>
@@ -2260,11 +2899,23 @@ export function PatientFormContent({
                 formData={formData}
                 errors={errors}
                 onChange={handleChange}
-                timeSlotOptions={APPOINTMENT_TIME_SLOT_OPTIONS}
+                timeSlotOptions={timeSlotOptions}
                 showAppointmentStatus
                 statusOptions={statusSelectOptions}
-                hideReferralSection
+                hideReferralSection={false}
                 showReferringPhysicianSection
+                departmentOptions={departmentOptions.length ? departmentOptions : undefined}
+                providerOptions={appointmentProviderOptions}
+                appointmentTypeOptions={
+                  appointmentTypeOptions.length ? appointmentTypeOptions : undefined
+                }
+                referringProviders={careProviders}
+                availableDates={availableDates}
+                availableDatesLoading={availableDatesLoading}
+                getProviderDepartmentIds={(providerId) => {
+                  const provider = careProviders.find((item) => item.id === providerId);
+                  return getProviderDepartmentIds(provider, departments);
+                }}
               />
             </TabsContent>
 
@@ -2337,7 +2988,25 @@ export function PatientFormContent({
               {formData.insuranceBillingType === 'insurance' && (
                 <>
                   <div className="space-y-4 border-t pt-4">
-                    <h3 className="text-sm font-semibold text-foreground">Primary Insurance</h3>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {formData.insuranceType === 'secondary'
+                          ? 'Secondary Insurance'
+                          : formData.insuranceType === 'tertiary'
+                            ? 'Tertiary Insurance'
+                            : 'Primary Insurance'}
+                      </h3>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled
+                        title="Eligibility check will be available in a future release"
+                      >
+                        <ShieldCheck className="h-4 w-4 mr-2" />
+                        Check Eligibility
+                      </Button>
+                    </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="insuranceType">Insurance Type</Label>
@@ -2451,22 +3120,40 @@ export function PatientFormContent({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="subscriberRelationship">Relationship to Patient</Label>
-                    <Select
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="subscriberRelationship">Relationship to Patient</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const copied = copySubscriberFromPatient(formData);
+                          setFormData((prev) => ({
+                            ...prev,
+                            ...copied,
+                            subscriberRelationship: 'self',
+                          }));
+                        }}
+                      >
+                        Copy from patient
+                      </Button>
+                    </div>
+                    <SearchableSelect
                       value={formData.subscriberRelationship}
-                      onValueChange={(value) => handleChange('subscriberRelationship', value)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select relationship" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="self">Self</SelectItem>
-                        <SelectItem value="spouse">Spouse</SelectItem>
-                        <SelectItem value="parent">Parent</SelectItem>
-                        <SelectItem value="child">Child</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      onValueChange={(value) => {
+                        handleChange('subscriberRelationship', value);
+                        if (value === 'self') {
+                          const copied = copySubscriberFromPatient(formData);
+                          setFormData((prev) => ({
+                            ...prev,
+                            ...copied,
+                            subscriberRelationship: 'self',
+                          }));
+                        }
+                      }}
+                      options={PATIENT_RELATIONSHIP_OPTIONS}
+                      placeholder="Select relationship"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="subscriberName">Subscriber Name</Label>
@@ -2505,16 +3192,12 @@ export function PatientFormContent({
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="subscriberPhone">Subscriber phone</Label>
-                    <Input
+                    <PhoneNumberInput
                       id="subscriberPhone"
                       value={formData.subscriberPhone}
-                      onChange={(e) => handleChange('subscriberPhone', e.target.value)}
-                      placeholder="(123) 123-1234"
-                      className={errors.subscriberPhone ? 'border-destructive' : ''}
+                      onChange={(value) => handleChange('subscriberPhone', value)}
+                      error={errors.subscriberPhone}
                     />
-                    {errors.subscriberPhone && (
-                      <p className="text-xs text-destructive">{errors.subscriberPhone}</p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="subscriberEmail">Subscriber email</Label>
@@ -2576,10 +3259,11 @@ export function PatientFormContent({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="subscriberState">Subscriber state</Label>
-                    <Input
+                    <UsStateSelect
                       id="subscriberState"
                       value={formData.subscriberState}
-                      onChange={(e) => handleChange('subscriberState', e.target.value)}
+                      onChange={(value) => handleChange('subscriberState', value)}
+                      error={errors.subscriberState}
                     />
                   </div>
                   <div className="space-y-2">
@@ -2587,8 +3271,13 @@ export function PatientFormContent({
                     <Input
                       id="subscriberZip"
                       value={formData.subscriberZip}
-                      onChange={(e) => handleChange('subscriberZip', e.target.value)}
+                      onChange={(e) => handleChange('subscriberZip', normalizeUsZipInput(e.target.value))}
+                      placeholder="12345 or 12345-6789"
+                      className={errors.subscriberZip ? 'border-destructive' : ''}
                     />
+                    {errors.subscriberZip && (
+                      <p className="text-xs text-destructive">{errors.subscriberZip}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2672,6 +3361,18 @@ export function PatientFormContent({
                       onChange={(e) => handleChange('authorizationNumber', e.target.value)}
                     />
                   </div>
+                  {(formData.policyType === 'WC' || formData.policyType === 'AU') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="claimNumber">
+                        {formData.policyType === 'WC' ? 'Workers’ comp claim #' : 'Auto accident claim #'}
+                      </Label>
+                      <Input
+                        id="claimNumber"
+                        value={formData.claimNumber}
+                        onChange={(e) => handleChange('claimNumber', e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2733,10 +3434,62 @@ export function PatientFormContent({
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-2">
-                                      <Button variant="ghost" size="sm">
-                                        <Eye className="h-4 w-4" />
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled
+                                        title="Eligibility check will be available in a future release"
+                                      >
+                                        <ShieldCheck className="h-4 w-4 mr-1" />
+                                        Check Eligibility
                                       </Button>
-                                      <Button variant="ghost" size="sm">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Edit insurance"
+                                        onClick={() => {
+                                          setFormData((prev) => ({
+                                            ...prev,
+                                            insuranceType: insurance.insuranceTypeKey || insurance.insuranceType || '',
+                                            insuranceCompany: insurance.insuranceProviderId || insurance.insuranceCompany || '',
+                                            policyType: insurance.policyType || '',
+                                            planName: insurance.planName || '',
+                                            policyNumber: insurance.policyNumber || insurance.memberId || '',
+                                            groupNumber: insurance.groupNumber || '',
+                                            subscriberFirstName: insurance.subscriberFirstName || '',
+                                            subscriberLastName: insurance.subscriberLastName || '',
+                                            subscriberName: insurance.subscriberName || '',
+                                            subscriberRelationship: insurance.subscriberRelationship || '',
+                                            subscriberGender: insurance.subscriberGender || '',
+                                            subscriberDateOfBirth: insurance.subscriberDateOfBirth
+                                              ? String(insurance.subscriberDateOfBirth).split('T')[0]
+                                              : '',
+                                            subscriberPhone: insurance.subscriberPhone || '',
+                                            subscriberEmail: insurance.subscriberEmail || '',
+                                            subscriberSsnLast4: insurance.subscriberSsnLast4 || '',
+                                            subscriberEmployer: insurance.subscriberEmployer || '',
+                                            subscriberAddress: insurance.subscriberAddress || '',
+                                            subscriberCity: insurance.subscriberCity || '',
+                                            subscriberState: insurance.subscriberState || '',
+                                            subscriberZip: insurance.subscriberZip || '',
+                                            coverageStartDate: insurance.coverageStartDate
+                                              ? String(insurance.coverageStartDate).split('T')[0]
+                                              : '',
+                                            coverageEndDate: insurance.coverageEndDate
+                                              ? String(insurance.coverageEndDate).split('T')[0]
+                                              : '',
+                                            copay: insurance.copay || '',
+                                            deductible: insurance.deductible || '',
+                                            coinsurancePercentage: insurance.coinsurancePercentage || '',
+                                            authorizationRequired: insurance.authorizationRequired || '',
+                                            authorizationNumber: insurance.authorizationNumber || '',
+                                            claimNumber: insurance.claimNumber || '',
+                                          }));
+                                          handleRemoveInsurance(insurance.id);
+                                        }}
+                                      >
                                         <Edit className="h-4 w-4" />
                                       </Button>
                                       <Button
@@ -3193,7 +3946,7 @@ export function PatientFormDialog({
       <DialogContent
         className={
           isQuickRegistration
-            ? 'max-h-[90vh] w-[min(calc(100vw-2rem),720px)] overflow-y-auto max-sm:min-w-0 sm:min-w-[560px] sm:max-w-[720px]'
+            ? 'max-h-[90vh] w-[min(calc(100vw-2rem),900px)] overflow-y-auto max-sm:min-w-0 sm:min-w-[min(900px,calc(100vw-2rem))] sm:max-w-[min(900px,calc(100vw-2rem))]'
             : 'max-h-[90vh] w-[min(calc(100vw-2rem),1100px)] overflow-y-auto max-sm:min-w-0 sm:min-w-[900px] sm:max-w-none sm:w-[clamp(900px,min(92vw,1100px),1100px)]'
         }
       >

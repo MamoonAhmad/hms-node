@@ -177,7 +177,7 @@ export function UserFormDialog({ open, onOpenChange, user, onSubmit, isLoading }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[800px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="min-w-[900px] max-w-7xl w-[95vw] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {user ? 'Edit User' : 'Add User'}

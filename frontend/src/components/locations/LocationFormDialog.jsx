@@ -150,7 +150,7 @@ export function LocationFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[800px] max-w-2xl">
+      <DialogContent className="min-w-[900px] max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Edit Location' : 'Add Location'}

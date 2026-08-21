@@ -77,7 +77,7 @@ export function DateRangePicker({
         variant="outline"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
-        className="w-full justify-between font-normal h-10 px-3"
+        className="w-full justify-between font-normal h-8 px-2.5"
         aria-expanded={open}
         aria-haspopup="dialog"
       >

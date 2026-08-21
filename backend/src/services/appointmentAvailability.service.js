@@ -111,7 +111,7 @@ async function countAppointmentsInSlot(providerId, dateStr, slotStart, slotEnd, 
     where: {
       providerId,
       appointmentDate: date,
-      status: { notIn: ['Cancelled', 'No Show', 'No-Show', 'Deleted'] },
+      status: { notIn: ['Cancelled', 'No Show', 'No-Show', 'Deleted', 'Rescheduled'] },
       ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
     },
     select: { appointmentTime: true, duration: true, appointmentEndTime: true },

@@ -6,10 +6,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { formatDob } from '@/pages/patient-dashboard/patientChartUtils';
+import { formatDob } from '@/lib/patientDemographics';
 import { statusChipStyle } from '@/lib/appointmentStatuses';
-import { isHiddenFromTimeline } from '@/lib/appointmentUtils';
+import {
+  isHiddenFromTimeline,
+  canCancelAppointment,
+  canMarkNoShow,
+  canRescheduleAppointment,
+} from '@/lib/appointmentUtils';
 import { cn } from '@/lib/utils';
+import { CalendarClock, UserX, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const HOUR_HEIGHT = 80;
 const MIN_CARD_HEIGHT = 8;
@@ -18,21 +25,21 @@ const END_HOUR = 17;
 
 const statusColors = {
   Scheduled: 'bg-primary hover:bg-primary/90 border-primary',
-  'Checked-In': 'bg-yellow-500 hover:bg-yellow-600 border-yellow-600',
-  'In Progress': 'bg-purple-500 hover:bg-purple-600 border-purple-600',
-  Completed: 'bg-green-500 hover:bg-green-600 border-green-600',
+  'Checked-In': 'bg-amber-500 hover:bg-amber-600 border-amber-600',
+  'In Progress': 'bg-teal-600 hover:bg-teal-700 border-teal-700',
+  Completed: 'bg-emerald-600 hover:bg-emerald-700 border-emerald-700',
   Cancelled: 'bg-red-400 hover:bg-red-500 border-red-500 opacity-60',
-  'No-Show': 'bg-gray-400 hover:bg-gray-500 border-gray-500 opacity-60',
+  'No-Show': 'bg-slate-400 hover:bg-slate-500 border-slate-500 opacity-60',
   Rescheduled: 'bg-orange-500 hover:bg-orange-600 border-orange-600',
 };
 
 const statusBadgeColors = {
   Scheduled: 'bg-primary/10 text-primary',
-  'Checked-In': 'bg-yellow-100 text-yellow-800',
-  'In Progress': 'bg-purple-100 text-purple-800',
-  Completed: 'bg-green-100 text-green-800',
+  'Checked-In': 'bg-amber-100 text-amber-900',
+  'In Progress': 'bg-teal-100 text-teal-900',
+  Completed: 'bg-emerald-100 text-emerald-800',
   Cancelled: 'bg-red-100 text-red-800',
-  'No-Show': 'bg-gray-100 text-gray-800',
+  'No-Show': 'bg-slate-100 text-slate-800',
   Rescheduled: 'bg-orange-100 text-orange-800',
 };
 
@@ -182,7 +189,11 @@ function DayTimelineView({
   onTimeSlotClick,
   onAppointmentClick,
   statusCatalog = [],
+  fullStatusCatalog = [],
   onStatusChange,
+  onCancel,
+  onNoShow,
+  onReschedule,
 }) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -287,7 +298,8 @@ function DayTimelineView({
           const columnWidth = 100 / totalColumns;
           const cardHeight = Math.max(height - 1, MIN_CARD_HEIGHT);
           const isCompact = cardHeight < 44;
-          const cardStyle = statusChipStyle(appointment.status, statusCatalog);
+          const chipCatalog = fullStatusCatalog.length ? fullStatusCatalog : statusCatalog;
+          const cardStyle = statusChipStyle(appointment.status, chipCatalog);
 
           return (
             <div
@@ -338,6 +350,46 @@ function DayTimelineView({
                     ))}
                   </SelectContent>
                 </Select>
+              )}
+              {!isCompact && cardHeight > 72 && (
+                <div className="mt-1 flex flex-wrap gap-0.5">
+                  {canCancelAppointment(appointment.status) && onCancel && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-5 w-5 bg-black/10 hover:bg-black/20"
+                      title="Cancel"
+                      onClick={() => onCancel(appointment)}
+                    >
+                      <XCircle className="h-3 w-3" />
+                    </Button>
+                  )}
+                  {canMarkNoShow(appointment.status) && onNoShow && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-5 w-5 bg-black/10 hover:bg-black/20"
+                      title="No-show"
+                      onClick={() => onNoShow(appointment)}
+                    >
+                      <UserX className="h-3 w-3" />
+                    </Button>
+                  )}
+                  {canRescheduleAppointment(appointment.status) && onReschedule && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="h-5 w-5 bg-black/10 hover:bg-black/20"
+                      title="Reschedule"
+                      onClick={() => onReschedule(appointment)}
+                    >
+                      <CalendarClock className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -537,6 +589,68 @@ function TimelineLegend({ statusCatalog = [] }) {
   );
 }
 
+function MultiProviderDayView({ appointments, selectedDate, onAppointmentClick }) {
+  const groups = useMemo(() => {
+    if (!appointments || !selectedDate) return [];
+    const dateStr = selectedDate instanceof Date ? toDateKey(selectedDate) : selectedDate;
+    const map = new Map();
+    appointments
+      .filter((apt) => getAppointmentDateKey(apt) === dateStr && !isHiddenFromTimeline(apt.status))
+      .forEach((apt) => {
+        const key =
+          apt.providerId ||
+          apt.providerRef?.id ||
+          apt.provider ||
+          'unassigned';
+        const label =
+          [apt.providerRef?.firstName, apt.providerRef?.lastName].filter(Boolean).join(' ') ||
+          apt.provider ||
+          'Unassigned';
+        if (!map.has(key)) map.set(key, { key, label, items: [] });
+        map.get(key).items.push(apt);
+      });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [appointments, selectedDate]);
+
+  if (!groups.length) {
+    return (
+      <div className="p-8 text-center text-sm text-muted-foreground">
+        No appointments for this day across providers.
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 p-4 lg:grid-cols-2 xl:grid-cols-3">
+      {groups.map((group) => (
+        <div key={group.key} className="rounded-lg border bg-muted/20">
+          <div className="border-b px-3 py-2 text-sm font-semibold">{group.label}</div>
+          <div className="space-y-2 p-3">
+            {group.items
+              .sort((a, b) => String(a.appointmentTime).localeCompare(String(b.appointmentTime)))
+              .map((apt) => (
+                <button
+                  key={apt.id}
+                  type="button"
+                  className="w-full rounded-md border bg-card px-3 py-2 text-left text-sm hover:bg-muted/40"
+                  onClick={() => onAppointmentClick?.(apt)}
+                >
+                  <div className="font-medium">
+                    {formatTimeShort(apt.appointmentTime)} · {apt.status}
+                  </div>
+                  <div className="text-muted-foreground">
+                    {[apt.patient?.firstName, apt.patient?.lastName].filter(Boolean).join(' ') ||
+                      'Patient'}
+                  </div>
+                </button>
+              ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function AppointmentTimeline({
   appointments,
   selectedDate,
@@ -545,7 +659,11 @@ export function AppointmentTimeline({
   onAppointmentClick,
   onDayClick,
   statusCatalog = [],
+  fullStatusCatalog = [],
   onStatusChange,
+  onCancel,
+  onNoShow,
+  onReschedule,
 }) {
   const headerLabel = useMemo(() => {
     if (!selectedDate) return 'Select a date';
@@ -560,6 +678,15 @@ export function AppointmentTimeline({
       return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     }
 
+    if (rangeMode === 'providers') {
+      return `${date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })} · Multi-provider`;
+    }
+
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
@@ -571,7 +698,7 @@ export function AppointmentTimeline({
   const visibleCount = useMemo(() => {
     if (!appointments || !selectedDate) return 0;
 
-    if (rangeMode === 'day') {
+    if (rangeMode === 'day' || rangeMode === 'providers') {
       return appointments.filter((apt) => getAppointmentDateKey(apt) === selectedDate).length;
     }
 
@@ -605,7 +732,18 @@ export function AppointmentTimeline({
           onTimeSlotClick={onTimeSlotClick}
           onAppointmentClick={onAppointmentClick}
           statusCatalog={statusCatalog}
+          fullStatusCatalog={fullStatusCatalog}
           onStatusChange={onStatusChange}
+          onCancel={onCancel}
+          onNoShow={onNoShow}
+          onReschedule={onReschedule}
+        />
+      )}
+      {rangeMode === 'providers' && (
+        <MultiProviderDayView
+          appointments={appointments}
+          selectedDate={selectedDate}
+          onAppointmentClick={onAppointmentClick}
         />
       )}
       {rangeMode === 'week' && (
@@ -625,7 +763,11 @@ export function AppointmentTimeline({
         />
       )}
 
-      {rangeMode === 'day' && <TimelineLegend statusCatalog={statusCatalog} />}
+      {rangeMode === 'day' && (
+        <TimelineLegend
+          statusCatalog={fullStatusCatalog.length ? fullStatusCatalog : statusCatalog}
+        />
+      )}
     </div>
   );
 }

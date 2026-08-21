@@ -46,6 +46,11 @@ async function wipeDatabase() {
 
   await prisma.$transaction(async (tx) => {
     await tx.order.deleteMany({});
+    await tx.procedureCategoryOnProcedure.deleteMany({});
+    await tx.procedure.deleteMany({});
+    await tx.procedureCategory.deleteMany({});
+    await tx.hcpcsCode.deleteMany({});
+    await tx.diagnosisCode.deleteMany({});
     await tx.appointment.deleteMany({});
     await tx.rolePermission.deleteMany({});
     await tx.role.deleteMany({});
@@ -386,6 +391,9 @@ async function runSeed() {
     ],
   });
 
+  const { seedRcmCodes } = require('./seedRcmCodes');
+  const rcmCodes = await seedRcmCodes();
+
   console.log('Done.');
   console.log('');
   console.log(`  Users              1 (${DEMO_ADMIN.email})`);
@@ -399,6 +407,9 @@ async function runSeed() {
   console.log(`  Orders             2`);
   console.log(`  Permissions       ${permissions.length}`);
   console.log(`  Roles              1 (linked to all permissions)`);
+  console.log(`  ICD-10 codes       ${rcmCodes.diagnoses.created}`);
+  console.log(`  HCPCS codes        ${rcmCodes.hcpcs.created}`);
+  console.log(`  CPT / charge master ${rcmCodes.procedures.created}`);
   console.log('');
   console.log('  Login:', DEMO_ADMIN.email, '/', DEMO_ADMIN.password);
   console.log('');

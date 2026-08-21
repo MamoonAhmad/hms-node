@@ -63,7 +63,7 @@ export function BillingProviderFormDialog({ open, onOpenChange, billingProvider,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="min-w-[800px] sm:max-w-md">
+      <DialogContent className="min-w-[900px] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{billingProvider ? 'Edit Billing Provider' : 'Add Billing Provider'}</DialogTitle>
         </DialogHeader>

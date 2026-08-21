@@ -20,7 +20,19 @@ const procedureController = {
 
   async findAll(req, res, next) {
     try {
-      const filters = pick(req.query, ['page', 'limit', 'search', 'categoryId']);
+      const filters = pick(req.query, [
+        'page',
+        'limit',
+        'search',
+        'categoryId',
+        'departmentId',
+        'status',
+        'isActive',
+        'isBillable',
+        'codeType',
+        'lookup',
+        'validOn',
+      ]);
       const result = await procedureService.findAll(filters);
       res.json({ success: true, ...result });
     } catch (error) {

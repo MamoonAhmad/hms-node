@@ -130,8 +130,8 @@ export function PhoneNumberInput({
             aria-haspopup="listbox"
             aria-controls={countryOpen ? listId : undefined}
             className={cn(
-              'flex h-10 items-center gap-1.5 rounded-l-lg border border-r-0 border-input bg-card px-2.5 text-sm transition-[border-color,box-shadow]',
-              'hover:border-[#bcc0c4] focus-visible:border-primary focus-visible:ring-primary/25 focus-visible:ring-[3px] focus-visible:outline-none',
+              'flex h-8 items-center gap-1 rounded-l-md border border-r-0 border-input bg-card px-2 text-sm transition-[border-color,box-shadow]',
+              'hover:border-primary/35 focus-visible:border-primary focus-visible:ring-primary/15 focus-visible:ring-1 focus-visible:outline-none',
               'disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60',
               invalid && 'border-destructive aria-invalid:border-destructive',
             )}
@@ -148,7 +148,7 @@ export function PhoneNumberInput({
             <div
               id={listId}
               role="listbox"
-              className="absolute left-0 top-full z-50 mt-1 w-72 rounded-lg border border-border bg-card shadow-lg"
+              className="absolute left-0 top-full z-50 mt-1 w-72 rounded-md border border-border bg-card shadow-lg"
             >
               <div className="border-b border-border p-2">
                 <div className="relative">

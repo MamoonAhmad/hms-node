@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,25 +20,39 @@ import {
 } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { BillingProviderFormDialog } from './BillingProviderFormDialog';
+import { billingProviderApi } from '@/services/api';
 
-const STORAGE_KEY = 'hms_billing_providers';
+const LEGACY_STORAGE_KEY = 'hms_billing_providers';
 
-function getStored() {
+async function importLegacyLocalStorage() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return false;
+    const rows = JSON.parse(raw);
+    if (!Array.isArray(rows) || rows.length === 0) return false;
 
-function setStored(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    for (const row of rows) {
+      if (!row.name?.trim()) continue;
+      await billingProviderApi.create({
+        name: row.name.trim(),
+        code: row.code || undefined,
+        npi: row.npi || undefined,
+        taxId: row.taxId || undefined,
+        address: row.address || undefined,
+        isActive: row.isActive !== false,
+      });
+    }
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function BillingProvidersPage() {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -46,24 +60,34 @@ export function BillingProvidersPage() {
   const [selected, setSelected] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const load = () => {
-    setItems(getStored());
-  };
+  const fetchItems = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      let res = await billingProviderApi.getAll({
+        page: 1,
+        limit: 500,
+        search: search || undefined,
+        status: 'all',
+      });
+
+      if ((res.data || []).length === 0 && localStorage.getItem(LEGACY_STORAGE_KEY)) {
+        await importLegacyLocalStorage();
+        res = await billingProviderApi.getAll({ page: 1, limit: 500, status: 'all' });
+      }
+
+      setItems(res.data || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load billing providers');
+      setItems([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search]);
 
   useEffect(() => {
-    setIsLoading(true);
-    load();
-    setIsLoading(false);
-  }, []);
-
-  const filtered = search.trim()
-    ? items.filter(
-        (r) =>
-          (r.name || '').toLowerCase().includes(search.toLowerCase()) ||
-          (r.npi || '').toLowerCase().includes(search.toLowerCase()) ||
-          (r.code || '').toLowerCase().includes(search.toLowerCase())
-      )
-    : items;
+    fetchItems();
+  }, [fetchItems]);
 
   const handleCreate = () => {
     setSelected(null);
@@ -88,23 +112,14 @@ export function BillingProvidersPage() {
   const handleFormSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      const list = getStored();
-      if (selected) {
-        const idx = list.findIndex((r) => r.id === selected.id);
-        if (idx >= 0) list[idx] = { ...list[idx], ...data, updatedAt: new Date().toISOString() };
+      if (selected?.id) {
+        await billingProviderApi.update(selected.id, data);
       } else {
-        list.push({
-          id: crypto.randomUUID(),
-          ...data,
-          isActive: data.isActive !== false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
+        await billingProviderApi.create(data);
       }
-      setStored(list);
-      load();
       setIsFormOpen(false);
       setSelected(null);
+      fetchItems();
     } catch (err) {
       alert(err.message || 'An error occurred');
     } finally {
@@ -113,14 +128,13 @@ export function BillingProvidersPage() {
   };
 
   const handleDeleteConfirm = async () => {
-    if (!selected) return;
+    if (!selected?.id) return;
     setIsSubmitting(true);
     try {
-      const list = getStored().filter((r) => r.id !== selected.id);
-      setStored(list);
-      load();
+      await billingProviderApi.delete(selected.id);
       setIsDeleteOpen(false);
       setSelected(null);
+      fetchItems();
     } catch (err) {
       alert(err.message || 'An error occurred');
     } finally {
@@ -133,7 +147,7 @@ export function BillingProvidersPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Billing Providers</h1>
-          <p className="text-muted-foreground">Manage billing providers</p>
+          <p className="text-muted-foreground">Manage billing providers used on CMS-1500 claims</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="h-4 w-4 mr-2" />
@@ -149,6 +163,12 @@ export function BillingProvidersPage() {
           className="max-w-sm"
         />
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+          {error}
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-0">
@@ -173,14 +193,14 @@ export function BillingProvidersPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : filtered.length === 0 ? (
+              ) : items.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground h-32">
                     No billing providers found
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((row) => (
+                items.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.name || '-'}</TableCell>
                     <TableCell>{row.code || '-'}</TableCell>
